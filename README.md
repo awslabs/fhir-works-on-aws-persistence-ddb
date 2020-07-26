@@ -1,4 +1,4 @@
-# aws-fhir-routing
+# aws-fhir-persistence-ddb
 
 ## Purpose
 
