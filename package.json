@@ -1,6 +1,6 @@
 {
   "name": "aws-fhir-persistence-ddb",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "FHIR Solution hosted on AWS Lambda",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
