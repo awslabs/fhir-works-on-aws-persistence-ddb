@@ -9,7 +9,7 @@ import { GenericResponse } from '@awslabs/aws-fhir-interface';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 import { DynamoDBConverter } from './dynamoDb';
 import DOCUMENT_STATUS from './documentStatus';
-import DynamoDbUtil, { DOCUMENT_STATUS_FIELD } from './dynamoDbUtil';
+import { DynamoDbUtil, DOCUMENT_STATUS_FIELD } from './dynamoDbUtil';
 
 export default class DynamoDbHelper {
     private dynamoDb: DynamoDB;

@@ -14,7 +14,7 @@ import { utcTimeRegExp } from '../../testUtilities/regExpressions';
 import { DynamoDbBundleService } from './dynamoDbBundleService';
 import { DynamoDbDataService } from './dynamoDbDataService';
 import { DynamoDBConverter } from './dynamoDb';
-import DynamoDbUtil from './dynamoDbUtil';
+import { DynamoDbUtil } from './dynamoDbUtil';
 
 AWSMock.setSDKInstance(AWS);
 

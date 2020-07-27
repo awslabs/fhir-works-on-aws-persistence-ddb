@@ -6,7 +6,7 @@
 /* eslint-disable class-methods-use-this */
 import { BatchReadWriteRequest } from '@awslabs/aws-fhir-interface';
 import { DynamoDBConverter } from '../src/dataServices/dynamoDb';
-import DynamoDbUtil, { DOCUMENT_STATUS_FIELD } from '../src/dataServices/dynamoDbUtil';
+import { DynamoDbUtil, DOCUMENT_STATUS_FIELD } from '../src/dataServices/dynamoDbUtil';
 import DOCUMENT_STATUS from '../src/dataServices/documentStatus';
 import { timeFromEpochInMsRegExp, utcTimeRegExp, uuidRegExp } from './regExpressions';
 import DynamoDbParamBuilder from '../src/dataServices/dynamoDbParamBuilder';

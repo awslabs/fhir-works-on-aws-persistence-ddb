@@ -10,7 +10,7 @@ import DOCUMENT_STATUS from './documentStatus';
 export const DOCUMENT_STATUS_FIELD = 'documentStatus';
 export const LOCK_END_TS_FIELD = 'lockEndTs';
 
-export default class DynamoDbUtil {
+export class DynamoDbUtil {
     // Exp. de5b1d47-2780-4508-9273-4e0ec133ee3a_1
     static captureIdFromFullIdRegExp = /([-\w]+)_\w+/;
 

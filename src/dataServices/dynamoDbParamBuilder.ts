@@ -4,7 +4,7 @@
  */
 
 import { DynamoDBConverter, RESOURCE_TABLE } from './dynamoDb';
-import DdbUtil, { DOCUMENT_STATUS_FIELD, LOCK_END_TS_FIELD } from './dynamoDbUtil';
+import { DynamoDbUtil, DOCUMENT_STATUS_FIELD, LOCK_END_TS_FIELD } from './dynamoDbUtil';
 import DOCUMENT_STATUS from './documentStatus';
 import { SEPARATOR } from '../constants';
 
@@ -84,7 +84,7 @@ export default class DynamoDbParamBuilder {
                 TableName: RESOURCE_TABLE,
                 Key: DynamoDBConverter.marshall({
                     resourceType,
-                    id: DdbUtil.generateFullId(id, vid),
+                    id: DynamoDbUtil.generateFullId(id, vid),
                 }),
             },
         };
@@ -103,7 +103,7 @@ export default class DynamoDbParamBuilder {
     }
 
     static buildPutAvailableItemParam(item: any, id: string, vid: string) {
-        const newItem = DdbUtil.prepItemForDdbInsert(item, id, vid, DOCUMENT_STATUS.AVAILABLE);
+        const newItem = DynamoDbUtil.prepItemForDdbInsert(item, id, vid, DOCUMENT_STATUS.AVAILABLE);
         return {
             TableName: RESOURCE_TABLE,
             Item: DynamoDBConverter.marshall(newItem),

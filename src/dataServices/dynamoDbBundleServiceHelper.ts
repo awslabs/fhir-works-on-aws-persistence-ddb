@@ -11,7 +11,7 @@ import {
     TypeOperation,
     SystemOperation,
 } from '@awslabs/aws-fhir-interface';
-import DdbUtil from './dynamoDbUtil';
+import { DynamoDbUtil } from './dynamoDbUtil';
 import DOCUMENT_STATUS from './documentStatus';
 import { DynamoDBConverter, RESOURCE_TABLE } from './dynamoDb';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
@@ -35,7 +35,7 @@ export default class DynamoDbBundleServiceHelper {
                         id = request.id;
                     }
                     const vid = '1';
-                    const Item = DdbUtil.prepItemForDdbInsert(request.resource, id, vid, DOCUMENT_STATUS.PENDING);
+                    const Item = DynamoDbUtil.prepItemForDdbInsert(request.resource, id, vid, DOCUMENT_STATUS.PENDING);
 
                     createRequests.push({
                         Put: {
@@ -59,7 +59,7 @@ export default class DynamoDbBundleServiceHelper {
                     // When updating a resource, create a new Document for that resource
                     const { id } = request.resource;
                     const vid = ((parseInt(idToVersionId[id], 10) || 0) + 1).toString();
-                    const Item = DdbUtil.prepItemForDdbInsert(request.resource, id, vid, DOCUMENT_STATUS.PENDING);
+                    const Item = DynamoDbUtil.prepItemForDdbInsert(request.resource, id, vid, DOCUMENT_STATUS.PENDING);
 
                     updateRequests.push({
                         Put: {
@@ -83,7 +83,7 @@ export default class DynamoDbBundleServiceHelper {
                     // Mark documentStatus as PENDING_DELETE
                     const { id } = request;
                     const vid = idToVersionId[id];
-                    const idWithVersion = DdbUtil.generateFullId(id, vid);
+                    const idWithVersion = DynamoDbUtil.generateFullId(id, vid);
                     deleteRequests.push(
                         DynamoDbParamBuilder.buildUpdateDocumentStatusParam(
                             DOCUMENT_STATUS.LOCKED,
@@ -106,7 +106,7 @@ export default class DynamoDbBundleServiceHelper {
                     // Read the latest version with documentStatus = "LOCKED"
                     const { id } = request;
                     const vid = idToVersionId[id];
-                    const idWithVersion = DdbUtil.generateFullId(id, vid);
+                    const idWithVersion = DynamoDbUtil.generateFullId(id, vid);
                     readRequests.push({
                         Get: {
                             TableName: RESOURCE_TABLE,
@@ -199,7 +199,7 @@ export default class DynamoDbBundleServiceHelper {
                     throw new Error('Failed to fulfill all READ requests');
                 }
                 item = DynamoDBConverter.unmarshall(item);
-                item = DdbUtil.cleanItem(item);
+                item = DynamoDbUtil.cleanItem(item);
 
                 stagingResponse.resource = item;
                 stagingResponse.lastModified = item?.meta?.lastUpdated ? item.meta.lastUpdated : '';

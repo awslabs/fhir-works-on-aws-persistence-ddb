@@ -17,7 +17,7 @@ import {
     chunkArray,
 } from '@awslabs/aws-fhir-interface';
 import DOCUMENT_STATUS from './documentStatus';
-import DdbUtil from './dynamoDbUtil';
+import { DynamoDbUtil } from './dynamoDbUtil';
 import DynamoDbBundleServiceHelper, { ItemRequest } from './dynamoDbBundleServiceHelper';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 
@@ -197,7 +197,7 @@ export class DynamoDbBundleService implements Bundle {
         const addLockRequests = [];
         for (let i = 0; i < itemResponses.length; i += 1) {
             const itemResponse = itemResponses[i];
-            const idWithVersion = DdbUtil.generateFullId(
+            const idWithVersion = DynamoDbUtil.generateFullId(
                 itemResponse.resource.id,
                 itemResponse.resource.meta.versionId,
             );
@@ -281,7 +281,7 @@ export class DynamoDbBundleService implements Bundle {
                 null,
                 newStatus,
                 lockedItem.resourceType,
-                DdbUtil.generateFullId(lockedItem.id, lockedItem.vid || '0'),
+                DynamoDbUtil.generateFullId(lockedItem.id, lockedItem.vid || '0'),
             );
         });
 
@@ -340,11 +340,11 @@ export class DynamoDbBundleService implements Bundle {
     ) {
         const fullIdToLockedItem: Record<string, ItemRequest> = {};
         originalLocks.forEach(lockedItem => {
-            fullIdToLockedItem[DdbUtil.generateFullId(lockedItem.id, lockedItem.vid || '0')] = lockedItem;
+            fullIdToLockedItem[DynamoDbUtil.generateFullId(lockedItem.id, lockedItem.vid || '0')] = lockedItem;
         });
 
         locksToRemove.forEach(itemToRemove => {
-            const fullId = DdbUtil.generateFullId(itemToRemove.id, itemToRemove.vid);
+            const fullId = DynamoDbUtil.generateFullId(itemToRemove.id, itemToRemove.vid);
             if (fullIdToLockedItem[fullId]) {
                 delete fullIdToLockedItem[fullId];
             }

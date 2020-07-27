@@ -26,7 +26,7 @@ import {
 import { DynamoDb, DynamoDBConverter } from './dynamoDb';
 import DOCUMENT_STATUS from './documentStatus';
 import { DynamoDbBundleService } from './dynamoDbBundleService';
-import DdbUtil from './dynamoDbUtil';
+import { DynamoDbUtil } from './dynamoDbUtil';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 import DynamoDbHelper from './dynamoDbHelper';
 
@@ -48,7 +48,7 @@ export class DynamoDbDataService implements Persistence {
 
     async vReadResource(request: vReadResourceRequest): Promise<GenericResponse> {
         const { resourceType, id, vid } = request;
-        const params = DynamoDbParamBuilder.buildGetItemParam(resourceType, DdbUtil.generateFullId(id, vid));
+        const params = DynamoDbParamBuilder.buildGetItemParam(resourceType, DynamoDbUtil.generateFullId(id, vid));
         let item = null;
         try {
             const result = await DynamoDb.getItem(params).promise();
@@ -67,7 +67,7 @@ export class DynamoDbDataService implements Persistence {
                 message: 'Resource not found',
             };
         }
-        item = DdbUtil.cleanItem(item);
+        item = DynamoDbUtil.cleanItem(item);
         return {
             success: true,
             message: 'Resource found',
@@ -86,7 +86,7 @@ export class DynamoDbDataService implements Persistence {
         try {
             await DynamoDb.putItem(params).promise();
             const newItem = DynamoDBConverter.unmarshall(params.Item);
-            item = DdbUtil.cleanItem(newItem);
+            item = DynamoDbUtil.cleanItem(newItem);
         } catch (e) {
             const errorMessageOnFailure = 'Failed to create new resource';
             console.error(errorMessageOnFailure, e);
@@ -123,7 +123,7 @@ export class DynamoDbDataService implements Persistence {
             DOCUMENT_STATUS.AVAILABLE,
             DOCUMENT_STATUS.DELETED,
             resourceType,
-            DdbUtil.generateFullId(id, vid),
+            DynamoDbUtil.generateFullId(id, vid),
         ).Update;
 
         try {
