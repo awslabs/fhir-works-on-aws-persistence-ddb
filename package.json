@@ -23,13 +23,13 @@
     "aws-elasticsearch-connector": "^8.2.0",
     "aws-sdk": "^2.610.0",
     "mime-types": "^2.1.26",
+    "@types/promise.allsettled": "^1.0.3",
     "uuid": "^3.4.0"
   },
   "devDependencies": {
     "@types/jest": "^25.1.1",
     "@types/mime-types": "^2.1.0",
     "@types/node": "^12",
-    "@types/promise.allsettled": "^1.0.3",
     "@types/sinon": "^9.0.0",
     "@types/uuid": "^3.4.7",
     "@typescript-eslint/eslint-plugin": "^2.18.0",
