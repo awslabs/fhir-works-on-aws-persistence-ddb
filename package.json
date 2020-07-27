@@ -1,6 +1,6 @@
 {
   "name": "@awslabs/aws-fhir-persistence-ddb",
-  "version": "0.7.5",
+  "version": "0.7.6",
   "description": "FHIR Solution hosted on AWS Lambda",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -20,10 +20,10 @@
   "dependencies": {
     "@awslabs/aws-fhir-interface": "^0.7.4",
     "@elastic/elasticsearch": "7",
+    "@types/promise.allsettled": "^1.0.3",
     "aws-elasticsearch-connector": "^8.2.0",
     "aws-sdk": "^2.610.0",
     "mime-types": "^2.1.26",
-    "@types/promise.allsettled": "^1.0.3",
     "uuid": "^3.4.0"
   },
   "devDependencies": {
