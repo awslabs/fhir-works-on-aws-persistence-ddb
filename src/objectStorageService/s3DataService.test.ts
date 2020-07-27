@@ -18,7 +18,7 @@ import validV4PdfBinary from '../../sampleData/validV4PdfBinary.json';
 import validV4JpegBinary from '../../sampleData/validV4JpegBinary.json';
 import validV3JpegBinary from '../../sampleData/validV3JpegBinary.json';
 import DynamoDbDataService from '../dataServices/__mocks__/dynamoDbDataService';
-import S3DataService from './s3DataService';
+import { S3DataService } from './s3DataService';
 
 jest.mock('./s3ObjectStorageService');
 

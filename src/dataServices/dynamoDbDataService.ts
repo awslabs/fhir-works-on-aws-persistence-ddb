@@ -25,12 +25,12 @@ import {
 } from '@awslabs/aws-fhir-interface';
 import { DynamoDb, DynamoDBConverter } from './dynamoDb';
 import DOCUMENT_STATUS from './documentStatus';
-import DynamoDbBundleService from './dynamoDbBundleService';
+import { DynamoDbBundleService } from './dynamoDbBundleService';
 import DdbUtil from './dynamoDbUtil';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 import DynamoDbHelper from './dynamoDbHelper';
 
-export default class DynamoDbDataService implements Persistence {
+export class DynamoDbDataService implements Persistence {
     updateCreateSupported: boolean = false;
 
     private readonly transactionService: DynamoDbBundleService;

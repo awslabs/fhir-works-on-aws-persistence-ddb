@@ -23,7 +23,7 @@ import S3ObjectStorageService from './s3ObjectStorageService';
 
 import { SEPARATOR } from '../constants';
 
-export default class S3DataService implements Persistence {
+export class S3DataService implements Persistence {
     updateCreateSupported: boolean = false;
 
     private readonly dbPersistenceService: Persistence;

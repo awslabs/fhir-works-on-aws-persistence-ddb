@@ -11,8 +11,8 @@ import * as AWS from 'aws-sdk';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { BundleResponse, BatchReadWriteResponse } from '@awslabs/aws-fhir-interface';
 import { utcTimeRegExp } from '../../testUtilities/regExpressions';
-import DynamoDbBundleService from './dynamoDbBundleService';
-import DynamoDbDataService from './dynamoDbDataService';
+import { DynamoDbBundleService } from './dynamoDbBundleService';
+import { DynamoDbDataService } from './dynamoDbDataService';
 import { DynamoDBConverter } from './dynamoDb';
 import DynamoDbUtil from './dynamoDbUtil';
 

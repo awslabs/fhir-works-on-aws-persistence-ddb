@@ -9,7 +9,7 @@ import AWSMock from 'aws-sdk-mock';
 import { QueryInput, TransactWriteItemsInput } from 'aws-sdk/clients/dynamodb';
 import * as AWS from 'aws-sdk';
 import { BundleResponse, BatchReadWriteRequest } from '@awslabs/aws-fhir-interface';
-import DynamoDbBundleService from './dynamoDbBundleService';
+import { DynamoDbBundleService } from './dynamoDbBundleService';
 import DynamoDbUtil from './dynamoDbUtil';
 import { DynamoDBConverter } from './dynamoDb';
 import { timeFromEpochInMsRegExp, utcTimeRegExp } from '../../testUtilities/regExpressions';

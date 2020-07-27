@@ -23,7 +23,7 @@ import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 
 import DynamoDbHelper from './dynamoDbHelper';
 
-export default class DynamoDbBundleService implements Bundle {
+export class DynamoDbBundleService implements Bundle {
     private readonly MAX_TRANSACTION_SIZE: number = 25;
 
     private readonly ELAPSED_TIME_WARNING_MESSAGE =
