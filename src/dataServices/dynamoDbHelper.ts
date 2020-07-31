@@ -3,7 +3,6 @@
  *  SPDX-License-Identifier: Apache-2.0
  */
 
-// eslint-disable-next-line import/extensions
 import DynamoDB from 'aws-sdk/clients/dynamodb';
 import { GenericResponse } from '@awslabs/aws-fhir-interface';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
