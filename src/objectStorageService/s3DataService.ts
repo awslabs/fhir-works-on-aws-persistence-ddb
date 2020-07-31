@@ -4,7 +4,7 @@
  */
 
 /* eslint-disable class-methods-use-this */
-// eslint-disable-next-line import/extensions
+
 import mime from 'mime-types';
 import {
     GenericResponse,

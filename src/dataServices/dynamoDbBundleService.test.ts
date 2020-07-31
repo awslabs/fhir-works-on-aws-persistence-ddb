@@ -5,7 +5,7 @@
 
 // eslint-disable-next-line import/no-extraneous-dependencies
 import AWSMock from 'aws-sdk-mock';
-// eslint-disable-next-line import/extensions
+
 import { QueryInput, TransactWriteItemsInput } from 'aws-sdk/clients/dynamodb';
 import * as AWS from 'aws-sdk';
 import { BundleResponse, BatchReadWriteRequest } from '@awslabs/aws-fhir-interface';
