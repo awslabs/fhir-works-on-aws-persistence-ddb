@@ -4,12 +4,13 @@
  */
 
 /* eslint-disable class-methods-use-this */
-import { BatchReadWriteRequest } from '@awslabs/aws-fhir-interface';
+import { BatchReadWriteRequest } from '@awslabs/fhir-works-on-aws-interface';
 import { DynamoDBConverter } from '../src/dataServices/dynamoDb';
-import { DynamoDbUtil, DOCUMENT_STATUS_FIELD } from '../src/dataServices/dynamoDbUtil';
+import { DOCUMENT_STATUS_FIELD } from '../src/dataServices/dynamoDbUtil';
 import DOCUMENT_STATUS from '../src/dataServices/documentStatus';
 import { timeFromEpochInMsRegExp, utcTimeRegExp, uuidRegExp } from './regExpressions';
 import DynamoDbParamBuilder from '../src/dataServices/dynamoDbParamBuilder';
+import { ItemRequest } from '../src/dataServices/dynamoDbBundleServiceHelper';
 
 export default class GenerateStagingRequestsFactory {
     static getCreate(): RequestResult {
@@ -81,11 +82,11 @@ export default class GenerateStagingRequestsFactory {
             Get: {
                 TableName: '',
                 Key: {
-                    resourceType: {
-                        S: 'Patient',
-                    },
                     id: {
-                        S: DynamoDbUtil.generateFullId(id, vid),
+                        S: id,
+                    },
+                    vid: {
+                        S: vid,
                     },
                 },
             },
@@ -137,7 +138,8 @@ export default class GenerateStagingRequestsFactory {
         const nextVid = '2';
         const expectedUpdateItem: any = { ...resource };
         expectedUpdateItem[DOCUMENT_STATUS_FIELD] = DOCUMENT_STATUS.PENDING;
-        expectedUpdateItem.id = DynamoDbUtil.generateFullId(id, nextVid);
+        expectedUpdateItem.id = id;
+        expectedUpdateItem.vid = nextVid;
 
         const expectedRequest = {
             Put: {
@@ -146,11 +148,12 @@ export default class GenerateStagingRequestsFactory {
             },
         };
 
-        const expectedLock = {
+        const expectedLock: ItemRequest = {
             id: expect.stringMatching(uuidRegExp),
             vid: nextVid,
             resourceType: 'Patient',
             operation: 'update',
+            isOriginalUpdateItem: false,
         };
 
         const expectedStagingResponse = {
@@ -188,8 +191,8 @@ export default class GenerateStagingRequestsFactory {
         const expectedRequest = DynamoDbParamBuilder.buildUpdateDocumentStatusParam(
             DOCUMENT_STATUS.LOCKED,
             DOCUMENT_STATUS.PENDING_DELETE,
-            'Patient',
-            DynamoDbUtil.generateFullId(id, vid),
+            id,
+            vid,
         );
 
         expectedRequest.Update.ExpressionAttributeValues[':currentTs'].N = expect.stringMatching(

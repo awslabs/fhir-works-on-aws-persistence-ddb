@@ -4,7 +4,7 @@
  */
 
 import uuidv4 from 'uuid/v4';
-import { BatchReadWriteResponse, TypeOperation } from '@awslabs/aws-fhir-interface';
+import { BatchReadWriteResponse, TypeOperation } from '@awslabs/fhir-works-on-aws-interface';
 import DynamoDbParamBuilder from '../src/dataServices/dynamoDbParamBuilder';
 
 export default class GenerateRollbackRequestsFactory {
@@ -27,7 +27,8 @@ export default class GenerateRollbackRequestsFactory {
                     div: '<div xmlns="http://www.w3.org/1999/xhtml"><p></p></div>',
                     status: 'generated',
                 },
-                id: '47135b80-b721-430b-9d4b-1557edc64947_1',
+                id: '47135b80-b721-430b-9d4b-1557edc64947',
+                vid,
                 name: [
                     {
                         family: 'Langard',
@@ -57,7 +58,7 @@ export default class GenerateRollbackRequestsFactory {
         let expectedResult: any = {};
         if (operation === 'create' || operation === 'update') {
             expectedResult = {
-                transactionRequests: [DynamoDbParamBuilder.buildDeleteParam(id, vid, resourceType)],
+                transactionRequests: [DynamoDbParamBuilder.buildDeleteParam(id, vid)],
                 itemsToRemoveFromLock: [
                     {
                         id,
