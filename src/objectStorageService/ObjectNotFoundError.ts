@@ -10,6 +10,7 @@ export default class ObjectNotFoundError extends Error {
         const msg = message || 'Object not found';
         // Node Error class requires passing a string message to the parent class
         super(msg);
+        Object.setPrototypeOf(this, ObjectNotFoundError.prototype);
         this.filename = filename;
         this.name = this.constructor.name;
     }
