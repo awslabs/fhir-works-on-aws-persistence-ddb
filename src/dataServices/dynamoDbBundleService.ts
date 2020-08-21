@@ -4,7 +4,6 @@
  */
 
 /* eslint-disable class-methods-use-this */
-
 import DynamoDB from 'aws-sdk/clients/dynamodb';
 import {
     BatchRequest,
@@ -15,9 +14,9 @@ import {
     BatchReadWriteErrorType,
     Bundle,
     chunkArray,
-} from '@awslabs/aws-fhir-interface';
+    ResourceNotFoundError,
+} from '@awslabs/fhir-works-on-aws-interface';
 import DOCUMENT_STATUS from './documentStatus';
-import { DynamoDbUtil } from './dynamoDbUtil';
 import DynamoDbBundleServiceHelper, { ItemRequest } from './dynamoDbBundleServiceHelper';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 
@@ -168,20 +167,27 @@ export class DynamoDbBundleService implements Bundle {
         const lockedItems: ItemRequest[] = [];
 
         // We need to read the items so we can find the versionId of each item
-        const itemReadPromises = itemsToLock.map(itemToLock => {
+        const itemReadPromises = itemsToLock.map(async itemToLock => {
             const projectionExpression = 'id, resourceType, meta';
-            return this.dynamoDbHelper.getMostRecentResource(
-                itemToLock.resourceType,
-                itemToLock.id,
-                projectionExpression,
-            );
+            try {
+                return await this.dynamoDbHelper.getMostRecentResource(
+                    itemToLock.resourceType,
+                    itemToLock.id,
+                    projectionExpression,
+                );
+            } catch (e) {
+                if (e instanceof ResourceNotFoundError) {
+                    return e;
+                }
+                throw e;
+            }
         });
         const itemResponses = await Promise.all(itemReadPromises);
 
         const idItemsFailedToRead: string[] = [];
         for (let i = 0; i < itemResponses.length; i += 1) {
             const itemResponse = itemResponses[i];
-            if (!itemResponse.success) {
+            if (itemResponse instanceof ResourceNotFoundError) {
                 idItemsFailedToRead.push(`${itemsToLock[i].resourceType}/${itemsToLock[i].id}`);
             }
         }
@@ -197,14 +203,16 @@ export class DynamoDbBundleService implements Bundle {
         const addLockRequests = [];
         for (let i = 0; i < itemResponses.length; i += 1) {
             const itemResponse = itemResponses[i];
-            const idWithVersion = DynamoDbUtil.generateFullId(
-                itemResponse.resource.id,
-                itemResponse.resource.meta.versionId,
-            );
+            if (itemResponse instanceof ResourceNotFoundError) {
+                // eslint-disable-next-line no-continue
+                continue;
+            }
+            const { resourceType, id, meta } = itemResponse.resource;
+
             const lockedItem: ItemRequest = {
-                resourceType: itemResponse.resource.resourceType,
-                id: itemResponse.resource.id,
-                vid: itemResponse.resource.meta.versionId,
+                resourceType,
+                id,
+                vid: meta.versionId,
                 operation: allNonCreateRequests[i].operation,
             };
             if (lockedItem.operation === 'update') {
@@ -216,8 +224,8 @@ export class DynamoDbBundleService implements Bundle {
                 DynamoDbParamBuilder.buildUpdateDocumentStatusParam(
                     DOCUMENT_STATUS.AVAILABLE,
                     DOCUMENT_STATUS.LOCKED,
-                    itemResponse.resource.resourceType,
-                    idWithVersion,
+                    id,
+                    meta.versionId,
                 ),
             );
         }
@@ -280,8 +288,8 @@ export class DynamoDbBundleService implements Bundle {
             return DynamoDbParamBuilder.buildUpdateDocumentStatusParam(
                 null,
                 newStatus,
-                lockedItem.resourceType,
-                DynamoDbUtil.generateFullId(lockedItem.id, lockedItem.vid || '0'),
+                lockedItem.id,
+                lockedItem.vid || '0',
             );
         });
 
@@ -334,17 +342,21 @@ export class DynamoDbBundleService implements Bundle {
         }
     }
 
+    private generateFullId(id: string, vid: string) {
+        return `${id}_${vid}`;
+    }
+
     private removeLocksFromArray(
         originalLocks: ItemRequest[],
         locksToRemove: { id: string; vid: string; resourceType: string }[],
     ) {
         const fullIdToLockedItem: Record<string, ItemRequest> = {};
         originalLocks.forEach(lockedItem => {
-            fullIdToLockedItem[DynamoDbUtil.generateFullId(lockedItem.id, lockedItem.vid || '0')] = lockedItem;
+            fullIdToLockedItem[this.generateFullId(lockedItem.id, lockedItem.vid || '0')] = lockedItem;
         });
 
         locksToRemove.forEach(itemToRemove => {
-            const fullId = DynamoDbUtil.generateFullId(itemToRemove.id, itemToRemove.vid);
+            const fullId = this.generateFullId(itemToRemove.id, itemToRemove.vid);
             if (fullIdToLockedItem[fullId]) {
                 delete fullIdToLockedItem[fullId];
             }

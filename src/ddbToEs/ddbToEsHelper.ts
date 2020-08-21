@@ -7,7 +7,6 @@ import { Client } from '@elastic/elasticsearch';
 import AWS from 'aws-sdk';
 // @ts-ignore
 import { AmazonConnection, AmazonTransport } from 'aws-elasticsearch-connector';
-// eslint-disable-next-line import/no-unresolved
 import allSettled from 'promise.allsettled';
 import PromiseParamAndId, { PromiseType } from './promiseParamAndId';
 import { DOCUMENT_STATUS_FIELD } from '../dataServices/dynamoDbUtil';
@@ -68,19 +67,24 @@ export default class DdbToEsHelper {
         }
     }
 
+    // eslint-disable-next-line class-methods-use-this
+    private generateFullId(id: string, vid: string) {
+        return `${id}_${vid}`;
+    }
+
     // Getting promise params for actual deletion of the record from ES
     // eslint-disable-next-line class-methods-use-this
     getDeleteRecordPromiseParam(image: any): PromiseParamAndId {
         const lowercaseResourceType = image.resourceType.toLowerCase();
 
-        const { id } = image;
-
+        const { id, vid } = image;
+        const compositeId = this.generateFullId(id, vid);
         return {
             promiseParam: {
                 index: lowercaseResourceType,
-                id,
+                id: compositeId,
             },
-            id,
+            id: compositeId,
             type: 'delete',
         };
     }
@@ -102,11 +106,13 @@ export default class DdbToEsHelper {
         if (newImage[DOCUMENT_STATUS_FIELD] === DOCUMENT_STATUS.AVAILABLE) {
             type = 'upsert-AVAILABLE';
         }
+        const { id, vid } = newImage;
+        const compositeId = this.generateFullId(id, vid);
         return {
-            id: newImage.id,
+            id: compositeId,
             promiseParam: {
                 index: lowercaseResourceType,
-                id: newImage.id,
+                id: compositeId,
                 body: {
                     doc: newImage,
                     doc_as_upsert: true,

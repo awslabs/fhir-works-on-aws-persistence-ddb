@@ -3,7 +3,7 @@
  *  SPDX-License-Identifier: Apache-2.0
  */
 
-import { BatchReadWriteRequest, BatchReadWriteResponse } from '@awslabs/aws-fhir-interface';
+import { BatchReadWriteRequest, BatchReadWriteResponse } from '@awslabs/fhir-works-on-aws-interface';
 import DynamoDbBundleServiceHelper from './dynamoDbBundleServiceHelper';
 import { DynamoDBConverter } from './dynamoDb';
 import GenerateStagingRequestsFactory from '../../testUtilities/GenerateStagingRequestsFactory';
@@ -235,7 +235,8 @@ describe('populateBundleEntryResponseWithReadResult', () => {
 
         const firstReadItem = {
             resourceType: 'Patient',
-            id: '47135b80-b721-430b-9d4b-1557edc64947_1',
+            id: '47135b80-b721-430b-9d4b-1557edc64947',
+            vid: '1',
             name: [
                 {
                     family: 'Jameson',
@@ -248,7 +249,8 @@ describe('populateBundleEntryResponseWithReadResult', () => {
 
         const secondReadItem = {
             resourceType: 'Patient',
-            id: 'vdo49rks-cie9-dkd3-coe0-djei03d83i30_1',
+            id: 'vdo49rks-cie9-dkd3-coe0-djei03d83i30',
+            vid: '1',
             name: [
                 {
                     family: 'Smith',
