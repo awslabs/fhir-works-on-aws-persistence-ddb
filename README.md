@@ -1,22 +1,22 @@
-# aws-fhir-persistence-ddb
+# fhir-works-on-aws-persistence-ddb
 
 ## Purpose
 
-Please visit [aws-fhir-solution](https://github.com/awslabs/aws-fhir-solution) for overall vision of the project and for more context.
+Please visit [fhir-works-on-aws-deployment](https://github.com/awslabs/fhir-works-on-aws-deployment) for overall vision of the project and for more context.
 
-This package is an implementation of the persistence & bundle interfaces of the fhir interface. It is responsible for executing CRUD based requests from the router. To use and deploy this component (with the other default components) please follow the overall [README](https://github.com/awslabs/aws-fhir-solution)
+This package is an implementation of the persistence & bundle interfaces of the fhir interface. It is responsible for executing CRUD based requests from the router. To use and deploy this component (with the other default components) please follow the overall [README](https://github.com/awslabs/fhir-works-on-aws-deployment)
 
 ## Usage
 
-For usage please add this package to your `package.json` file and install as a dependency. For usage examples please see the [deployment component](https://github.com/awslabs/aws-fhir-solution)
+For usage please add this package to your `package.json` file and install as a dependency. For usage examples please see the [deployment component](https://github.com/awslabs/fhir-works-on-aws-deployment)
 
 ## Dependency tree
 
 This package is dependent on:
 
-- [interface component](https://github.com/awslabs/aws-fhir-interface)
+- [interface component](https://github.com/awslabs/fhir-works-on-aws-interface)
   - This package defines the interface we are trying to use
-- [deployment component](https://github.com/awslabs/aws-fhir-solution)
+- [deployment component](https://github.com/awslabs/fhir-works-on-aws-deployment)
   - This package deploys this and all the default components
 
 ## Known issues
