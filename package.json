@@ -1,7 +1,7 @@
 {
-  "name": "@awslabs/aws-fhir-persistence-ddb",
+  "name": "@awslabs/fhir-works-on-aws-persistence-ddb",
   "version": "0.9.1",
-  "description": "FHIR Solution hosted on AWS Lambda",
+  "description": "FHIR Works on AWS persistence's DynamoDB implementation",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "author": "amzn",
@@ -65,5 +65,5 @@
   "publishConfig": {
     "registry": "https://npm.pkg.github.com/"
   },
-  "repository": "git://github.com/awslabs/aws-fhir-persistence-ddb.git"
+  "repository": "git://github.com/awslabs/fhir-works-on-aws-persistence-ddb.git"
 }
