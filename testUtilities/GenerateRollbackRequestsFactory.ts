@@ -4,7 +4,7 @@
  */
 
 import uuidv4 from 'uuid/v4';
-import { BatchReadWriteResponse, TypeOperation } from '@awslabs/fhir-works-on-aws-interface';
+import { BatchReadWriteResponse, TypeOperation } from 'fhir-works-on-aws-interface';
 import DynamoDbParamBuilder from '../src/dataServices/dynamoDbParamBuilder';
 
 export default class GenerateRollbackRequestsFactory {

@@ -9,7 +9,7 @@ import {
     BatchReadWriteResponse,
     TypeOperation,
     SystemOperation,
-} from '@awslabs/fhir-works-on-aws-interface';
+} from 'fhir-works-on-aws-interface';
 import { DynamoDbUtil } from './dynamoDbUtil';
 import DOCUMENT_STATUS from './documentStatus';
 import { DynamoDBConverter, RESOURCE_TABLE } from './dynamoDb';

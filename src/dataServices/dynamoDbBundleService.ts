@@ -15,7 +15,7 @@ import {
     Bundle,
     chunkArray,
     ResourceNotFoundError,
-} from '@awslabs/fhir-works-on-aws-interface';
+} from 'fhir-works-on-aws-interface';
 import DOCUMENT_STATUS from './documentStatus';
 import DynamoDbBundleServiceHelper, { ItemRequest } from './dynamoDbBundleServiceHelper';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';

@@ -18,7 +18,7 @@ import {
     ConditionalDeleteResourceRequest,
     FhirVersion,
     ResourceNotFoundError,
-} from '@awslabs/fhir-works-on-aws-interface';
+} from 'fhir-works-on-aws-interface';
 
 import S3ObjectStorageService from './s3ObjectStorageService';
 import ObjectNotFoundError from './ObjectNotFoundError';

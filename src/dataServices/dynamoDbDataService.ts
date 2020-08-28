@@ -23,7 +23,7 @@ import {
     generateMeta,
     clone,
     ResourceVersionNotFoundError,
-} from '@awslabs/fhir-works-on-aws-interface';
+} from 'fhir-works-on-aws-interface';
 import { DynamoDb, DynamoDBConverter } from './dynamoDb';
 import DOCUMENT_STATUS from './documentStatus';
 import { DynamoDbBundleService } from './dynamoDbBundleService';
