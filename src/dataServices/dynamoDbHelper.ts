@@ -4,7 +4,7 @@
  */
 
 import DynamoDB from 'aws-sdk/clients/dynamodb';
-import { GenericResponse, ResourceNotFoundError } from '@awslabs/fhir-works-on-aws-interface';
+import { GenericResponse, ResourceNotFoundError } from 'fhir-works-on-aws-interface';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 import { DynamoDBConverter } from './dynamoDb';
 import DOCUMENT_STATUS from './documentStatus';

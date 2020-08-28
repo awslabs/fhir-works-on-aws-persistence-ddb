@@ -1,10 +1,19 @@
 {
-  "name": "@awslabs/fhir-works-on-aws-persistence-ddb",
-  "version": "0.9.3",
+  "name": "fhir-works-on-aws-persistence-ddb",
+  "version": "1.0.0",
   "description": "FHIR Works on AWS persistence DynamoDB implementation",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
-  "author": "amzn",
+  "author": {
+    "name": "Amazon Web Services",
+    "email": "fhir-works-on-aws-dev@amazon.com",
+    "url": "https://aws.amazon.com/"
+  },
+  "contributors": [
+    "Robert Smayda <smayda@amazon.com>",
+    "Tim Nguyen <thingut@amazon.com>",
+    "Nestor Carvantes <nestorba@amazon.com>"
+  ],
   "license": "Apache-2.0",
   "scripts": {
     "lint": "eslint . --ext .ts,.tsx",
@@ -18,13 +27,14 @@
     "local": "node ."
   },
   "dependencies": {
-    "@awslabs/fhir-works-on-aws-interface": "^0.9.3",
+    "fhir-works-on-aws-interface": "^1.0.0",
     "@elastic/elasticsearch": "7",
     "aws-elasticsearch-connector": "^8.2.0",
     "aws-sdk": "^2.610.0",
     "mime-types": "^2.1.26",
     "promise.allsettled": "^1.0.2",
-    "uuid": "^3.4.0"
+    "uuid": "^3.4.0",
+    "prepublish": "tsc"
   },
   "devDependencies": {
     "@types/jest": "^25.1.1",
@@ -65,5 +75,11 @@
   "publishConfig": {
     "registry": "https://npm.pkg.github.com/"
   },
-  "repository": "git://github.com/awslabs/fhir-works-on-aws-persistence-ddb.git"
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/awslabs/fhir-works-on-aws-persistence-ddb.git"
+  },
+  "engines": {
+    "node": ">=12.0.0"
+  }
 }

@@ -3,7 +3,7 @@
  *  SPDX-License-Identifier: Apache-2.0
  */
 
-import { BatchReadWriteRequest, BatchReadWriteResponse } from '@awslabs/fhir-works-on-aws-interface';
+import { BatchReadWriteRequest, BatchReadWriteResponse } from 'fhir-works-on-aws-interface';
 import DynamoDbBundleServiceHelper from './dynamoDbBundleServiceHelper';
 import { DynamoDBConverter } from './dynamoDb';
 import GenerateStagingRequestsFactory from '../../testUtilities/GenerateStagingRequestsFactory';

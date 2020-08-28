@@ -9,7 +9,7 @@ import AWSMock from 'aws-sdk-mock';
 import { QueryInput } from 'aws-sdk/clients/dynamodb';
 import * as AWS from 'aws-sdk';
 // eslint-disable-next-line import/no-extraneous-dependencies
-import { BundleResponse, BatchReadWriteResponse } from '@awslabs/fhir-works-on-aws-interface';
+import { BundleResponse, BatchReadWriteResponse } from 'fhir-works-on-aws-interface';
 import { utcTimeRegExp } from '../../testUtilities/regExpressions';
 import { DynamoDbBundleService } from './dynamoDbBundleService';
 import { DynamoDbDataService } from './dynamoDbDataService';

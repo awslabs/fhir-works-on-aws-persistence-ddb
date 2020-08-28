@@ -15,7 +15,7 @@ import {
     generateMeta,
     ResourceNotFoundError,
     ResourceVersionNotFoundError,
-} from '@awslabs/fhir-works-on-aws-interface';
+} from 'fhir-works-on-aws-interface';
 import validV4PdfBinary from '../../sampleData/validV4PdfBinary.json';
 import validV4JpegBinary from '../../sampleData/validV4JpegBinary.json';
 import validV3JpegBinary from '../../sampleData/validV3JpegBinary.json';

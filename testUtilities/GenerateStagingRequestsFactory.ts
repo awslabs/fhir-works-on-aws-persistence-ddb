@@ -4,7 +4,7 @@
  */
 
 /* eslint-disable class-methods-use-this */
-import { BatchReadWriteRequest } from '@awslabs/fhir-works-on-aws-interface';
+import { BatchReadWriteRequest } from 'fhir-works-on-aws-interface';
 import { DynamoDBConverter } from '../src/dataServices/dynamoDb';
 import { DOCUMENT_STATUS_FIELD } from '../src/dataServices/dynamoDbUtil';
 import DOCUMENT_STATUS from '../src/dataServices/documentStatus';

@@ -3,7 +3,7 @@
  *  SPDX-License-Identifier: Apache-2.0
  */
 
-import { clone } from '@awslabs/fhir-works-on-aws-interface';
+import { clone } from 'fhir-works-on-aws-interface';
 import { DynamoDbUtil, DOCUMENT_STATUS_FIELD, LOCK_END_TS_FIELD, VID_FIELD } from './dynamoDbUtil';
 import DOCUMENT_STATUS from './documentStatus';
 import { timeFromEpochInMsRegExp, utcTimeRegExp } from '../../testUtilities/regExpressions';
