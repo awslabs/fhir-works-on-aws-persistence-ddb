@@ -24,7 +24,8 @@
     "test-coverage": "jest --coverage",
     "release": "yarn run build && yarn run lint && yarn run test",
     "clean": "rm -rf build/* node_modules/* dist/* .serverless/* .nyc_output/* lib/*",
-    "local": "node ."
+    "local": "node .",
+    "prepublish": "tsc"
   },
   "dependencies": {
     "fhir-works-on-aws-interface": "^1.0.0",
@@ -33,8 +34,7 @@
     "aws-sdk": "^2.610.0",
     "mime-types": "^2.1.26",
     "promise.allsettled": "^1.0.2",
-    "uuid": "^3.4.0",
-    "prepublish": "tsc"
+    "uuid": "^3.4.0"
   },
   "devDependencies": {
     "@types/jest": "^25.1.1",
