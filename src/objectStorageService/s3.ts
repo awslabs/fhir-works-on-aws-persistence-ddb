@@ -3,17 +3,12 @@
  *  SPDX-License-Identifier: Apache-2.0
  */
 
-import AWS from 'aws-sdk';
+import AWS from '../AWS';
 
 const { IS_OFFLINE } = process.env;
 
 let binaryBucket = process.env.FHIR_BINARY_BUCKET || '';
 if (IS_OFFLINE === 'true') {
-    AWS.config.update({
-        region: 'us-west-2',
-        accessKeyId: process.env.ACCESS_KEY,
-        secretAccessKey: process.env.SECRET_KEY,
-    });
     binaryBucket = process.env.OFFLINE_BINARY_BUCKET || '';
 }
 
