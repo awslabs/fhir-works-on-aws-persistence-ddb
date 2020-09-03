@@ -23,6 +23,8 @@ import {
     generateMeta,
     clone,
     ResourceVersionNotFoundError,
+    InitiateExportRequest,
+    GetExportStatusResponse,
 } from 'fhir-works-on-aws-interface';
 import { DynamoDb, DynamoDBConverter } from './dynamoDb';
 import DOCUMENT_STATUS from './documentStatus';
@@ -135,6 +137,21 @@ export class DynamoDbDataService implements Persistence {
             message: 'Resource updated',
             resource: item,
         };
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async initiateExport(initiateExportRequest: InitiateExportRequest): Promise<string> {
+        throw new Error('method not implemented');
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async cancelExport(jobId: string): Promise<void> {
+        throw new Error('Method not implemented.');
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async getExportStatus(jobId: string): Promise<GetExportStatusResponse> {
+        throw new Error('Method not implemented.');
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
