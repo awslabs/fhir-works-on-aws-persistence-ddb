@@ -18,9 +18,8 @@ import {
     ConditionalDeleteResourceRequest,
     FhirVersion,
     ResourceNotFoundError,
-    R4Resource,
-    ExportJobStatus,
-    ExportRequestGranularity,
+    InitiateExportRequest,
+    GetExportStatusResponse,
 } from 'fhir-works-on-aws-interface';
 
 import S3ObjectStorageService from './s3ObjectStorageService';
@@ -142,6 +141,21 @@ export class S3DataService implements Persistence {
         throw new Error('Method not implemented.');
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async initiateExport(initiateExportRequest: InitiateExportRequest): Promise<string> {
+        throw new Error('method not implemented');
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async cancelExport(jobId: string): Promise<void> {
+        throw new Error('Method not implemented.');
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async getExportStatus(jobId: string): Promise<GetExportStatusResponse> {
+        throw new Error('Method not implemented.');
+    }
+
     private getFileName(id: string, versionId: string, contentType: string) {
         const fileExtension = mime.extension(contentType);
         return `${id}${SEPARATOR}${versionId}.${fileExtension}`;
@@ -164,32 +178,5 @@ export class S3DataService implements Persistence {
         binary.presignedGetUrl = presignedGetUrlResponse.message;
 
         return { message: 'Item found', resource: binary };
-    }
-
-    async initiateExport(
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        requesterUserId: string,
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        requestGranularity: ExportRequestGranularity,
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        requestQueryParams: { _outputFormat?: string; _since?: number; _type?: string },
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        transactionTime: number,
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        groupId?: string,
-    ): Promise<string> {
-        throw new Error('method not implemented');
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    cancelExport(jobId: string): Promise<string> {
-        throw new Error('Method not implemented.');
-    }
-
-    getExportStatus(
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        jobId: ExportJobStatus,
-    ): Promise<{ jobStatus: string; exportedFileUrls: Record<R4Resource, [string]> }> {
-        throw new Error('Method not implemented.');
     }
 }
