@@ -23,6 +23,9 @@ import {
     generateMeta,
     clone,
     ResourceVersionNotFoundError,
+    ExportJobStatus,
+    R4Resource,
+    ExportRequestGranularity,
 } from 'fhir-works-on-aws-interface';
 import { DynamoDb, DynamoDBConverter } from './dynamoDb';
 import DOCUMENT_STATUS from './documentStatus';
@@ -159,6 +162,33 @@ export class DynamoDbDataService implements Persistence {
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     conditionalDeleteResource(request: ConditionalDeleteResourceRequest, queryParams: any): Promise<GenericResponse> {
+        throw new Error('Method not implemented.');
+    }
+
+    async initiateExport(
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        requesterUserId: string,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        requestGranularity: ExportRequestGranularity,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        requestQueryParams: { _outputFormat?: string; _since?: number; _type?: string },
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        transactionTime: number,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        groupId?: string,
+    ): Promise<string> {
+        throw new Error('method not implemented');
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    cancelExport(jobId: string): Promise<string> {
+        throw new Error('Method not implemented.');
+    }
+
+    getExportStatus(
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        jobId: ExportJobStatus,
+    ): Promise<{ jobStatus: string; exportedFileUrls: Record<R4Resource, [string]> }> {
         throw new Error('Method not implemented.');
     }
 }
