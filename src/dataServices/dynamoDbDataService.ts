@@ -5,8 +5,6 @@
 
 /* eslint-disable class-methods-use-this */
 
-import DynamoDB from 'aws-sdk/clients/dynamodb';
-
 import uuidv4 from 'uuid/v4';
 import {
     GenericResponse,
@@ -25,15 +23,23 @@ import {
     ResourceVersionNotFoundError,
     InitiateExportRequest,
     GetExportStatusResponse,
+    BulkDataAccess,
+    InvalidResourceError,
+    ResourceNotFoundError,
 } from 'fhir-works-on-aws-interface';
-import { DynamoDb, DynamoDBConverter } from './dynamoDb';
+// import { TooManyConcurrentExportRequestsError } from 'fhir-works-on-aws-interface/lib/errors/TooManyConcurrentExportRequestsError';
+import { DynamoDB } from 'aws-sdk';
+import { TooManyConcurrentExportRequestsError } from 'fhir-works-on-aws-interface/lib/errors/TooManyConcurrentExportRequestsError';
+import { UnauthorizedAccessError } from 'fhir-works-on-aws-interface/lib/errors/UnauthorizedAccessError';
+import { GetItemOutput } from 'aws-sdk/clients/dynamodb';
+import { DynamoDb, DynamoDBConverter, RESOURCE_TABLE } from './dynamoDb';
 import DOCUMENT_STATUS from './documentStatus';
 import { DynamoDbBundleService } from './dynamoDbBundleService';
-import { DynamoDbUtil } from './dynamoDbUtil';
+import { DOCUMENT_STATUS_FIELD, DynamoDbUtil, LOCK_END_TS_FIELD } from './dynamoDbUtil';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 import DynamoDbHelper from './dynamoDbHelper';
 
-export class DynamoDbDataService implements Persistence {
+export class DynamoDbDataService implements Persistence, BulkDataAccess {
     updateCreateSupported: boolean = false;
 
     private readonly transactionService: DynamoDbBundleService;
@@ -139,19 +145,93 @@ export class DynamoDbDataService implements Persistence {
         };
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async initiateExport(initiateExportRequest: InitiateExportRequest): Promise<string> {
-        throw new Error('method not implemented');
+        await this.throttleExportRequestsIfNeeded(initiateExportRequest.requesterUserId);
+        // Create new export job
+        const jobId = uuidv4();
+
+        // TODO: Start Export Job Step Function
+        const params = DynamoDbParamBuilder.buildPutCreateExportRequest(jobId, initiateExportRequest, '');
+        await DynamoDb.putItem(params).promise();
+        return jobId;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    async cancelExport(jobId: string): Promise<void> {
-        throw new Error('Method not implemented.');
+    async throttleExportRequestsIfNeeded(requesterUserId: string) {
+        const MAXIMUM_SYSTEM_LEVEL_CONCURRENT_REQUESTS = 6;
+        const MAXIMUM_CONCURRENT_REQUEST_PER_USER = 3;
+
+        const queryJobStatusParam = DynamoDbParamBuilder.buildQueryExportRequestJobStatus('in-progress');
+        const jobStatusResponse = await DynamoDb.query(queryJobStatusParam).promise();
+
+        if (jobStatusResponse.Items) {
+            const numberOfConcurrentUserRequest = jobStatusResponse.Items.filter(item => {
+                return DynamoDBConverter.unmarshall(item).requesterUserId === requesterUserId;
+            }).length;
+            if (
+                numberOfConcurrentUserRequest >= MAXIMUM_CONCURRENT_REQUEST_PER_USER ||
+                jobStatusResponse.Items.length >= MAXIMUM_SYSTEM_LEVEL_CONCURRENT_REQUESTS
+            ) {
+                throw new TooManyConcurrentExportRequestsError();
+            }
+        }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    async getExportStatus(jobId: string): Promise<GetExportStatusResponse> {
-        throw new Error('Method not implemented.');
+    async cancelExport(jobId: string, requesterUserId: string): Promise<void> {
+        await this.throttleExportRequestsIfNeeded(requesterUserId);
+
+        const jobDetailsParam = DynamoDbParamBuilder.buildGetExportRequestJob(jobId);
+        const jobDetailsResponse = await DynamoDb.getItem(jobDetailsParam).promise();
+        await this.checkIfUserHasAccessToExportJob(jobDetailsResponse, jobId, requesterUserId);
+
+        const params = DynamoDbParamBuilder.buildUpdateExportRequestJobStatus(jobId, 'canceling');
+        await DynamoDb.updateItem(params).promise();
+    }
+
+    async getExportStatus(jobId: string, requesterUserId: string): Promise<GetExportStatusResponse> {
+        await this.throttleExportRequestsIfNeeded(requesterUserId);
+        const jobDetailsParam = DynamoDbParamBuilder.buildGetExportRequestJob(jobId);
+        const jobDetailsResponse = await DynamoDb.getItem(jobDetailsParam).promise();
+        await this.checkIfUserHasAccessToExportJob(jobDetailsResponse, jobId, requesterUserId);
+
+        const item = DynamoDBConverter.unmarshall(<DynamoDB.AttributeMap>jobDetailsResponse.Item);
+
+        const {
+            jobStatus,
+            s3PresignedUrls,
+            transactionTime,
+            exportType,
+            outputFormat,
+            since,
+            type,
+            groupId,
+            errorArray = [],
+            errorMessage = '',
+        } = item;
+
+        const getExportStatusResponse: GetExportStatusResponse = {
+            jobStatus,
+            exportedFileUrls: s3PresignedUrls,
+            transactionTime,
+            exportType,
+            outputFormat,
+            since,
+            type,
+            groupId,
+            errorArray,
+            errorMessage,
+        };
+
+        return getExportStatusResponse;
+    }
+
+    async checkIfUserHasAccessToExportJob(response: GetItemOutput, jobId: string, requesterUserId: string) {
+        if (!response.Item) {
+            throw new ResourceNotFoundError('export-job', jobId);
+        }
+        const jobRequesterUserId = DynamoDBConverter.unmarshall(response.Item).requesterUserId;
+        if (jobRequesterUserId !== requesterUserId) {
+            throw new UnauthorizedAccessError();
+        }
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
