@@ -169,7 +169,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
 
         if (jobStatusResponse.Items) {
             const numberOfConcurrentUserRequest = jobStatusResponse.Items.filter(item => {
-                return DynamoDBConverter.unmarshall(item).requesterUserId === requesterUserId;
+                return DynamoDBConverter.unmarshall(item).jobOwnerId === requesterUserId;
             }).length;
             if (
                 numberOfConcurrentUserRequest >= MAXIMUM_CONCURRENT_REQUEST_PER_USER ||
@@ -180,24 +180,29 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
         }
     }
 
-    async cancelExport(jobId: string, requesterUserId: string): Promise<void> {
+    async cancelExport(jobId: string): Promise<void> {
         const jobDetailsParam = DynamoDbParamBuilder.buildGetExportRequestJob(jobId);
         const jobDetailsResponse = await this.dynamoDb.getItem(jobDetailsParam).promise();
-        await this.checkIfUserHasAccessToExportJob(jobDetailsResponse, jobId, requesterUserId);
+        if (!jobDetailsResponse.Item) {
+            throw new ResourceNotFoundError('$export', jobId);
+        }
 
         const params = DynamoDbParamBuilder.buildUpdateExportRequestJobStatus(jobId, 'canceling');
         await this.dynamoDb.updateItem(params).promise();
     }
 
-    async getExportStatus(jobId: string, requesterUserId: string): Promise<GetExportStatusResponse> {
+    async getExportStatus(jobId: string): Promise<GetExportStatusResponse> {
         const jobDetailsParam = DynamoDbParamBuilder.buildGetExportRequestJob(jobId);
         const jobDetailsResponse = await this.dynamoDb.getItem(jobDetailsParam).promise();
-        await this.checkIfUserHasAccessToExportJob(jobDetailsResponse, jobId, requesterUserId);
+        if (!jobDetailsResponse.Item) {
+            throw new ResourceNotFoundError('$export', jobId);
+        }
 
         const item = DynamoDBConverter.unmarshall(<DynamoDB.AttributeMap>jobDetailsResponse.Item);
 
         const {
             jobStatus,
+            jobOwnerId,
             s3PresignedUrls,
             transactionTime,
             exportType,
@@ -210,6 +215,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
         } = item;
 
         const getExportStatusResponse: GetExportStatusResponse = {
+            jobOwnerId,
             jobStatus,
             exportedFileUrls: s3PresignedUrls,
             transactionTime,
@@ -223,16 +229,6 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
         };
 
         return getExportStatusResponse;
-    }
-
-    async checkIfUserHasAccessToExportJob(response: GetItemOutput, jobId: string, requesterUserId: string) {
-        if (!response.Item) {
-            throw new ResourceNotFoundError('$export', jobId);
-        }
-        const jobRequesterUserId = DynamoDBConverter.unmarshall(response.Item).requesterUserId;
-        if (jobRequesterUserId !== requesterUserId) {
-            throw new UnauthorizedAccessError();
-        }
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars

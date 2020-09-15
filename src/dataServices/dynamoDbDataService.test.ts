@@ -16,7 +16,6 @@ import {
     ResourceNotFoundError,
 } from 'fhir-works-on-aws-interface';
 import { TooManyConcurrentExportRequestsError } from 'fhir-works-on-aws-interface/lib/errors/TooManyConcurrentExportRequestsError';
-import { UnauthorizedAccessError } from 'fhir-works-on-aws-interface/lib/errors/UnauthorizedAccessError';
 import each from 'jest-each';
 import { utcTimeRegExp } from '../../testUtilities/regExpressions';
 import { DynamoDbBundleService } from './dynamoDbBundleService';
@@ -137,7 +136,7 @@ describe('initiateExport', () => {
         // Return an export request that is in-progress
         AWSMock.mock('DynamoDB', 'query', (params: QueryInput, callback: Function) => {
             callback(null, {
-                Items: [DynamoDBConverter.marshall({ requesterUserId: 'userId-1', jobStatus: 'in-progress' })],
+                Items: [DynamoDBConverter.marshall({ jobOwnerId: 'userId-1', jobStatus: 'in-progress' })],
             });
         });
 
@@ -158,8 +157,8 @@ describe('initiateExport', () => {
         AWSMock.mock('DynamoDB', 'query', (params: QueryInput, callback: Function) => {
             callback(null, {
                 Items: [
-                    DynamoDBConverter.marshall({ requesterUserId: 'userId-2', jobStatus: 'in-progress' }),
-                    DynamoDBConverter.marshall({ requesterUserId: 'userId-3', jobStatus: 'in-progress' }),
+                    DynamoDBConverter.marshall({ jobOwnerId: 'userId-2', jobStatus: 'in-progress' }),
+                    DynamoDBConverter.marshall({ jobOwnerId: 'userId-3', jobStatus: 'in-progress' }),
                 ],
             });
         });
@@ -195,7 +194,7 @@ describe('cancelExport', () => {
 
         const jobId = '2a937fe2-8bb1-442b-b9be-434c94f30e15';
         // OPERATE
-        await dynamoDbDataService.cancelExport(jobId, 'userId-1');
+        await dynamoDbDataService.cancelExport(jobId);
 
         // CHECK
         expect(updateJobSpy.getCall(0).args[0]).toMatchObject(
@@ -229,10 +228,7 @@ describe('getExportStatus', () => {
         const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
 
         // OPERATE
-        const exportStatus = await dynamoDbDataService.getExportStatus(
-            '2a937fe2-8bb1-442b-b9be-434c94f30e15',
-            'userId-1',
-        );
+        const exportStatus = await dynamoDbDataService.getExportStatus('2a937fe2-8bb1-442b-b9be-434c94f30e15');
 
         // CHECK
         expect(exportStatus).toMatchObject({
@@ -250,31 +246,6 @@ describe('getExportStatus', () => {
     });
 });
 
-each(['cancelExport', 'getExportStatus']).test(
-    "%s:Request not authorized because requesterUserId does not match job's requesterUserId",
-    async (testMethod: string) => {
-        // BUILD
-        AWSMock.mock('DynamoDB', 'getItem', (params: QueryInput, callback: Function) => {
-            callback(null, {
-                Item: DynamoDBConverter.marshall({ requesterUserId: 'userId-1', jobStatus: 'in-progress' }),
-            });
-        });
-
-        const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
-
-        try {
-            // OPERATE
-            if (testMethod === 'cancelExport') {
-                await dynamoDbDataService.cancelExport('2a937fe2-8bb1-442b-b9be-434c94f30e15', 'userId-2');
-            } else {
-                await dynamoDbDataService.getExportStatus('2a937fe2-8bb1-442b-b9be-434c94f30e15', 'userId-2');
-            }
-        } catch (e) {
-            expect(e).toMatchObject(new UnauthorizedAccessError());
-        }
-    },
-);
-
 each(['cancelExport', 'getExportStatus']).test('%s:Unable to find job', async (testMethod: string) => {
     // BUILD
     AWSMock.mock('DynamoDB', 'getItem', (params: QueryInput, callback: Function) => {
@@ -287,9 +258,9 @@ each(['cancelExport', 'getExportStatus']).test('%s:Unable to find job', async (t
     try {
         // OPERATE
         if (testMethod === 'cancelExport') {
-            await dynamoDbDataService.cancelExport(jobId, 'userId-2');
+            await dynamoDbDataService.cancelExport(jobId);
         } else {
-            await dynamoDbDataService.getExportStatus(jobId, 'userId-2');
+            await dynamoDbDataService.getExportStatus(jobId);
         }
     } catch (e) {
         expect(e).toMatchObject(new ResourceNotFoundError('$export', jobId));

@@ -116,7 +116,7 @@ export default class DynamoDbParamBuilder {
     ) {
         const item = {
             jobId,
-            requesterUserId: initiateExportRequest.requesterUserId,
+            jobOwnerId: initiateExportRequest.requesterUserId,
             exportType: initiateExportRequest.exportType,
             groupId: initiateExportRequest.groupId ?? '',
             outputFormat: initiateExportRequest.outputFormat ?? 'ndjson',
