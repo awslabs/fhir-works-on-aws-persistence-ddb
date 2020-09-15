@@ -24,18 +24,16 @@ import {
     InitiateExportRequest,
     GetExportStatusResponse,
     BulkDataAccess,
-    InvalidResourceError,
     ResourceNotFoundError,
 } from 'fhir-works-on-aws-interface';
-// import { TooManyConcurrentExportRequestsError } from 'fhir-works-on-aws-interface/lib/errors/TooManyConcurrentExportRequestsError';
 import { DynamoDB } from 'aws-sdk';
 import { TooManyConcurrentExportRequestsError } from 'fhir-works-on-aws-interface/lib/errors/TooManyConcurrentExportRequestsError';
 import { UnauthorizedAccessError } from 'fhir-works-on-aws-interface/lib/errors/UnauthorizedAccessError';
 import { GetItemOutput } from 'aws-sdk/clients/dynamodb';
-import { DynamoDb, DynamoDBConverter, RESOURCE_TABLE } from './dynamoDb';
+import { DynamoDBConverter } from './dynamoDb';
 import DOCUMENT_STATUS from './documentStatus';
 import { DynamoDbBundleService } from './dynamoDbBundleService';
-import { DOCUMENT_STATUS_FIELD, DynamoDbUtil, LOCK_END_TS_FIELD } from './dynamoDbUtil';
+import { DynamoDbUtil } from './dynamoDbUtil';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 import DynamoDbHelper from './dynamoDbHelper';
 
@@ -46,7 +44,11 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
 
     private readonly dynamoDbHelper: DynamoDbHelper;
 
+    private readonly dynamoDb: DynamoDB;
+
+    // Allow Mocking DDB
     constructor(dynamoDb: DynamoDB) {
+        this.dynamoDb = dynamoDb;
         this.dynamoDbHelper = new DynamoDbHelper(dynamoDb);
         this.transactionService = new DynamoDbBundleService(dynamoDb);
     }
@@ -58,7 +60,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
     async vReadResource(request: vReadResourceRequest): Promise<GenericResponse> {
         const { resourceType, id, vid } = request;
         const params = DynamoDbParamBuilder.buildGetItemParam(id, vid);
-        const result = await DynamoDb.getItem(params).promise();
+        const result = await this.dynamoDb.getItem(params).promise();
         if (result.Item === undefined) {
             throw new ResourceVersionNotFoundError(resourceType, id, vid);
         }
@@ -78,7 +80,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
         item.meta = generateMeta('1');
 
         const params = DynamoDbParamBuilder.buildPutAvailableItemParam(item, id || uuidv4(), resource.meta.versionId);
-        await DynamoDb.putItem(params).promise();
+        await this.dynamoDb.putItem(params).promise();
         const newItem = DynamoDBConverter.unmarshall(params.Item);
         item = DynamoDbUtil.cleanItem(newItem);
         return {
@@ -104,7 +106,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
             id,
             vid,
         ).Update;
-        await DynamoDb.updateItem(updateStatusToDeletedParam).promise();
+        await this.dynamoDb.updateItem(updateStatusToDeletedParam).promise();
         return {
             success: true,
             message: `Successfully deleted ResourceType: ${resourceType}, Id: ${id}, VersionId: ${vid}`,
@@ -151,17 +153,19 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
         const jobId = uuidv4();
 
         // TODO: Start Export Job Step Function
+        // const stepFunctionArn = await StartStepFunctionAndGetStepFunctionArn
+
         const params = DynamoDbParamBuilder.buildPutCreateExportRequest(jobId, initiateExportRequest, '');
-        await DynamoDb.putItem(params).promise();
+        await this.dynamoDb.putItem(params).promise();
         return jobId;
     }
 
     async throttleExportRequestsIfNeeded(requesterUserId: string) {
-        const MAXIMUM_SYSTEM_LEVEL_CONCURRENT_REQUESTS = 6;
-        const MAXIMUM_CONCURRENT_REQUEST_PER_USER = 3;
+        const MAXIMUM_SYSTEM_LEVEL_CONCURRENT_REQUESTS = 2;
+        const MAXIMUM_CONCURRENT_REQUEST_PER_USER = 1;
 
         const queryJobStatusParam = DynamoDbParamBuilder.buildQueryExportRequestJobStatus('in-progress');
-        const jobStatusResponse = await DynamoDb.query(queryJobStatusParam).promise();
+        const jobStatusResponse = await this.dynamoDb.query(queryJobStatusParam).promise();
 
         if (jobStatusResponse.Items) {
             const numberOfConcurrentUserRequest = jobStatusResponse.Items.filter(item => {
@@ -177,20 +181,17 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
     }
 
     async cancelExport(jobId: string, requesterUserId: string): Promise<void> {
-        await this.throttleExportRequestsIfNeeded(requesterUserId);
-
         const jobDetailsParam = DynamoDbParamBuilder.buildGetExportRequestJob(jobId);
-        const jobDetailsResponse = await DynamoDb.getItem(jobDetailsParam).promise();
+        const jobDetailsResponse = await this.dynamoDb.getItem(jobDetailsParam).promise();
         await this.checkIfUserHasAccessToExportJob(jobDetailsResponse, jobId, requesterUserId);
 
         const params = DynamoDbParamBuilder.buildUpdateExportRequestJobStatus(jobId, 'canceling');
-        await DynamoDb.updateItem(params).promise();
+        await this.dynamoDb.updateItem(params).promise();
     }
 
     async getExportStatus(jobId: string, requesterUserId: string): Promise<GetExportStatusResponse> {
-        await this.throttleExportRequestsIfNeeded(requesterUserId);
         const jobDetailsParam = DynamoDbParamBuilder.buildGetExportRequestJob(jobId);
-        const jobDetailsResponse = await DynamoDb.getItem(jobDetailsParam).promise();
+        const jobDetailsResponse = await this.dynamoDb.getItem(jobDetailsParam).promise();
         await this.checkIfUserHasAccessToExportJob(jobDetailsResponse, jobId, requesterUserId);
 
         const item = DynamoDBConverter.unmarshall(<DynamoDB.AttributeMap>jobDetailsResponse.Item);
@@ -226,7 +227,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
 
     async checkIfUserHasAccessToExportJob(response: GetItemOutput, jobId: string, requesterUserId: string) {
         if (!response.Item) {
-            throw new ResourceNotFoundError('export-job', jobId);
+            throw new ResourceNotFoundError('$export', jobId);
         }
         const jobRequesterUserId = DynamoDBConverter.unmarshall(response.Item).requesterUserId;
         if (jobRequesterUserId !== requesterUserId) {

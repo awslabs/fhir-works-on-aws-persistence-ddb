@@ -165,11 +165,9 @@ export default class DynamoDbParamBuilder {
     static buildGetExportRequestJob(jobId: string) {
         const params = {
             TableName: EXPORT_REQUEST_TABLE,
-            Key: {
-                jobId: {
-                    S: jobId,
-                },
-            },
+            Key: DynamoDBConverter.marshall({
+                jobId,
+            }),
         };
 
         return params;
