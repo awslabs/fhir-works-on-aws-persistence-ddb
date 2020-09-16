@@ -207,6 +207,10 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
         if (['completed', 'failed'].includes(jobItem.jobStatus)) {
             throw new Error(`Job cannot be canceled because job is already in ${jobItem.jobStatus} state`);
         }
+        // A job in the canceled or canceling state doesn't need to be updated to 'canceling'
+        if (['canceled', 'canceling'].includes(jobItem.jobStatus)) {
+            return;
+        }
 
         const params = DynamoDbParamBuilder.buildUpdateExportRequestJobStatus(jobId, 'canceling');
         await this.dynamoDb.updateItem(params).promise();
