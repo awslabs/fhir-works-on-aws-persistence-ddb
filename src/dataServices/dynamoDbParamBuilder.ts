@@ -3,7 +3,13 @@
  *  SPDX-License-Identifier: Apache-2.0
  */
 
-import { DynamoDBConverter, RESOURCE_TABLE } from './dynamoDb';
+import { ExportJobStatus, InitiateExportRequest } from 'fhir-works-on-aws-interface';
+import {
+    DynamoDBConverter,
+    RESOURCE_TABLE,
+    EXPORT_REQUEST_TABLE,
+    EXPORT_REQUEST_TABLE_JOB_STATUS_INDEX,
+} from './dynamoDb';
 import { DynamoDbUtil, DOCUMENT_STATUS_FIELD, LOCK_END_TS_FIELD } from './dynamoDbUtil';
 import DOCUMENT_STATUS from './documentStatus';
 
@@ -101,5 +107,74 @@ export default class DynamoDbParamBuilder {
             TableName: RESOURCE_TABLE,
             Item: DynamoDBConverter.marshall(newItem),
         };
+    }
+
+    static buildPutCreateExportRequest(
+        jobId: string,
+        initiateExportRequest: InitiateExportRequest,
+        stepFunctionExecutionArn: string,
+    ) {
+        const item = {
+            jobId,
+            jobOwnerId: initiateExportRequest.requesterUserId,
+            exportType: initiateExportRequest.exportType,
+            groupId: initiateExportRequest.groupId ?? '',
+            outputFormat: initiateExportRequest.outputFormat ?? 'ndjson',
+            since: initiateExportRequest.since ?? '1800-01-01T00:00:00Z', // Default to a long time ago in the past
+            type: initiateExportRequest.type ?? '',
+            transactionTime: initiateExportRequest.transactionTime,
+            s3PresignedUrls: [],
+            stepFunctionExecutionArn,
+            jobStatus: 'in-progress',
+            jobFailedMessage: '',
+        };
+        return {
+            TableName: EXPORT_REQUEST_TABLE,
+            Item: DynamoDBConverter.marshall(item),
+        };
+    }
+
+    static buildQueryExportRequestJobStatus(jobStatus: ExportJobStatus, projectionExpression?: string) {
+        const params = {
+            TableName: EXPORT_REQUEST_TABLE,
+            KeyConditionExpression: 'jobStatus = :hkey',
+            ExpressionAttributeValues: DynamoDBConverter.marshall({
+                ':hkey': jobStatus,
+            }),
+            IndexName: EXPORT_REQUEST_TABLE_JOB_STATUS_INDEX,
+        };
+
+        if (projectionExpression) {
+            // @ts-ignore
+            params.ProjectionExpression = projectionExpression;
+        }
+
+        return params;
+    }
+
+    static buildUpdateExportRequestJobStatus(jobId: string, jobStatus: ExportJobStatus) {
+        const params = {
+            TableName: EXPORT_REQUEST_TABLE,
+            Key: DynamoDBConverter.marshall({
+                jobId,
+            }),
+            UpdateExpression: 'set jobStatus = :newStatus',
+            ExpressionAttributeValues: DynamoDBConverter.marshall({
+                ':newStatus': jobStatus,
+            }),
+        };
+
+        return params;
+    }
+
+    static buildGetExportRequestJob(jobId: string) {
+        const params = {
+            TableName: EXPORT_REQUEST_TABLE,
+            Key: DynamoDBConverter.marshall({
+                jobId,
+            }),
+        };
+
+        return params;
     }
 }

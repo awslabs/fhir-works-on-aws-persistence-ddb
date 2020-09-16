@@ -5,8 +5,6 @@
 
 /* eslint-disable class-methods-use-this */
 
-import DynamoDB from 'aws-sdk/clients/dynamodb';
-
 import uuidv4 from 'uuid/v4';
 import {
     GenericResponse,
@@ -25,22 +23,36 @@ import {
     ResourceVersionNotFoundError,
     InitiateExportRequest,
     GetExportStatusResponse,
+    BulkDataAccess,
+    ResourceNotFoundError,
+    TooManyConcurrentExportRequestsError,
+    ExportJobStatus,
 } from 'fhir-works-on-aws-interface';
-import { DynamoDb, DynamoDBConverter } from './dynamoDb';
+import { DynamoDB } from 'aws-sdk';
+import { ItemList } from 'aws-sdk/clients/dynamodb';
+import { DynamoDBConverter } from './dynamoDb';
 import DOCUMENT_STATUS from './documentStatus';
 import { DynamoDbBundleService } from './dynamoDbBundleService';
 import { DynamoDbUtil } from './dynamoDbUtil';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 import DynamoDbHelper from './dynamoDbHelper';
 
-export class DynamoDbDataService implements Persistence {
+export class DynamoDbDataService implements Persistence, BulkDataAccess {
+    private readonly MAXIMUM_SYSTEM_LEVEL_CONCURRENT_REQUESTS = 2;
+
+    private readonly MAXIMUM_CONCURRENT_REQUEST_PER_USER = 1;
+
     updateCreateSupported: boolean = false;
 
     private readonly transactionService: DynamoDbBundleService;
 
     private readonly dynamoDbHelper: DynamoDbHelper;
 
+    private readonly dynamoDb: DynamoDB;
+
+    // Allow Mocking DDB
     constructor(dynamoDb: DynamoDB) {
+        this.dynamoDb = dynamoDb;
         this.dynamoDbHelper = new DynamoDbHelper(dynamoDb);
         this.transactionService = new DynamoDbBundleService(dynamoDb);
     }
@@ -52,7 +64,7 @@ export class DynamoDbDataService implements Persistence {
     async vReadResource(request: vReadResourceRequest): Promise<GenericResponse> {
         const { resourceType, id, vid } = request;
         const params = DynamoDbParamBuilder.buildGetItemParam(id, vid);
-        const result = await DynamoDb.getItem(params).promise();
+        const result = await this.dynamoDb.getItem(params).promise();
         if (result.Item === undefined) {
             throw new ResourceVersionNotFoundError(resourceType, id, vid);
         }
@@ -72,7 +84,7 @@ export class DynamoDbDataService implements Persistence {
         item.meta = generateMeta('1');
 
         const params = DynamoDbParamBuilder.buildPutAvailableItemParam(item, id || uuidv4(), resource.meta.versionId);
-        await DynamoDb.putItem(params).promise();
+        await this.dynamoDb.putItem(params).promise();
         const newItem = DynamoDBConverter.unmarshall(params.Item);
         item = DynamoDbUtil.cleanItem(newItem);
         return {
@@ -98,7 +110,7 @@ export class DynamoDbDataService implements Persistence {
             id,
             vid,
         ).Update;
-        await DynamoDb.updateItem(updateStatusToDeletedParam).promise();
+        await this.dynamoDb.updateItem(updateStatusToDeletedParam).promise();
         return {
             success: true,
             message: `Successfully deleted ResourceType: ${resourceType}, Id: ${id}, VersionId: ${vid}`,
@@ -139,19 +151,113 @@ export class DynamoDbDataService implements Persistence {
         };
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async initiateExport(initiateExportRequest: InitiateExportRequest): Promise<string> {
-        throw new Error('method not implemented');
+        await this.throttleExportRequestsIfNeeded(initiateExportRequest.requesterUserId);
+        // Create new export job
+        const jobId = uuidv4();
+
+        // TODO: Start Export Job Step Function
+        // const stepFunctionArn = await StartStepFunctionAndGetStepFunctionArn
+
+        const params = DynamoDbParamBuilder.buildPutCreateExportRequest(jobId, initiateExportRequest, '');
+        await this.dynamoDb.putItem(params).promise();
+        return jobId;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async throttleExportRequestsIfNeeded(requesterUserId: string) {
+        const jobStatusesToThrottle: ExportJobStatus[] = ['canceling', 'in-progress'];
+        const exportJobItems = await this.getJobsWithExportStatuses(jobStatusesToThrottle);
+
+        if (exportJobItems) {
+            const numberOfConcurrentUserRequest = exportJobItems.filter(item => {
+                return DynamoDBConverter.unmarshall(item).jobOwnerId === requesterUserId;
+            }).length;
+            if (
+                numberOfConcurrentUserRequest >= this.MAXIMUM_CONCURRENT_REQUEST_PER_USER ||
+                exportJobItems.length >= this.MAXIMUM_SYSTEM_LEVEL_CONCURRENT_REQUESTS
+            ) {
+                throw new TooManyConcurrentExportRequestsError();
+            }
+        }
+    }
+
+    async getJobsWithExportStatuses(jobStatuses: ExportJobStatus[]): Promise<ItemList> {
+        const jobStatusPromises = jobStatuses.map((jobStatus: ExportJobStatus) => {
+            const projectionExpression = 'jobOwnerId, jobStatus';
+            const queryJobStatusParam = DynamoDbParamBuilder.buildQueryExportRequestJobStatus(
+                jobStatus,
+                projectionExpression,
+            );
+            return this.dynamoDb.query(queryJobStatusParam).promise();
+        });
+
+        const jobStatusResponses = await Promise.all(jobStatusPromises);
+        let allJobStatusItems: ItemList = [];
+        jobStatusResponses.forEach((jobStatusResponse: DynamoDB.QueryOutput) => {
+            if (jobStatusResponse.Items) {
+                allJobStatusItems = allJobStatusItems.concat(jobStatusResponse.Items);
+            }
+        });
+        return allJobStatusItems;
+    }
+
     async cancelExport(jobId: string): Promise<void> {
-        throw new Error('Method not implemented.');
+        const jobDetailsParam = DynamoDbParamBuilder.buildGetExportRequestJob(jobId);
+        const jobDetailsResponse = await this.dynamoDb.getItem(jobDetailsParam).promise();
+        if (!jobDetailsResponse.Item) {
+            throw new ResourceNotFoundError('$export', jobId);
+        }
+        const jobItem = DynamoDBConverter.unmarshall(jobDetailsResponse.Item);
+        if (['completed', 'failed'].includes(jobItem.jobStatus)) {
+            throw new Error(`Job cannot be canceled because job is already in ${jobItem.jobStatus} state`);
+        }
+        // A job in the canceled or canceling state doesn't need to be updated to 'canceling'
+        if (['canceled', 'canceling'].includes(jobItem.jobStatus)) {
+            return;
+        }
+
+        const params = DynamoDbParamBuilder.buildUpdateExportRequestJobStatus(jobId, 'canceling');
+        await this.dynamoDb.updateItem(params).promise();
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async getExportStatus(jobId: string): Promise<GetExportStatusResponse> {
-        throw new Error('Method not implemented.');
+        const jobDetailsParam = DynamoDbParamBuilder.buildGetExportRequestJob(jobId);
+        const jobDetailsResponse = await this.dynamoDb.getItem(jobDetailsParam).promise();
+        if (!jobDetailsResponse.Item) {
+            throw new ResourceNotFoundError('$export', jobId);
+        }
+
+        const item = DynamoDBConverter.unmarshall(<DynamoDB.AttributeMap>jobDetailsResponse.Item);
+
+        const {
+            jobStatus,
+            jobOwnerId,
+            s3PresignedUrls,
+            transactionTime,
+            exportType,
+            outputFormat,
+            since,
+            type,
+            groupId,
+            errorArray = [],
+            errorMessage = '',
+        } = item;
+
+        const getExportStatusResponse: GetExportStatusResponse = {
+            jobOwnerId,
+            jobStatus,
+            exportedFileUrls: s3PresignedUrls,
+            transactionTime,
+            exportType,
+            outputFormat,
+            since,
+            type,
+            groupId,
+            errorArray,
+            errorMessage,
+        };
+
+        return getExportStatusResponse;
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars

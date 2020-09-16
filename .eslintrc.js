@@ -19,7 +19,8 @@ module.exports = {
         '@typescript-eslint/no-useless-constructor': 'error',
         'no-empty-function': 'off',
         '@typescript-eslint/no-empty-function': 'error',
-        'import/prefer-default-export': 'off'
+        'import/prefer-default-export': 'off',
+        'import/no-extraneous-dependencies': ['error', {'devDependencies': ['**/*.test.ts']}]
     },
     settings: {
         'import/resolver': {
