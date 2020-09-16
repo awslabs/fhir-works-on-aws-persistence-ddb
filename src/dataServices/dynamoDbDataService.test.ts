@@ -8,12 +8,14 @@ import AWSMock from 'aws-sdk-mock';
 
 import { QueryInput } from 'aws-sdk/clients/dynamodb';
 import * as AWS from 'aws-sdk';
+import isEqual from 'lodash/isEqual';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import {
     BundleResponse,
     BatchReadWriteResponse,
     InitiateExportRequest,
     ResourceNotFoundError,
+    ExportJobStatus,
 } from 'fhir-works-on-aws-interface';
 import { TooManyConcurrentExportRequestsError } from 'fhir-works-on-aws-interface/lib/errors/TooManyConcurrentExportRequestsError';
 import each from 'jest-each';
@@ -112,11 +114,14 @@ describe('initiateExport', () => {
         // BUILD
         // Return an export request that is in-progress
         AWSMock.mock('DynamoDB', 'query', (params: QueryInput, callback: Function) => {
-            callback(null, {
-                // requesterUserId does not equal requesterUserId from initiateExportRequest therefore we are below throttle limit
-                Items: [DynamoDBConverter.marshall({ requesterUserId: 'userId-2', jobStatus: 'in-progress' })],
-            });
+            if (isEqual(params, DynamoDbParamBuilder.buildQueryExportRequestJobStatus('in-progress'))) {
+                callback(null, {
+                    Items: [DynamoDBConverter.marshall({ jobOwnerId: 'userId-2', jobStatus: 'in-progress' })],
+                });
+            }
+            callback(null, {});
         });
+
         AWSMock.mock('DynamoDB', 'putItem', (params: QueryInput, callback: Function) => {
             // Successfully update export-request table with request
             callback(null, {});
@@ -128,39 +133,49 @@ describe('initiateExport', () => {
         const jobId = await dynamoDbDataService.initiateExport(initiateExportRequest);
 
         // CHECK
-        expect(jobId).not.toBeUndefined();
+        expect(jobId).toBeDefined();
     });
 
-    test('throttle limit exceeds MAXIMUM_CONCURRENT_REQUEST_PER_USER because user already has an in-progress request', async () => {
-        // BUILD
-        // Return an export request that is in-progress
-        AWSMock.mock('DynamoDB', 'query', (params: QueryInput, callback: Function) => {
-            callback(null, {
-                Items: [DynamoDBConverter.marshall({ jobOwnerId: 'userId-1', jobStatus: 'in-progress' })],
+    each(['in-progress', 'canceling']).test(
+        'throttle limit exceeds MAXIMUM_CONCURRENT_REQUEST_PER_USER because user already has an %s request',
+        async (jobStatus: ExportJobStatus) => {
+            // BUILD
+            // Return an export request that is in-progress
+            AWSMock.mock('DynamoDB', 'query', (params: QueryInput, callback: Function) => {
+                if (isEqual(params, DynamoDbParamBuilder.buildQueryExportRequestJobStatus(jobStatus))) {
+                    callback(null, {
+                        Items: [DynamoDBConverter.marshall({ jobOwnerId: 'userId-1', jobStatus })],
+                    });
+                }
+                callback(null, {});
             });
-        });
 
-        const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
+            const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
 
-        // OPERATE
-        try {
-            await dynamoDbDataService.initiateExport(initiateExportRequest);
-        } catch (e) {
-            // CHECK
-            expect(e).toMatchObject(new TooManyConcurrentExportRequestsError());
-        }
-    });
+            // OPERATE
+            try {
+                await dynamoDbDataService.initiateExport(initiateExportRequest);
+            } catch (e) {
+                // CHECK
+                expect(e).toMatchObject(new TooManyConcurrentExportRequestsError());
+            }
+        },
+    );
 
-    test('throttle limit exceeded MAXIMUM_SYSTEM_LEVEL_CONCURRENT_REQUESTS because system already has two in-progress request', async () => {
+    test('throttle limit exceeded MAXIMUM_SYSTEM_LEVEL_CONCURRENT_REQUESTS because system already has a job in the "in-progress" status and the "canceling" status', async () => {
         // BUILD
         // Return two export requests that are in-progress
         AWSMock.mock('DynamoDB', 'query', (params: QueryInput, callback: Function) => {
-            callback(null, {
-                Items: [
-                    DynamoDBConverter.marshall({ jobOwnerId: 'userId-2', jobStatus: 'in-progress' }),
-                    DynamoDBConverter.marshall({ jobOwnerId: 'userId-3', jobStatus: 'in-progress' }),
-                ],
-            });
+            if (isEqual(params, DynamoDbParamBuilder.buildQueryExportRequestJobStatus('in-progress'))) {
+                callback(null, {
+                    Items: [DynamoDBConverter.marshall({ jobOwnerId: 'userId-2', jobStatus: 'in-progress' })],
+                });
+            } else if (isEqual(params, DynamoDbParamBuilder.buildQueryExportRequestJobStatus('canceling'))) {
+                callback(null, {
+                    Items: [DynamoDBConverter.marshall({ jobOwnerId: 'userId-3', jobStatus: 'canceling' })],
+                });
+            }
+            callback(null, {});
         });
 
         const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
@@ -201,6 +216,31 @@ describe('cancelExport', () => {
             DynamoDbParamBuilder.buildUpdateExportRequestJobStatus(jobId, 'canceling'),
         );
     });
+
+    each(['failed', 'completed']).test(
+        'Job cannot be canceled because job is in an invalid state',
+        async (jobStatus: ExportJobStatus) => {
+            // BUILD
+            AWSMock.mock('DynamoDB', 'getItem', (params: QueryInput, callback: Function) => {
+                callback(null, {
+                    Item: DynamoDBConverter.marshall({ requesterUserId: 'userId-1', jobStatus }),
+                });
+            });
+
+            const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
+
+            const jobId = '2a937fe2-8bb1-442b-b9be-434c94f30e15';
+            // OPERATE
+            try {
+                await dynamoDbDataService.cancelExport(jobId);
+            } catch (e) {
+                // CHECK
+                expect(e).toMatchObject(
+                    new Error(`Job cannot be canceled because job is already in ${jobStatus} state`),
+                );
+            }
+        },
+    );
 });
 
 describe('getExportStatus', () => {

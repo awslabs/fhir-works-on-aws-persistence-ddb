@@ -26,8 +26,10 @@ import {
     BulkDataAccess,
     ResourceNotFoundError,
     TooManyConcurrentExportRequestsError,
+    ExportJobStatus,
 } from 'fhir-works-on-aws-interface';
 import { DynamoDB } from 'aws-sdk';
+import { ItemList } from 'aws-sdk/clients/dynamodb';
 import { DynamoDBConverter } from './dynamoDb';
 import DOCUMENT_STATUS from './documentStatus';
 import { DynamoDbBundleService } from './dynamoDbBundleService';
@@ -36,6 +38,10 @@ import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 import DynamoDbHelper from './dynamoDbHelper';
 
 export class DynamoDbDataService implements Persistence, BulkDataAccess {
+    private readonly MAXIMUM_SYSTEM_LEVEL_CONCURRENT_REQUESTS = 2;
+
+    private readonly MAXIMUM_CONCURRENT_REQUEST_PER_USER = 1;
+
     updateCreateSupported: boolean = false;
 
     private readonly transactionService: DynamoDbBundleService;
@@ -159,23 +165,36 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
     }
 
     async throttleExportRequestsIfNeeded(requesterUserId: string) {
-        const MAXIMUM_SYSTEM_LEVEL_CONCURRENT_REQUESTS = 2;
-        const MAXIMUM_CONCURRENT_REQUEST_PER_USER = 1;
+        const jobStatuses: ExportJobStatus[] = ['canceling', 'in-progress'];
+        const exportJobItems = await this.getJobsWithExportStatuses(jobStatuses);
 
-        const queryJobStatusParam = DynamoDbParamBuilder.buildQueryExportRequestJobStatus('in-progress');
-        const jobStatusResponse = await this.dynamoDb.query(queryJobStatusParam).promise();
-
-        if (jobStatusResponse.Items) {
-            const numberOfConcurrentUserRequest = jobStatusResponse.Items.filter(item => {
+        if (exportJobItems) {
+            const numberOfConcurrentUserRequest = exportJobItems.filter(item => {
                 return DynamoDBConverter.unmarshall(item).jobOwnerId === requesterUserId;
             }).length;
             if (
-                numberOfConcurrentUserRequest >= MAXIMUM_CONCURRENT_REQUEST_PER_USER ||
-                jobStatusResponse.Items.length >= MAXIMUM_SYSTEM_LEVEL_CONCURRENT_REQUESTS
+                numberOfConcurrentUserRequest >= this.MAXIMUM_CONCURRENT_REQUEST_PER_USER ||
+                exportJobItems.length >= this.MAXIMUM_SYSTEM_LEVEL_CONCURRENT_REQUESTS
             ) {
                 throw new TooManyConcurrentExportRequestsError();
             }
         }
+    }
+
+    async getJobsWithExportStatuses(jobStatuses: ExportJobStatus[]): Promise<ItemList> {
+        const jobStatusPromises = jobStatuses.map((jobStatus: ExportJobStatus) => {
+            const queryJobStatusParam = DynamoDbParamBuilder.buildQueryExportRequestJobStatus(jobStatus);
+            return this.dynamoDb.query(queryJobStatusParam).promise();
+        });
+
+        const jobStatusResponses = await Promise.all(jobStatusPromises);
+        let allJobStatusItems: ItemList = [];
+        jobStatusResponses.forEach((jobStatusResponse: DynamoDB.QueryOutput) => {
+            if (jobStatusResponse.Items) {
+                allJobStatusItems = allJobStatusItems.concat(jobStatusResponse.Items);
+            }
+        });
+        return allJobStatusItems;
     }
 
     async cancelExport(jobId: string): Promise<void> {
@@ -183,6 +202,10 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
         const jobDetailsResponse = await this.dynamoDb.getItem(jobDetailsParam).promise();
         if (!jobDetailsResponse.Item) {
             throw new ResourceNotFoundError('$export', jobId);
+        }
+        const jobItem = DynamoDBConverter.unmarshall(jobDetailsResponse.Item);
+        if (['completed', 'failed'].includes(jobItem.jobStatus)) {
+            throw new Error(`Job cannot be canceled because job is already in ${jobItem.jobStatus} state`);
         }
 
         const params = DynamoDbParamBuilder.buildUpdateExportRequestJobStatus(jobId, 'canceling');
