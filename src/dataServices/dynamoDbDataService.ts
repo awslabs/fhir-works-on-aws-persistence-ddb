@@ -28,8 +28,6 @@ import {
 } from 'fhir-works-on-aws-interface';
 import { DynamoDB } from 'aws-sdk';
 import { TooManyConcurrentExportRequestsError } from 'fhir-works-on-aws-interface/lib/errors/TooManyConcurrentExportRequestsError';
-import { UnauthorizedAccessError } from 'fhir-works-on-aws-interface/lib/errors/UnauthorizedAccessError';
-import { GetItemOutput } from 'aws-sdk/clients/dynamodb';
 import { DynamoDBConverter } from './dynamoDb';
 import DOCUMENT_STATUS from './documentStatus';
 import { DynamoDbBundleService } from './dynamoDbBundleService';
