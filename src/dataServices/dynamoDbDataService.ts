@@ -165,8 +165,8 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
     }
 
     async throttleExportRequestsIfNeeded(requesterUserId: string) {
-        const jobStatuses: ExportJobStatus[] = ['canceling', 'in-progress'];
-        const exportJobItems = await this.getJobsWithExportStatuses(jobStatuses);
+        const jobStatusesToThrottle: ExportJobStatus[] = ['canceling', 'in-progress'];
+        const exportJobItems = await this.getJobsWithExportStatuses(jobStatusesToThrottle);
 
         if (exportJobItems) {
             const numberOfConcurrentUserRequest = exportJobItems.filter(item => {
@@ -183,7 +183,11 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
 
     async getJobsWithExportStatuses(jobStatuses: ExportJobStatus[]): Promise<ItemList> {
         const jobStatusPromises = jobStatuses.map((jobStatus: ExportJobStatus) => {
-            const queryJobStatusParam = DynamoDbParamBuilder.buildQueryExportRequestJobStatus(jobStatus);
+            const projectionExpression = 'jobOwnerId, jobStatus';
+            const queryJobStatusParam = DynamoDbParamBuilder.buildQueryExportRequestJobStatus(
+                jobStatus,
+                projectionExpression,
+            );
             return this.dynamoDb.query(queryJobStatusParam).promise();
         });
 

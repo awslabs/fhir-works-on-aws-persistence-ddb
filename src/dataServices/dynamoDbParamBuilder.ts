@@ -134,7 +134,7 @@ export default class DynamoDbParamBuilder {
         };
     }
 
-    static buildQueryExportRequestJobStatus(jobStatus: ExportJobStatus) {
+    static buildQueryExportRequestJobStatus(jobStatus: ExportJobStatus, projectionExpression?: string) {
         const params = {
             TableName: EXPORT_REQUEST_TABLE,
             KeyConditionExpression: 'jobStatus = :hkey',
@@ -143,6 +143,11 @@ export default class DynamoDbParamBuilder {
             }),
             IndexName: EXPORT_REQUEST_TABLE_JOB_STATUS_INDEX,
         };
+
+        if (projectionExpression) {
+            // @ts-ignore
+            params.ProjectionExpression = projectionExpression;
+        }
 
         return params;
     }

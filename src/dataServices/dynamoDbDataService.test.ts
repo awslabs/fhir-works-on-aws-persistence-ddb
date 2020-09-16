@@ -142,7 +142,12 @@ describe('initiateExport', () => {
             // BUILD
             // Return an export request that is in-progress
             AWSMock.mock('DynamoDB', 'query', (params: QueryInput, callback: Function) => {
-                if (isEqual(params, DynamoDbParamBuilder.buildQueryExportRequestJobStatus(jobStatus))) {
+                if (
+                    isEqual(
+                        params,
+                        DynamoDbParamBuilder.buildQueryExportRequestJobStatus(jobStatus, 'jobOwnerId, jobStatus'),
+                    )
+                ) {
                     callback(null, {
                         Items: [DynamoDBConverter.marshall({ jobOwnerId: 'userId-1', jobStatus })],
                     });
@@ -166,11 +171,21 @@ describe('initiateExport', () => {
         // BUILD
         // Return two export requests that are in-progress
         AWSMock.mock('DynamoDB', 'query', (params: QueryInput, callback: Function) => {
-            if (isEqual(params, DynamoDbParamBuilder.buildQueryExportRequestJobStatus('in-progress'))) {
+            if (
+                isEqual(
+                    params,
+                    DynamoDbParamBuilder.buildQueryExportRequestJobStatus('in-progress', 'jobOwnerId, jobStatus'),
+                )
+            ) {
                 callback(null, {
                     Items: [DynamoDBConverter.marshall({ jobOwnerId: 'userId-2', jobStatus: 'in-progress' })],
                 });
-            } else if (isEqual(params, DynamoDbParamBuilder.buildQueryExportRequestJobStatus('canceling'))) {
+            } else if (
+                isEqual(
+                    params,
+                    DynamoDbParamBuilder.buildQueryExportRequestJobStatus('canceling', 'jobOwnerId, jobStatus'),
+                )
+            ) {
                 callback(null, {
                     Items: [DynamoDBConverter.marshall({ jobOwnerId: 'userId-3', jobStatus: 'canceling' })],
                 });
