@@ -25,9 +25,9 @@ import {
     GetExportStatusResponse,
     BulkDataAccess,
     ResourceNotFoundError,
+    TooManyConcurrentExportRequestsError,
 } from 'fhir-works-on-aws-interface';
 import { DynamoDB } from 'aws-sdk';
-import { TooManyConcurrentExportRequestsError } from 'fhir-works-on-aws-interface/lib/errors/TooManyConcurrentExportRequestsError';
 import { DynamoDBConverter } from './dynamoDb';
 import DOCUMENT_STATUS from './documentStatus';
 import { DynamoDbBundleService } from './dynamoDbBundleService';
