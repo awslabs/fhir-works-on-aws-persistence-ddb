@@ -16,7 +16,7 @@ import { DynamoDBConverter, RESOURCE_TABLE } from './dynamoDb';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 
 export default class DynamoDbBundleServiceHelper {
-    static generateStagingRequests(requests: BatchReadWriteRequest[], idToVersionId: Record<string, string>) {
+    static generateStagingRequests(requests: BatchReadWriteRequest[], idToVersionId: Record<string, number>) {
         const deleteRequests: any = [];
         const createRequests: any = [];
         const updateRequests: any = [];
@@ -33,7 +33,7 @@ export default class DynamoDbBundleServiceHelper {
                     if (request.id) {
                         id = request.id;
                     }
-                    const vid = '1';
+                    const vid = 1;
                     const Item = DynamoDbUtil.prepItemForDdbInsert(request.resource, id, vid, DOCUMENT_STATUS.PENDING);
 
                     createRequests.push({
@@ -57,7 +57,7 @@ export default class DynamoDbBundleServiceHelper {
                     // Create new entry with status = PENDING
                     // When updating a resource, create a new Document for that resource
                     const { id } = request.resource;
-                    const vid = ((parseInt(idToVersionId[id], 10) || 0) + 1).toString();
+                    const vid = (idToVersionId[id] || 0) + 1;
                     const Item = DynamoDbUtil.prepItemForDdbInsert(request.resource, id, vid, DOCUMENT_STATUS.PENDING);
 
                     updateRequests.push({
@@ -92,7 +92,7 @@ export default class DynamoDbBundleServiceHelper {
                     );
                     newBundleEntryResponses.push({
                         id,
-                        vid,
+                        vid: vid.toString(),
                         operation: request.operation,
                         lastModified: new Date().toISOString(),
                         resource: {},
@@ -115,7 +115,7 @@ export default class DynamoDbBundleServiceHelper {
                     });
                     newBundleEntryResponses.push({
                         id,
-                        vid,
+                        vid: vid.toString(),
                         operation: request.operation,
                         lastModified: '',
                         resource: {},
@@ -174,7 +174,7 @@ export default class DynamoDbBundleServiceHelper {
     }
 
     private static generateDeleteLatestRecordAndItemToRemoveFromLock(resourceType: string, id: string, vid: string) {
-        const transactionRequest = DynamoDbParamBuilder.buildDeleteParam(id, vid);
+        const transactionRequest = DynamoDbParamBuilder.buildDeleteParam(id, parseInt(vid, 10));
         const itemToRemoveFromLock = {
             id,
             vid,
@@ -209,14 +209,14 @@ export default class DynamoDbBundleServiceHelper {
 
     private static addStagingResponseAndItemsLocked(
         id: string,
-        vid: string,
+        vid: number,
         resourceType: string,
         operation: TypeOperation,
         lastModified: string,
     ) {
         const stagingResponse = {
             id,
-            vid,
+            vid: vid.toString(),
             operation,
             lastModified,
             resourceType,
@@ -238,7 +238,7 @@ export default class DynamoDbBundleServiceHelper {
 
 export interface ItemRequest {
     id: string;
-    vid?: string;
+    vid?: number;
     resourceType: string;
     operation: TypeOperation | SystemOperation;
     isOriginalUpdateItem?: boolean;

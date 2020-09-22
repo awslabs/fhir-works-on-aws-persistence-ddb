@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.0] - 2020-08-31
+
+### Added
+
+- feat: Assume that the Resource DDB sort key is a number not a String
+  - BREAKING CHANGE: This change will not be successful if sort key is still a String
+
 ## [1.1.0] - 2020-08-31
 
 ### Added

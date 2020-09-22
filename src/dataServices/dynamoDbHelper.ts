@@ -41,7 +41,9 @@ export default class DynamoDbHelper {
         const params = DynamoDbParamBuilder.buildGetResourcesQueryParam(id, 2);
         let item = null;
         const result = await this.dynamoDb.query(params).promise();
-        const items = result.Items ? result.Items.map(ddbJsonItem => DynamoDBConverter.unmarshall(ddbJsonItem)) : [];
+        const items = result.Items
+            ? result.Items.map((ddbJsonItem: any) => DynamoDBConverter.unmarshall(ddbJsonItem))
+            : [];
         if (items.length === 0) {
             throw new ResourceNotFoundError(resourceType, id);
         }

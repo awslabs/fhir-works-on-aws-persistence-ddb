@@ -54,11 +54,11 @@ export default class GenerateRollbackRequestsFactory {
 
     static buildExpectedBundleEntryResult(bundleEntryResponse: BatchReadWriteResponse) {
         const { id, vid, resourceType, operation } = bundleEntryResponse;
-
+        // const vidNum = parseInt(vid, 10);
         let expectedResult: any = {};
         if (operation === 'create' || operation === 'update') {
             expectedResult = {
-                transactionRequests: [DynamoDbParamBuilder.buildDeleteParam(id, vid)],
+                transactionRequests: [DynamoDbParamBuilder.buildDeleteParam(id, parseInt(vid, 10))],
                 itemsToRemoveFromLock: [
                     {
                         id,
