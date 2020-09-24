@@ -68,7 +68,7 @@ export default class DdbToEsHelper {
     }
 
     // eslint-disable-next-line class-methods-use-this
-    private generateFullId(id: string, vid: string) {
+    private generateFullId(id: string, vid: number) {
         return `${id}_${vid}`;
     }
 

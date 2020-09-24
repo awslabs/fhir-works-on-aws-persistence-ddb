@@ -24,7 +24,7 @@ import {
     clone,
     ResourceVersionNotFoundError,
 } from 'fhir-works-on-aws-interface';
-import { DynamoDb, DynamoDBConverter } from './dynamoDb';
+import { DynamoDBConverter } from './dynamoDb';
 import DOCUMENT_STATUS from './documentStatus';
 import { DynamoDbBundleService } from './dynamoDbBundleService';
 import { DynamoDbUtil } from './dynamoDbUtil';
@@ -38,9 +38,12 @@ export class DynamoDbDataService implements Persistence {
 
     private readonly dynamoDbHelper: DynamoDbHelper;
 
+    private readonly dynamoDb: DynamoDB;
+
     constructor(dynamoDb: DynamoDB) {
         this.dynamoDbHelper = new DynamoDbHelper(dynamoDb);
         this.transactionService = new DynamoDbBundleService(dynamoDb);
+        this.dynamoDb = dynamoDb;
     }
 
     async readResource(request: ReadResourceRequest): Promise<GenericResponse> {
@@ -49,8 +52,8 @@ export class DynamoDbDataService implements Persistence {
 
     async vReadResource(request: vReadResourceRequest): Promise<GenericResponse> {
         const { resourceType, id, vid } = request;
-        const params = DynamoDbParamBuilder.buildGetItemParam(id, vid);
-        const result = await DynamoDb.getItem(params).promise();
+        const params = DynamoDbParamBuilder.buildGetItemParam(id, parseInt(vid, 10));
+        const result = await this.dynamoDb.getItem(params).promise();
         if (result.Item === undefined) {
             throw new ResourceVersionNotFoundError(resourceType, id, vid);
         }
@@ -64,13 +67,13 @@ export class DynamoDbDataService implements Persistence {
 
     async createResource(request: CreateResourceRequest) {
         const { resourceType, resource, id } = request;
+        const vid = 1;
         let item = resource;
         item.resourceType = resourceType;
+        item.meta = generateMeta(vid.toString());
 
-        item.meta = generateMeta('1');
-
-        const params = DynamoDbParamBuilder.buildPutAvailableItemParam(item, id || uuidv4(), resource.meta.versionId);
-        await DynamoDb.putItem(params).promise();
+        const params = DynamoDbParamBuilder.buildPutAvailableItemParam(item, id || uuidv4(), vid);
+        await this.dynamoDb.putItem(params).promise();
         const newItem = DynamoDBConverter.unmarshall(params.Item);
         item = DynamoDbUtil.cleanItem(newItem);
         return {
@@ -86,17 +89,17 @@ export class DynamoDbDataService implements Persistence {
 
         const { versionId } = itemServiceResponse.resource.meta;
 
-        return this.deleteVersionedResource(resourceType, id, versionId);
+        return this.deleteVersionedResource(resourceType, id, parseInt(versionId, 10));
     }
 
-    async deleteVersionedResource(resourceType: string, id: string, vid: string) {
+    async deleteVersionedResource(resourceType: string, id: string, vid: number) {
         const updateStatusToDeletedParam = DynamoDbParamBuilder.buildUpdateDocumentStatusParam(
             DOCUMENT_STATUS.AVAILABLE,
             DOCUMENT_STATUS.DELETED,
             id,
             vid,
         ).Update;
-        await DynamoDb.updateItem(updateStatusToDeletedParam).promise();
+        await this.dynamoDb.updateItem(updateStatusToDeletedParam).promise();
         return {
             success: true,
             message: `Successfully deleted ResourceType: ${resourceType}, Id: ${id}, VersionId: ${vid}`,

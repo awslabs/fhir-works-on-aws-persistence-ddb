@@ -14,7 +14,7 @@ export default class DynamoDbParamBuilder {
         oldStatus: DOCUMENT_STATUS | null,
         newStatus: DOCUMENT_STATUS,
         id: string,
-        vid: string,
+        vid: number,
     ) {
         const currentTs = Date.now();
         let futureEndTs = currentTs;
@@ -71,7 +71,7 @@ export default class DynamoDbParamBuilder {
         return params;
     }
 
-    static buildDeleteParam(id: string, vid: string) {
+    static buildDeleteParam(id: string, vid: number) {
         const params: any = {
             Delete: {
                 TableName: RESOURCE_TABLE,
@@ -85,7 +85,7 @@ export default class DynamoDbParamBuilder {
         return params;
     }
 
-    static buildGetItemParam(id: string, vid: string) {
+    static buildGetItemParam(id: string, vid: number) {
         return {
             TableName: RESOURCE_TABLE,
             Key: DynamoDBConverter.marshall({
@@ -95,7 +95,7 @@ export default class DynamoDbParamBuilder {
         };
     }
 
-    static buildPutAvailableItemParam(item: any, id: string, vid: string) {
+    static buildPutAvailableItemParam(item: any, id: string, vid: number) {
         const newItem = DynamoDbUtil.prepItemForDdbInsert(item, id, vid, DOCUMENT_STATUS.AVAILABLE);
         return {
             TableName: RESOURCE_TABLE,

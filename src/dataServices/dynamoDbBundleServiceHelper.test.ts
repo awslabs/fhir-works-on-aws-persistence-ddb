@@ -80,7 +80,7 @@ describe('generateStagingRequests', () => {
     });
 
     test('CRUD', () => {
-        let idToVersionId: Record<string, string> = {};
+        let idToVersionId: Record<string, number> = {};
         idToVersionId = {
             ...GenerateStagingRequestsFactory.getRead().idToVersionId,
             ...GenerateStagingRequestsFactory.getUpdate().idToVersionId,
