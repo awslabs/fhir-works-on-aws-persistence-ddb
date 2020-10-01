@@ -17,8 +17,7 @@ import axios from 'axios';
 export class ApiDataService implements Persistence {
     updateCreateSupported: boolean = false;
 
-    // TODO: Pull this value from AWS Param Store
-    private INTEGRATION_TRANSFORM_URL: string = '';
+    private INTEGRATION_TRANSFORM_URL: string;
 
     constructor(integrationTransformUrl: string) {
         this.INTEGRATION_TRANSFORM_URL = integrationTransformUrl;
@@ -59,7 +58,7 @@ export class ApiDataService implements Persistence {
         try {
             await axios.delete(`${this.INTEGRATION_TRANSFORM_URL}/${request.resourceType}/${request.id}`);
             // Don't need to actually return anything to the router
-            return { message: '', resource: {} };
+            return { message: '' };
         } catch (e) {
             return this.getError(e, request.resourceType, request.id);
         }

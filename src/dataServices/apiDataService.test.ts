@@ -3,7 +3,6 @@ import MockAdapter from 'axios-mock-adapter';
 import {
     CreateResourceRequest,
     DeleteResourceRequest,
-    InvalidResourceError,
     ReadResourceRequest,
     ResourceNotFoundError,
     UpdateResourceRequest,
@@ -36,14 +35,14 @@ const resource = {
     id: 'f2ddf33c-9344-49cd-991f-8273eb959f92',
 };
 
-const apiDataService = new ApiDataService();
+const apiDataService = new ApiDataService('http://localhost:4000/persistence');
 const mock = new MockAdapter(axios);
 afterEach(() => {
     mock.reset();
 });
 expect.hasAssertions();
 
-const url = `${ApiDataService.INTEGRATION_TRANSFORM_URL}/Patient`;
+const url = `http://localhost:4000/persistence/Patient`;
 describe('CREATE', () => {
     test('create resource successfully', async () => {
         // BUILD
@@ -344,7 +343,7 @@ describe('DELETE', () => {
         // OPERATE
         const response = await apiDataService.deleteResource(deleteResourceRequest);
         // CHECK
-        expect(response).toEqual({ resource: {}, message: '' });
+        expect(response).toEqual({ message: '' });
     });
 
     test('api returns with 404 error', async () => {
