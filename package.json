@@ -30,7 +30,7 @@
   "dependencies": {
     "axios": "^0.20.0",
     "fhir-works-on-aws-interface": "^1.0.0",
-    "mime-types": "^2.1.26",
+    "mime-types": "^2.1.26"
   },
   "devDependencies": {
     "@types/jest": "^25.1.1",

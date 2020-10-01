@@ -35,7 +35,7 @@ const resource = {
     id: 'f2ddf33c-9344-49cd-991f-8273eb959f92',
 };
 
-const apiDataService = new ApiDataService('http://localhost:4000/persistence');
+const apiDataService = new ApiDataService('http://localhost:4000');
 const mock = new MockAdapter(axios);
 afterEach(() => {
     mock.reset();
