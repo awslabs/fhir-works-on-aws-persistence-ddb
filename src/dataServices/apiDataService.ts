@@ -77,13 +77,13 @@ export class ApiDataService implements Persistence {
             if (id !== '' && statusCode === 404) {
                 throw new ResourceNotFoundError(resourceType, id, message);
             }
-            console.error('An error was received from the third party system', {
+            console.error('An error was received from the Integration Transform', {
                 message,
                 statusCode,
             });
-            throw new Error(`An error was received from the third party system: ${message}`);
+            throw new Error(`An error was received from the Integration Transform: ${message}`);
         }
-        throw new Error('Failed to connect to the third party system');
+        throw new Error('Failed to connect to the Integration Transform');
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
