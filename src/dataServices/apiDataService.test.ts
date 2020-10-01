@@ -85,8 +85,8 @@ describe('CREATE', () => {
             await apiDataService.createResource(createResourceRequest);
         } catch (e) {
             // CHECK
-            expect(e instanceof InvalidResourceError).toBeTruthy();
-            expect(e).toMatchObject(new InvalidResourceError(message));
+            expect(e instanceof Error).toBeTruthy();
+            expect(e).toMatchObject(new Error(`An error was received from the third party system: ${message}`));
         }
     });
 
@@ -110,7 +110,7 @@ describe('CREATE', () => {
         } catch (e) {
             // CHECK
             expect(e instanceof Error).toBeTruthy();
-            expect(e).toMatchObject(new Error(message));
+            expect(e).toMatchObject(new Error(`An error was received from the third party system: ${message}`));
         }
     });
 
@@ -129,7 +129,7 @@ describe('CREATE', () => {
         } catch (e) {
             // CHECK
             expect(e instanceof Error).toBeTruthy();
-            expect(e).toMatchObject(new Error('Failed to connect to Integration Transform URL'));
+            expect(e).toMatchObject(new Error('Failed to connect to the third party system'));
         }
     });
 });
@@ -204,7 +204,7 @@ describe('READ', () => {
         } catch (e) {
             // CHECK
             expect(e instanceof Error).toBeTruthy();
-            expect(e).toMatchObject(new Error(message));
+            expect(e).toMatchObject(new Error(`An error was received from the third party system: ${message}`));
         }
     });
 
@@ -225,7 +225,7 @@ describe('READ', () => {
         } catch (e) {
             // CHECK
             expect(e instanceof Error).toBeTruthy();
-            expect(e).toMatchObject(new Error('Failed to connect to Integration Transform URL'));
+            expect(e).toMatchObject(new Error('Failed to connect to the third party system'));
         }
     });
 });
@@ -303,7 +303,7 @@ describe('UPDATE', () => {
         } catch (e) {
             // CHECK
             expect(e instanceof Error).toBeTruthy();
-            expect(e).toMatchObject(new Error(message));
+            expect(e).toMatchObject(new Error(`An error was received from the third party system: ${message}`));
         }
     });
 
@@ -325,7 +325,7 @@ describe('UPDATE', () => {
         } catch (e) {
             // CHECK
             expect(e instanceof Error).toBeTruthy();
-            expect(e).toMatchObject(new Error('Failed to connect to Integration Transform URL'));
+            expect(e).toMatchObject(new Error('Failed to connect to the third party system'));
         }
     });
 });
@@ -393,7 +393,7 @@ describe('DELETE', () => {
         } catch (e) {
             // CHECK
             expect(e instanceof Error).toBeTruthy();
-            expect(e).toMatchObject(new Error(message));
+            expect(e).toMatchObject(new Error(`An error was received from the third party system: ${message}`));
         }
     });
 
@@ -414,7 +414,7 @@ describe('DELETE', () => {
         } catch (e) {
             // CHECK
             expect(e instanceof Error).toBeTruthy();
-            expect(e).toMatchObject(new Error('Failed to connect to Integration Transform URL'));
+            expect(e).toMatchObject(new Error('Failed to connect to the third party system'));
         }
     });
 });

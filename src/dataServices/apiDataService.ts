@@ -5,7 +5,6 @@ import {
     CreateResourceRequest,
     DeleteResourceRequest,
     GenericResponse,
-    InvalidResourceError,
     PatchResourceRequest,
     Persistence,
     ReadResourceRequest,
@@ -29,7 +28,7 @@ export class ApiDataService implements Persistence {
             genericResponse = { message: '', resource: response.data.resource };
         } catch (e) {
             console.error(e);
-            this.handleError('', '', e, true);
+            this.handleError(e);
         }
         return Promise.resolve(genericResponse);
     }
@@ -42,7 +41,7 @@ export class ApiDataService implements Persistence {
             );
             genericResponse = { message: '', resource: response.data.resource };
         } catch (e) {
-            this.handleError(request.resourceType, request.id, e);
+            this.handleError(e, request.resourceType, request.id);
         }
         return Promise.resolve(genericResponse);
     }
@@ -56,7 +55,7 @@ export class ApiDataService implements Persistence {
             );
             genericResponse = { message: '', resource: response.data.resource };
         } catch (e) {
-            this.handleError(request.resourceType, request.id, e, true);
+            this.handleError(e, request.resourceType, request.id);
         }
         return Promise.resolve(genericResponse);
     }
@@ -65,24 +64,26 @@ export class ApiDataService implements Persistence {
         try {
             await axios.delete(`${ApiDataService.INTEGRATION_TRANSFORM_URL}/${request.resourceType}/${request.id}`);
         } catch (e) {
-            this.handleError(request.resourceType, request.id, e);
+            this.handleError(e, request.resourceType, request.id);
         }
         // Don't need to actually return anything to the router
         return Promise.resolve({ message: '', resource: {} });
     }
 
-    handleError(resourceType: string, id: string, e: any, requestIncludesJsonBody: boolean = false) {
+    handleError(e: any, resourceType: string = '', id: string = '') {
         if (e.response) {
             const message = e.response.data.message || '';
-            if (e.response.status && e.response.status === 400 && requestIncludesJsonBody) {
-                throw new InvalidResourceError(message);
-            }
-            if (id !== '' && e.response.status && e.response.status === 404) {
+            const statusCode = e.response.status || undefined;
+            if (id !== '' && statusCode === 404) {
                 throw new ResourceNotFoundError(resourceType, id, message);
             }
-            throw new Error(message);
+            console.error('An error was received from the third party system', {
+                message,
+                statusCode,
+            });
+            throw new Error(`An error was received from the third party system: ${message}`);
         }
-        throw new Error('Failed to connect to Integration Transform URL');
+        throw new Error('Failed to connect to the third party system');
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
