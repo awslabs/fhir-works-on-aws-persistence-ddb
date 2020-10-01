@@ -31,13 +31,11 @@
     "axios": "^0.20.0",
     "fhir-works-on-aws-interface": "^1.0.0",
     "mime-types": "^2.1.26",
-    "promise.allsettled": "^1.0.2"
   },
   "devDependencies": {
     "@types/jest": "^25.1.1",
     "@types/mime-types": "^2.1.0",
     "@types/node": "^12",
-    "@types/promise.allsettled": "^1.0.3",
     "@typescript-eslint/eslint-plugin": "^2.18.0",
     "@typescript-eslint/parser": "^2.18.0",
     "axios-mock-adapter": "^1.18.2",
