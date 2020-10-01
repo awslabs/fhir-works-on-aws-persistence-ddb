@@ -18,11 +18,15 @@ export class ApiDataService implements Persistence {
     updateCreateSupported: boolean = false;
 
     // TODO: Pull this value from AWS Param Store
-    static readonly INTEGRATION_TRANSFORM_URL = 'http://localhost:4000';
+    private INTEGRATION_TRANSFORM_URL: string = '';
+
+    constructor(integrationTransformUrl: string) {
+        this.INTEGRATION_TRANSFORM_URL = integrationTransformUrl;
+    }
 
     async createResource(request: CreateResourceRequest): Promise<GenericResponse> {
         try {
-            const url = `${ApiDataService.INTEGRATION_TRANSFORM_URL}/${request.resourceType}`;
+            const url = `${this.INTEGRATION_TRANSFORM_URL}/${request.resourceType}`;
             const response = await axios.post(url, request.resource);
             return { message: '', resource: response.data.resource };
         } catch (e) {
@@ -32,9 +36,7 @@ export class ApiDataService implements Persistence {
 
     async readResource(request: ReadResourceRequest): Promise<GenericResponse> {
         try {
-            const response = await axios.get(
-                `${ApiDataService.INTEGRATION_TRANSFORM_URL}/${request.resourceType}/${request.id}`,
-            );
+            const response = await axios.get(`${this.INTEGRATION_TRANSFORM_URL}/${request.resourceType}/${request.id}`);
             return { message: '', resource: response.data.resource };
         } catch (e) {
             throw this.getError(e, request.resourceType, request.id);
@@ -44,7 +46,7 @@ export class ApiDataService implements Persistence {
     async updateResource(request: UpdateResourceRequest): Promise<GenericResponse> {
         try {
             const response = await axios.put(
-                `${ApiDataService.INTEGRATION_TRANSFORM_URL}/${request.resourceType}/${request.id}`,
+                `${this.INTEGRATION_TRANSFORM_URL}/${request.resourceType}/${request.id}`,
                 request.resource,
             );
             return { message: '', resource: response.data.resource };
@@ -55,7 +57,7 @@ export class ApiDataService implements Persistence {
 
     async deleteResource(request: DeleteResourceRequest): Promise<GenericResponse> {
         try {
-            await axios.delete(`${ApiDataService.INTEGRATION_TRANSFORM_URL}/${request.resourceType}/${request.id}`);
+            await axios.delete(`${this.INTEGRATION_TRANSFORM_URL}/${request.resourceType}/${request.id}`);
             // Don't need to actually return anything to the router
             return { message: '', resource: {} };
         } catch (e) {
