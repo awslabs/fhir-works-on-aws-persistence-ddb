@@ -21,69 +21,62 @@ export class ApiDataService implements Persistence {
     static readonly INTEGRATION_TRANSFORM_URL = 'http://localhost:4000';
 
     async createResource(request: CreateResourceRequest): Promise<GenericResponse> {
-        let genericResponse: GenericResponse = { message: '', resource: {} };
         try {
             const url = `${ApiDataService.INTEGRATION_TRANSFORM_URL}/${request.resourceType}`;
             const response = await axios.post(url, request.resource);
-            genericResponse = { message: '', resource: response.data.resource };
+            return { message: '', resource: response.data.resource };
         } catch (e) {
-            console.error(e);
-            this.handleError(e);
+            throw this.getError(e);
         }
-        return Promise.resolve(genericResponse);
     }
 
     async readResource(request: ReadResourceRequest): Promise<GenericResponse> {
-        let genericResponse: GenericResponse = { message: '', resource: {} };
         try {
             const response = await axios.get(
                 `${ApiDataService.INTEGRATION_TRANSFORM_URL}/${request.resourceType}/${request.id}`,
             );
-            genericResponse = { message: '', resource: response.data.resource };
+            return { message: '', resource: response.data.resource };
         } catch (e) {
-            this.handleError(e, request.resourceType, request.id);
+            throw this.getError(e, request.resourceType, request.id);
         }
-        return Promise.resolve(genericResponse);
     }
 
     async updateResource(request: UpdateResourceRequest): Promise<GenericResponse> {
-        let genericResponse: GenericResponse = { message: '', resource: {} };
         try {
             const response = await axios.put(
                 `${ApiDataService.INTEGRATION_TRANSFORM_URL}/${request.resourceType}/${request.id}`,
                 request.resource,
             );
-            genericResponse = { message: '', resource: response.data.resource };
+            return { message: '', resource: response.data.resource };
         } catch (e) {
-            this.handleError(e, request.resourceType, request.id);
+            throw this.getError(e, request.resourceType, request.id);
         }
-        return Promise.resolve(genericResponse);
     }
 
     async deleteResource(request: DeleteResourceRequest): Promise<GenericResponse> {
         try {
             await axios.delete(`${ApiDataService.INTEGRATION_TRANSFORM_URL}/${request.resourceType}/${request.id}`);
+            // Don't need to actually return anything to the router
+            return { message: '', resource: {} };
         } catch (e) {
-            this.handleError(e, request.resourceType, request.id);
+            return this.getError(e, request.resourceType, request.id);
         }
-        // Don't need to actually return anything to the router
-        return Promise.resolve({ message: '', resource: {} });
     }
 
-    handleError(e: any, resourceType: string = '', id: string = '') {
+    getError(e: any, resourceType: string = '', id: string = '') {
         if (e.response) {
             const message = e.response.data.message || '';
             const statusCode = e.response.status || undefined;
             if (id !== '' && statusCode === 404) {
-                throw new ResourceNotFoundError(resourceType, id, message);
+                return new ResourceNotFoundError(resourceType, id, message);
             }
             console.error('An error was received from the Integration Transform', {
                 message,
                 statusCode,
             });
-            throw new Error(`An error was received from the Integration Transform: ${message}`);
+            return new Error(`An error was received from the Integration Transform: ${message}`);
         }
-        throw new Error('Failed to connect to the Integration Transform');
+        return new Error('Failed to connect to the Integration Transform');
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
