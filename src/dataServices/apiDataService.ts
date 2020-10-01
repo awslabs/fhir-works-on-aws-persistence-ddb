@@ -28,7 +28,7 @@ export class ApiDataService implements Persistence {
             const response = await axios.post(url, request.resource);
             genericResponse = { message: '', resource: response.data.resource };
         } catch (e) {
-            this.handleInvalidResourceError(e);
+            this.handleError('', '', e, true);
         }
         return Promise.resolve(genericResponse);
     }
@@ -41,7 +41,7 @@ export class ApiDataService implements Persistence {
             );
             genericResponse = { message: '', resource: response.data.resource };
         } catch (e) {
-            this.handleResourceNotFoundError(request.resourceType, request.id, e);
+            this.handleError(request.resourceType, request.id, e);
         }
         return Promise.resolve(genericResponse);
     }
@@ -55,7 +55,7 @@ export class ApiDataService implements Persistence {
             );
             genericResponse = { message: '', resource: response.data.resource };
         } catch (e) {
-            this.handleResourceNotFoundError(request.resourceType, request.id, e);
+            this.handleError(request.resourceType, request.id, e, true);
         }
         return Promise.resolve(genericResponse);
     }
@@ -64,28 +64,20 @@ export class ApiDataService implements Persistence {
         try {
             await axios.delete(`${ApiDataService.INTEGRATION_TRANSFORM_URL}/${request.resourceType}/${request.id}`);
         } catch (e) {
-            this.handleResourceNotFoundError(request.resourceType, request.id, e);
+            this.handleError(request.resourceType, request.id, e);
         }
         // Don't need to actually return anything to the router
         return Promise.resolve({ message: '', resource: {} });
     }
 
-    handleResourceNotFoundError(resourceType: string, id: string, e: any) {
+    handleError(resourceType: string, id: string, e: any, requestIncludesJsonBody: boolean = false) {
         if (e.response) {
             const message = e.response.data.message || '';
-            if (e.response.status && e.response.status >= 400 && e.response.status < 500) {
-                throw new ResourceNotFoundError(resourceType, id, message);
-            }
-            throw new Error(message);
-        }
-        throw new Error('Failed to connect to Integration Transform URL');
-    }
-
-    handleInvalidResourceError(e: any) {
-        if (e.response) {
-            const message = e.response.data.message || '';
-            if (e.response.status && e.response.status >= 400 && e.response.status < 500) {
+            if (e.response.status && e.response.status === 400 && requestIncludesJsonBody) {
                 throw new InvalidResourceError(message);
+            }
+            if (id !== '' && e.response.status && e.response.status === 404) {
+                throw new ResourceNotFoundError(resourceType, id, message);
             }
             throw new Error(message);
         }

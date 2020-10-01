@@ -42,9 +42,9 @@ const mock = new MockAdapter(axios);
 afterEach(() => {
     mock.reset();
 });
+expect.hasAssertions();
 
 const url = `${ApiDataService.INTEGRATION_TRANSFORM_URL}/Patient`;
-expect.hasAssertions();
 describe('CREATE', () => {
     test('create resource successfully', async () => {
         const data = {
@@ -78,6 +78,7 @@ describe('CREATE', () => {
         try {
             await apiDataService.createResource(createResourceRequest);
         } catch (e) {
+            expect(e instanceof InvalidResourceError).toBeTruthy();
             expect(e).toMatchObject(new InvalidResourceError(message));
         }
     });
@@ -98,6 +99,7 @@ describe('CREATE', () => {
         try {
             await apiDataService.createResource(createResourceRequest);
         } catch (e) {
+            expect(e instanceof Error).toBeTruthy();
             expect(e).toMatchObject(new Error(message));
         }
     });
@@ -113,6 +115,7 @@ describe('CREATE', () => {
         try {
             await apiDataService.createResource(createResourceRequest);
         } catch (e) {
+            expect(e instanceof Error).toBeTruthy();
             expect(e).toMatchObject(new Error('Failed to connect to Integration Transform URL'));
         }
     });
@@ -137,14 +140,14 @@ describe('READ', () => {
         expect(response.resource).toEqual(resource);
     });
 
-    test('api returns with 400', async () => {
+    test('api returns with 404', async () => {
         const message = 'Failed to find resource';
         const data = {
             message,
             resource: {},
         };
         const id = 'f2ddf33c-9344-49cd-991f-8273eb959f92';
-        mock.onGet(`${url}/${id}`).reply(400, data);
+        mock.onGet(`${url}/${id}`).reply(404, data);
 
         const resourceType = 'Patient';
         const readResourceRequest: ReadResourceRequest = {
@@ -155,6 +158,7 @@ describe('READ', () => {
         try {
             await apiDataService.readResource(readResourceRequest);
         } catch (e) {
+            expect(e instanceof ResourceNotFoundError).toBeTruthy();
             expect(e).toMatchObject(new ResourceNotFoundError(resourceType, id, message));
         }
     });
@@ -177,6 +181,7 @@ describe('READ', () => {
         try {
             await apiDataService.readResource(readResourceRequest);
         } catch (e) {
+            expect(e instanceof Error).toBeTruthy();
             expect(e).toMatchObject(new Error(message));
         }
     });
@@ -194,6 +199,7 @@ describe('READ', () => {
         try {
             await apiDataService.readResource(readResourceRequest);
         } catch (e) {
+            expect(e instanceof Error).toBeTruthy();
             expect(e).toMatchObject(new Error('Failed to connect to Integration Transform URL'));
         }
     });
@@ -219,14 +225,14 @@ describe('UPDATE', () => {
         expect(response.resource).toEqual(resource);
     });
 
-    test('api returns with 400 error', async () => {
+    test('api returns with 404 error', async () => {
         const message = 'Failed to parse request';
         const data = {
             message,
             resource: {},
         };
         const id = 'f2ddf33c-9344-49cd-991f-8273eb959f92';
-        mock.onPut(`${url}/${id}`).reply(400, data);
+        mock.onPut(`${url}/${id}`).reply(404, data);
 
         const resourceType = 'Patient';
         const updateResourceRequest: UpdateResourceRequest = {
@@ -238,6 +244,7 @@ describe('UPDATE', () => {
         try {
             await apiDataService.updateResource(updateResourceRequest);
         } catch (e) {
+            expect(e instanceof ResourceNotFoundError).toBeTruthy();
             expect(e).toMatchObject(new ResourceNotFoundError(resourceType, id, message));
         }
     });
@@ -261,6 +268,7 @@ describe('UPDATE', () => {
         try {
             await apiDataService.updateResource(updateResourceRequest);
         } catch (e) {
+            expect(e instanceof Error).toBeTruthy();
             expect(e).toMatchObject(new Error(message));
         }
     });
@@ -279,6 +287,7 @@ describe('UPDATE', () => {
         try {
             await apiDataService.updateResource(updateResourceRequest);
         } catch (e) {
+            expect(e instanceof Error).toBeTruthy();
             expect(e).toMatchObject(new Error('Failed to connect to Integration Transform URL'));
         }
     });
@@ -298,7 +307,7 @@ describe('DELETE', () => {
         expect(response).toEqual({ resource: {}, message: '' });
     });
 
-    test('api returns with 400 error', async () => {
+    test('api returns with 404 error', async () => {
         const id = 'f2ddf33c-9344-49cd-991f-8273eb959f92';
         const message = 'Failed to find resource';
         const data = {
@@ -315,6 +324,7 @@ describe('DELETE', () => {
         try {
             await apiDataService.deleteResource(deleteResourceRequest);
         } catch (e) {
+            expect(e instanceof ResourceNotFoundError).toBeTruthy();
             expect(e).toMatchObject(new ResourceNotFoundError(resourceType, id, message));
         }
     });
@@ -336,6 +346,7 @@ describe('DELETE', () => {
         try {
             await apiDataService.deleteResource(deleteResourceRequest);
         } catch (e) {
+            expect(e instanceof Error).toBeTruthy();
             expect(e).toMatchObject(new Error(message));
         }
     });
@@ -353,6 +364,7 @@ describe('DELETE', () => {
         try {
             await apiDataService.deleteResource(deleteResourceRequest);
         } catch (e) {
+            expect(e instanceof Error).toBeTruthy();
             expect(e).toMatchObject(new Error('Failed to connect to Integration Transform URL'));
         }
     });
