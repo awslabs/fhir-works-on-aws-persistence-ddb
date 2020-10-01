@@ -1,5 +1,4 @@
 import axios from 'axios';
-// eslint-disable-next-line import/no-extraneous-dependencies
 import MockAdapter from 'axios-mock-adapter';
 import {
     CreateResourceRequest,
@@ -47,10 +46,12 @@ expect.hasAssertions();
 const url = `${ApiDataService.INTEGRATION_TRANSFORM_URL}/Patient`;
 describe('CREATE', () => {
     test('create resource successfully', async () => {
+        // BUILD
         const data = {
             message: '',
             resource,
         };
+
         mock.onPost(url).reply(201, data);
 
         const createResourceRequest: CreateResourceRequest = {
@@ -58,11 +59,15 @@ describe('CREATE', () => {
             resource: '',
         };
 
+        // OPERATE
         const response = await apiDataService.createResource(createResourceRequest);
+
+        // CHECK
         expect(response.resource).toEqual(resource);
     });
 
     test('api returns with 400 error', async () => {
+        // BUILD
         const message = 'Failed to parse request';
         const data = {
             message,
@@ -76,14 +81,17 @@ describe('CREATE', () => {
         };
 
         try {
+            // OPERATE
             await apiDataService.createResource(createResourceRequest);
         } catch (e) {
+            // CHECK
             expect(e instanceof InvalidResourceError).toBeTruthy();
             expect(e).toMatchObject(new InvalidResourceError(message));
         }
     });
 
     test('api returns with 500 error', async () => {
+        // BUILD
         const message = 'Failed to parse request';
         const data = {
             message,
@@ -97,14 +105,17 @@ describe('CREATE', () => {
         };
 
         try {
+            // OPERATE
             await apiDataService.createResource(createResourceRequest);
         } catch (e) {
+            // CHECK
             expect(e instanceof Error).toBeTruthy();
             expect(e).toMatchObject(new Error(message));
         }
     });
 
     test('network error', async () => {
+        // BUILD
         mock.onPost(url).networkError();
 
         const createResourceRequest: CreateResourceRequest = {
@@ -113,8 +124,10 @@ describe('CREATE', () => {
         };
 
         try {
+            // OPERATE
             await apiDataService.createResource(createResourceRequest);
         } catch (e) {
+            // CHECK
             expect(e instanceof Error).toBeTruthy();
             expect(e).toMatchObject(new Error('Failed to connect to Integration Transform URL'));
         }
@@ -123,6 +136,7 @@ describe('CREATE', () => {
 
 describe('READ', () => {
     test('read resource successfully', async () => {
+        // BUILD
         const data = {
             message: '',
             resource,
@@ -136,11 +150,14 @@ describe('READ', () => {
             resourceType: 'Patient',
         };
 
+        // OPERATE
         const response = await apiDataService.readResource(readResourceRequest);
+        // CHECK
         expect(response.resource).toEqual(resource);
     });
 
     test('api returns with 404', async () => {
+        // BUILD
         const message = 'Failed to find resource';
         const data = {
             message,
@@ -156,14 +173,17 @@ describe('READ', () => {
         };
 
         try {
+            // OPERATE
             await apiDataService.readResource(readResourceRequest);
         } catch (e) {
+            // CHECK
             expect(e instanceof ResourceNotFoundError).toBeTruthy();
             expect(e).toMatchObject(new ResourceNotFoundError(resourceType, id, message));
         }
     });
 
     test('api returns with 500', async () => {
+        // BUILD
         const message = 'Failed to find resource';
         const data = {
             message,
@@ -179,14 +199,17 @@ describe('READ', () => {
         };
 
         try {
+            // OPERATE
             await apiDataService.readResource(readResourceRequest);
         } catch (e) {
+            // CHECK
             expect(e instanceof Error).toBeTruthy();
             expect(e).toMatchObject(new Error(message));
         }
     });
 
     test('network error', async () => {
+        // BUILD
         const id = 'f2ddf33c-9344-49cd-991f-8273eb959f92';
         mock.onGet(`${url}/${id}`).networkError();
 
@@ -197,8 +220,10 @@ describe('READ', () => {
         };
 
         try {
+            // OPERATE
             await apiDataService.readResource(readResourceRequest);
         } catch (e) {
+            // CHECK
             expect(e instanceof Error).toBeTruthy();
             expect(e).toMatchObject(new Error('Failed to connect to Integration Transform URL'));
         }
@@ -207,6 +232,7 @@ describe('READ', () => {
 
 describe('UPDATE', () => {
     test('update resource successfully', async () => {
+        // BUILD
         const data = {
             message: '',
             resource,
@@ -221,11 +247,14 @@ describe('UPDATE', () => {
             resource,
         };
 
+        // OPERATE
         const response = await apiDataService.updateResource(updateResourceRequest);
+        // CHECK
         expect(response.resource).toEqual(resource);
     });
 
     test('api returns with 404 error', async () => {
+        // BUILD
         const message = 'Failed to parse request';
         const data = {
             message,
@@ -242,14 +271,17 @@ describe('UPDATE', () => {
         };
 
         try {
+            // OPERATE
             await apiDataService.updateResource(updateResourceRequest);
         } catch (e) {
+            // CHECK
             expect(e instanceof ResourceNotFoundError).toBeTruthy();
             expect(e).toMatchObject(new ResourceNotFoundError(resourceType, id, message));
         }
     });
 
     test('api returns with 500 error', async () => {
+        // BUILD
         const message = 'Failed to parse request';
         const data = {
             message,
@@ -266,14 +298,17 @@ describe('UPDATE', () => {
         };
 
         try {
+            // OPERATE
             await apiDataService.updateResource(updateResourceRequest);
         } catch (e) {
+            // CHECK
             expect(e instanceof Error).toBeTruthy();
             expect(e).toMatchObject(new Error(message));
         }
     });
 
     test('network error', async () => {
+        // BUILD
         const id = 'f2ddf33c-9344-49cd-991f-8273eb959f92';
         mock.onPut(`${url}/${id}`).networkError();
 
@@ -285,8 +320,10 @@ describe('UPDATE', () => {
         };
 
         try {
+            // OPERATE
             await apiDataService.updateResource(updateResourceRequest);
         } catch (e) {
+            // CHECK
             expect(e instanceof Error).toBeTruthy();
             expect(e).toMatchObject(new Error('Failed to connect to Integration Transform URL'));
         }
@@ -295,6 +332,7 @@ describe('UPDATE', () => {
 
 describe('DELETE', () => {
     test('delete resource successfully', async () => {
+        // BUILD
         const id = 'f2ddf33c-9344-49cd-991f-8273eb959f92';
         mock.onDelete(`${url}/${id}`).reply(204);
 
@@ -303,11 +341,14 @@ describe('DELETE', () => {
             resourceType: 'Patient',
         };
 
+        // OPERATE
         const response = await apiDataService.deleteResource(deleteResourceRequest);
+        // CHECK
         expect(response).toEqual({ resource: {}, message: '' });
     });
 
     test('api returns with 404 error', async () => {
+        // BUILD
         const id = 'f2ddf33c-9344-49cd-991f-8273eb959f92';
         const message = 'Failed to find resource';
         const data = {
@@ -322,14 +363,17 @@ describe('DELETE', () => {
         };
 
         try {
+            // OPERATE
             await apiDataService.deleteResource(deleteResourceRequest);
         } catch (e) {
+            // CHECK
             expect(e instanceof ResourceNotFoundError).toBeTruthy();
             expect(e).toMatchObject(new ResourceNotFoundError(resourceType, id, message));
         }
     });
 
     test('api returns with 500 error', async () => {
+        // BUILD
         const id = 'f2ddf33c-9344-49cd-991f-8273eb959f92';
         const message = 'Failed to find resource';
         const data = {
@@ -344,14 +388,17 @@ describe('DELETE', () => {
         };
 
         try {
+            // OPERATE
             await apiDataService.deleteResource(deleteResourceRequest);
         } catch (e) {
+            // CHECK
             expect(e instanceof Error).toBeTruthy();
             expect(e).toMatchObject(new Error(message));
         }
     });
 
     test('network error', async () => {
+        // BUILD
         const id = 'f2ddf33c-9344-49cd-991f-8273eb959f92';
         mock.onDelete(`${url}/${id}`).networkError();
 
@@ -362,8 +409,10 @@ describe('DELETE', () => {
         };
 
         try {
+            // OPERATE
             await apiDataService.deleteResource(deleteResourceRequest);
         } catch (e) {
+            // CHECK
             expect(e instanceof Error).toBeTruthy();
             expect(e).toMatchObject(new Error('Failed to connect to Integration Transform URL'));
         }

@@ -28,6 +28,7 @@ export class ApiDataService implements Persistence {
             const response = await axios.post(url, request.resource);
             genericResponse = { message: '', resource: response.data.resource };
         } catch (e) {
+            console.error(e);
             this.handleError('', '', e, true);
         }
         return Promise.resolve(genericResponse);
