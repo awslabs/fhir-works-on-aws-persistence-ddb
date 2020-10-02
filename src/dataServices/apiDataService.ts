@@ -13,6 +13,13 @@ import {
     vReadResourceRequest,
 } from 'fhir-works-on-aws-interface';
 import axios from 'axios';
+import { aws4Interceptor } from 'aws4-axios';
+// TODO: Grab region value from ENV variable
+const interceptor = aws4Interceptor({
+    region: 'us-west-2',
+    service: 'execute-api',
+});
+axios.interceptors.request.use(interceptor);
 
 export class ApiDataService implements Persistence {
     updateCreateSupported: boolean = false;
@@ -25,7 +32,9 @@ export class ApiDataService implements Persistence {
 
     async createResource(request: CreateResourceRequest): Promise<GenericResponse> {
         try {
-            const url = `${this.INTEGRATION_TRANSFORM_URL}/persistence/${request.resourceType}`;
+            // const url = `${this.INTEGRATION_TRANSFORM_URL}/persistence/${request.resourceType}`;
+            const url = `${this.INTEGRATION_TRANSFORM_URL}`;
+            console.log('POST URL', url);
             const response = await axios.post(url, request.resource);
             return { message: '', resource: response.data.resource };
         } catch (e) {
