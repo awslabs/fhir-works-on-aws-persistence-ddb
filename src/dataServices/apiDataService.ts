@@ -28,8 +28,6 @@ export class ApiDataService implements Persistence {
     async createResource(request: CreateResourceRequest): Promise<GenericResponse> {
         try {
             const url = `${this.INTEGRATION_TRANSFORM_URL}/persistence/${request.resourceType}`;
-            // const url = `${this.INTEGRATION_TRANSFORM_URL}`;
-            console.log('POST URL', url);
             const response = await axios.post(url, request.resource);
             return { message: '', resource: response.data.resource };
         } catch (e) {
