@@ -13,13 +13,7 @@ import {
     vReadResourceRequest,
 } from 'fhir-works-on-aws-interface';
 import axios from 'axios';
-import { aws4Interceptor } from 'aws4-axios';
-// TODO: Grab region value from ENV variable
-const interceptor = aws4Interceptor({
-    region: 'us-west-2',
-    service: 'execute-api',
-});
-axios.interceptors.request.use(interceptor);
+import IamAuth from '../auth/iamAuth';
 
 export class ApiDataService implements Persistence {
     updateCreateSupported: boolean = false;
@@ -28,12 +22,13 @@ export class ApiDataService implements Persistence {
 
     constructor(integrationTransformUrl: string) {
         this.INTEGRATION_TRANSFORM_URL = integrationTransformUrl;
+        new IamAuth().initialize();
     }
 
     async createResource(request: CreateResourceRequest): Promise<GenericResponse> {
         try {
-            // const url = `${this.INTEGRATION_TRANSFORM_URL}/persistence/${request.resourceType}`;
-            const url = `${this.INTEGRATION_TRANSFORM_URL}`;
+            const url = `${this.INTEGRATION_TRANSFORM_URL}/persistence/${request.resourceType}`;
+            // const url = `${this.INTEGRATION_TRANSFORM_URL}`;
             console.log('POST URL', url);
             const response = await axios.post(url, request.resource);
             return { message: '', resource: response.data.resource };
@@ -88,7 +83,9 @@ export class ApiDataService implements Persistence {
             });
             return new Error(`An error was received from the Integration Transform: ${message}`);
         }
-        return new Error('Failed to connect to the Integration Transform');
+        const errorMessage = 'Failed to connect to the Integration Transform';
+        console.error(errorMessage, e);
+        return new Error(errorMessage);
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
