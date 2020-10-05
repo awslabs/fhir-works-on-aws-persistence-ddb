@@ -35,8 +35,10 @@ const resource = {
     id: 'f2ddf33c-9344-49cd-991f-8273eb959f92',
 };
 
-const apiDataService = new ApiDataService('http://localhost:4000');
-const mock = new MockAdapter(axios);
+const baseURL = 'http://localhost:4000';
+const axiosInstance = axios.create({ baseURL });
+const apiDataService = new ApiDataService(baseURL, axiosInstance);
+const mock = new MockAdapter(axiosInstance);
 afterEach(() => {
     mock.reset();
 });

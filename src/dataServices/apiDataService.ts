@@ -12,23 +12,23 @@ import {
     UpdateResourceRequest,
     vReadResourceRequest,
 } from 'fhir-works-on-aws-interface';
-import axios from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import IamAuth from '../auth/iamAuth';
 
 export class ApiDataService implements Persistence {
     updateCreateSupported: boolean = false;
 
-    private INTEGRATION_TRANSFORM_URL: string;
+    private axiosInstance: AxiosInstance;
 
-    constructor(integrationTransformUrl: string) {
-        this.INTEGRATION_TRANSFORM_URL = integrationTransformUrl;
-        new IamAuth().initialize();
+    constructor(integrationTransformUrl: string, axiosInstance: AxiosInstance | undefined = undefined) {
+        const instance = axiosInstance ?? axios.create({ baseURL: integrationTransformUrl });
+        new IamAuth().attachInterceptor(instance);
+        this.axiosInstance = instance;
     }
 
     async createResource(request: CreateResourceRequest): Promise<GenericResponse> {
         try {
-            const url = `${this.INTEGRATION_TRANSFORM_URL}/persistence/${request.resourceType}`;
-            const response = await axios.post(url, request.resource);
+            const response = await this.axiosInstance.post(`/persistence/${request.resourceType}`, request.resource);
             return { message: '', resource: response.data.resource };
         } catch (e) {
             throw this.getError(e);
@@ -37,9 +37,7 @@ export class ApiDataService implements Persistence {
 
     async readResource(request: ReadResourceRequest): Promise<GenericResponse> {
         try {
-            const response = await axios.get(
-                `${this.INTEGRATION_TRANSFORM_URL}/persistence/${request.resourceType}/${request.id}`,
-            );
+            const response = await this.axiosInstance.get(`/persistence/${request.resourceType}/${request.id}`);
             return { message: '', resource: response.data.resource };
         } catch (e) {
             throw this.getError(e, request.resourceType, request.id);
@@ -48,8 +46,8 @@ export class ApiDataService implements Persistence {
 
     async updateResource(request: UpdateResourceRequest): Promise<GenericResponse> {
         try {
-            const response = await axios.put(
-                `${this.INTEGRATION_TRANSFORM_URL}/persistence/${request.resourceType}/${request.id}`,
+            const response = await this.axiosInstance.put(
+                `/persistence/${request.resourceType}/${request.id}`,
                 request.resource,
             );
             return { message: '', resource: response.data.resource };
@@ -60,7 +58,7 @@ export class ApiDataService implements Persistence {
 
     async deleteResource(request: DeleteResourceRequest): Promise<GenericResponse> {
         try {
-            await axios.delete(`${this.INTEGRATION_TRANSFORM_URL}/persistence/${request.resourceType}/${request.id}`);
+            await this.axiosInstance.delete(`/persistence/${request.resourceType}/${request.id}`);
             // Don't need to actually return anything to the router
             return { message: '' };
         } catch (e) {
