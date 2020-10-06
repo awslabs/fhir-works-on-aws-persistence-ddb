@@ -20,7 +20,7 @@ export class ApiDataService implements Persistence {
 
     private axiosInstance: AxiosInstance;
 
-    constructor(integrationTransformUrl: string, axiosInstance: AxiosInstance | undefined = undefined) {
+    constructor(integrationTransformUrl: string, axiosInstance?: AxiosInstance) {
         const instance = axiosInstance ?? axios.create({ baseURL: integrationTransformUrl });
         new IamAuth().attachInterceptor(instance);
         this.axiosInstance = instance;
