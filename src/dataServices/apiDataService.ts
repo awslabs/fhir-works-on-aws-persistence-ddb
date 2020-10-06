@@ -1,5 +1,9 @@
-/* eslint-disable class-methods-use-this */
+/*
+ *  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *  SPDX-License-Identifier: Apache-2.0
+ */
 
+/* eslint-disable class-methods-use-this */
 import {
     ConditionalDeleteResourceRequest,
     CreateResourceRequest,

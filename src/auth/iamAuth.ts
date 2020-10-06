@@ -1,3 +1,8 @@
+/*
+ *  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *  SPDX-License-Identifier: Apache-2.0
+ */
+
 import { AxiosInstance } from 'axios';
 import { aws4Interceptor } from 'aws4-axios';
 import Auth from './auth';
