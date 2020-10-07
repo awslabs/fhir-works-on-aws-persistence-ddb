@@ -1,7 +1,7 @@
 {
-  "name": "fhir-works-on-aws-persistence-facade",
-  "version": "1.0.0",
-  "description": "FHIR Works on AWS persistence facade implementation",
+  "name": "fhir-works-on-aws-persistence-ddb",
+  "version": "2.0.1",
+  "description": "FHIR Works on AWS persistence DynamoDB implementation",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "author": {
@@ -67,7 +67,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git://github.com/awslabs/fhir-works-on-aws-persistence-facade.git"
+    "url": "git://github.com/awslabs/fhir-works-on-aws-persistence-ddb.git"
   },
   "engines": {
     "node": ">=12.0.0"
