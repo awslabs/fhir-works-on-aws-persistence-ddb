@@ -4,17 +4,25 @@
 
 Please visit [fhir-works-on-aws-deployment](https://github.com/awslabs/fhir-works-on-aws-deployment) for overall vision of the project and for more context.
 
-This package is an implementation of the persistence & bundle components of the [FHIR Works interface](https://github.com/awslabs/fhir-works-on-aws-interface). It is responsible for executing CRUD based requests from the router. To use and deploy this component (with the other 'out of the box' components) please follow the overall [README](https://github.com/awslabs/fhir-works-on-aws-deployment)
+This package is an implementation of the persistence components of the [FHIR Works interface](https://github.com/awslabs/fhir-works-on-aws-interface). It is responsible for executing CRUD based requests from the router by proxying the requests to an Integration Transform microservice. 
+
+The Integration Transform should implement authentication by using API Gateway [resource policy](https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-resource-policies-examples.html#apigateway-resource-policies-cross-account-example).
+ 
+ The Integration Transform should also implement the persistence APIs as defined [here](https://github.com/awslabs/fhir-works-on-aws-interface/blob/mainline/openapi.yaml). Routes that should be implemented
+- POST `/persistence/{resourceType}`
+- GET `/persistence/{resourceType}/{id}`
+- PUT `/persistence/{resourceType}/{id}`
+- DELETE `/persistence/{resourceType}/{id}`
+ 
+For more details about the Integration Transform and how to set it up, please refer to [here](TODO: Get url of repo from Baha for `fhir-hl7v2-integration-transform`)
+
+To use and deploy `fhir-works-on-aws-persistence-facade` (with the other 'out of the box' components) please follow the overall [README in the API branch](https://github.com/awslabs/fhir-works-on-aws-deployment/tree/api).
 
 ## Infrastructure
 
 This package assumes certain infrastructure:
 
-- DynamoDB - The table name defined by the environment variable RESOURCE_TABLE
-  - Partition key is 'id' and sort key is 'vid'
-- Elasticsearch - The Elasticsearch domain is defined by the environment variable ELASTICSEARCH_DOMAIN_ENDPOINT
-  - Indexes are defined by the resource type
-- S3 Bucket - The bucket name is defined by the environment variable FHIR_BINARY_BUCKET
+- Integration Transform - A microservice that implements the persistence APIs as defined [here](https://github.com/awslabs/fhir-works-on-aws-interface/blob/mainline/openapi.yaml) and uses API Gateway resource policy for Authentication 
 
 ## Usage
 
