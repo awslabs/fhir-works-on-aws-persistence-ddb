@@ -5,13 +5,19 @@
 
 import { AxiosInstance } from 'axios';
 import { aws4Interceptor } from 'aws4-axios';
-import Auth, { InterceptorConfig } from './auth';
+import Auth from './auth';
 
 export default class IamAuth implements Auth {
+    region: string;
+
+    constructor(region: string) {
+        this.region = region;
+    }
+
     // eslint-disable-next-line class-methods-use-this
-    attachInterceptor(axiosInstance: AxiosInstance, interceptorConfig: InterceptorConfig) {
+    attachInterceptor(axiosInstance: AxiosInstance) {
         const interceptor = aws4Interceptor({
-            region: interceptorConfig.awsRegion,
+            region: this.region,
             service: 'execute-api',
         });
         axiosInstance.interceptors.request.use(interceptor);
