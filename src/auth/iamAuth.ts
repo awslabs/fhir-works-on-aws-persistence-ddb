@@ -14,7 +14,6 @@ export default class IamAuth implements Auth {
         this.region = region;
     }
 
-    // eslint-disable-next-line class-methods-use-this
     attachInterceptor(axiosInstance: AxiosInstance) {
         const interceptor = aws4Interceptor({
             region: this.region,
