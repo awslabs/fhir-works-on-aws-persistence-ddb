@@ -42,7 +42,7 @@ const resource = {
 
 const baseURL = 'http://localhost:4000';
 const axiosInstance = axios.create({ baseURL });
-const apiDataService = new ApiDataService(baseURL, axiosInstance);
+const apiDataService = new ApiDataService(baseURL, 'us-east-1', axiosInstance);
 const mock = new MockAdapter(axiosInstance);
 afterEach(() => {
     mock.reset();

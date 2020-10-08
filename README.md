@@ -14,15 +14,9 @@ The Integration Transform should implement authentication by using API Gateway [
 - PUT `/persistence/{resourceType}/{id}`
 - DELETE `/persistence/{resourceType}/{id}`
  
-For more details about the Integration Transform and how to set it up, please refer to [here](TODO: Get url of repo from Baha for `fhir-hl7v2-integration-transform`)
+For more details about the Integration Transform and how to set it up, please refer to [here](TODO: Get url of repo from Bakha for `fhir-hl7v2-integration-transform`)
 
 To use and deploy `fhir-works-on-aws-persistence-facade` (with the other 'out of the box' components) please follow the overall [README in the API branch](https://github.com/awslabs/fhir-works-on-aws-deployment/tree/api).
-
-## Infrastructure
-
-This package assumes certain infrastructure:
-
-- Integration Transform - A microservice that implements the persistence APIs as defined [here](https://github.com/awslabs/fhir-works-on-aws-interface/blob/mainline/openapi.yaml) and uses API Gateway resource policy for Authentication 
 
 ## Usage
 
