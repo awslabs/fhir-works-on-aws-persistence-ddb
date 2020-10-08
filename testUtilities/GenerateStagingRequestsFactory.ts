@@ -4,7 +4,7 @@
  */
 
 /* eslint-disable class-methods-use-this */
-import { BatchReadWriteRequest } from 'fhir-works-on-aws-interface';
+import { BatchReadWriteRequest, BatchReadWriteResponse } from 'fhir-works-on-aws-interface';
 import { DynamoDBConverter } from '../src/dataServices/dynamoDb';
 import { DOCUMENT_STATUS_FIELD } from '../src/dataServices/dynamoDbUtil';
 import DOCUMENT_STATUS from '../src/dataServices/documentStatus';
@@ -44,12 +44,12 @@ export default class GenerateStagingRequestsFactory {
 
         const expectedLock = {
             id: expect.stringMatching(uuidRegExp),
-            vid: '1',
+            vid: 1,
             resourceType: 'Patient',
             operation: 'create',
         };
 
-        const expectedStagingResponse = {
+        const expectedStagingResponse: BatchReadWriteResponse = {
             id: expect.stringMatching(uuidRegExp),
             vid: '1',
             operation: 'create',
@@ -76,7 +76,7 @@ export default class GenerateStagingRequestsFactory {
             id,
         };
 
-        const vid = '1';
+        const vid = 1;
 
         const expectedRequest = {
             Get: {
@@ -86,23 +86,23 @@ export default class GenerateStagingRequestsFactory {
                         S: id,
                     },
                     vid: {
-                        S: vid,
+                        N: vid.toString(),
                     },
                 },
             },
         };
 
         const expectedLock: [] = [];
-        const expectedStagingResponse = {
+        const expectedStagingResponse: BatchReadWriteResponse = {
             id,
-            vid,
+            vid: vid.toString(),
             operation: 'read',
             lastModified: '',
             resource: {},
             resourceType: 'Patient',
         };
 
-        const idToVersionId: Record<string, string> = {};
+        const idToVersionId: Record<string, number> = {};
         idToVersionId[id] = vid;
 
         return {
@@ -134,8 +134,8 @@ export default class GenerateStagingRequestsFactory {
             resource,
             fullUrl: `urn:uuid:${id}`,
         };
-        const vid = '1';
-        const nextVid = '2';
+        const vid = 1;
+        const nextVid = 2;
         const expectedUpdateItem: any = { ...resource };
         expectedUpdateItem[DOCUMENT_STATUS_FIELD] = DOCUMENT_STATUS.PENDING;
         expectedUpdateItem.id = id;
@@ -156,16 +156,16 @@ export default class GenerateStagingRequestsFactory {
             isOriginalUpdateItem: false,
         };
 
-        const expectedStagingResponse = {
+        const expectedStagingResponse: BatchReadWriteResponse = {
             id: expect.stringMatching(uuidRegExp),
-            vid: nextVid,
+            vid: nextVid.toString(),
             operation: 'update',
             resourceType: 'Patient',
             resource: {},
             lastModified: expect.stringMatching(utcTimeRegExp),
         };
 
-        const idToVersionId: Record<string, string> = {};
+        const idToVersionId: Record<string, number> = {};
         idToVersionId[id] = vid;
 
         return {
@@ -187,7 +187,7 @@ export default class GenerateStagingRequestsFactory {
             id,
         };
 
-        const vid = '1';
+        const vid = 1;
         const expectedRequest = DynamoDbParamBuilder.buildUpdateDocumentStatusParam(
             DOCUMENT_STATUS.LOCKED,
             DOCUMENT_STATUS.PENDING_DELETE,
@@ -204,16 +204,16 @@ export default class GenerateStagingRequestsFactory {
 
         const expectedLock: [] = [];
 
-        const expectedStagingResponse = {
+        const expectedStagingResponse: BatchReadWriteResponse = {
             id,
-            vid,
+            vid: vid.toString(),
             operation: 'delete',
             lastModified: expect.stringMatching(utcTimeRegExp),
             resource: {},
             resourceType: 'Patient',
         };
 
-        const idToVersionId: Record<string, string> = {};
+        const idToVersionId: Record<string, number> = {};
         idToVersionId[id] = vid;
 
         return {
@@ -230,5 +230,5 @@ interface RequestResult {
     expectedRequest: any;
     expectedLock: any;
     expectedStagingResponse: any;
-    idToVersionId: Record<string, string>;
+    idToVersionId: Record<string, number>;
 }

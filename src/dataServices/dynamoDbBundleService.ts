@@ -209,10 +209,12 @@ export class DynamoDbBundleService implements Bundle {
             }
             const { resourceType, id, meta } = itemResponse.resource;
 
+            const vid = parseInt(meta.versionId, 10);
+
             const lockedItem: ItemRequest = {
                 resourceType,
                 id,
-                vid: meta.versionId,
+                vid,
                 operation: allNonCreateRequests[i].operation,
             };
             if (lockedItem.operation === 'update') {
@@ -225,7 +227,7 @@ export class DynamoDbBundleService implements Bundle {
                     DOCUMENT_STATUS.AVAILABLE,
                     DOCUMENT_STATUS.LOCKED,
                     id,
-                    meta.versionId,
+                    vid,
                 ),
             );
         }
@@ -289,13 +291,13 @@ export class DynamoDbBundleService implements Bundle {
                 null,
                 newStatus,
                 lockedItem.id,
-                lockedItem.vid || '0',
+                lockedItem.vid || 0,
             );
         });
 
         const updateRequestChunks = chunkArray(updateRequests, this.MAX_TRANSACTION_SIZE);
         const lockedItemChunks = chunkArray(lockedItems, this.MAX_TRANSACTION_SIZE);
-        const params = updateRequestChunks.map(requestChunk => {
+        const params = updateRequestChunks.map((requestChunk: any) => {
             return {
                 TransactItems: requestChunk,
             };
@@ -352,7 +354,7 @@ export class DynamoDbBundleService implements Bundle {
     ) {
         const fullIdToLockedItem: Record<string, ItemRequest> = {};
         originalLocks.forEach(lockedItem => {
-            fullIdToLockedItem[this.generateFullId(lockedItem.id, lockedItem.vid || '0')] = lockedItem;
+            fullIdToLockedItem[this.generateFullId(lockedItem.id, lockedItem.vid?.toString() || '0')] = lockedItem;
         });
 
         locksToRemove.forEach(itemToRemove => {
@@ -368,9 +370,9 @@ export class DynamoDbBundleService implements Bundle {
     private async stageItems(requests: BatchReadWriteRequest[], lockedItems: ItemRequest[]) {
         console.log('Start Staging of Items');
 
-        const idToVersionId: Record<string, string> = {};
+        const idToVersionId: Record<string, number> = {};
         lockedItems.forEach((idItemLocked: ItemRequest) => {
-            idToVersionId[idItemLocked.id] = idItemLocked.vid || '0';
+            idToVersionId[idItemLocked.id] = idItemLocked.vid || 0;
         });
 
         const {

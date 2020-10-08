@@ -10,7 +10,7 @@ import { timeFromEpochInMsRegExp } from '../../testUtilities/regExpressions';
 describe('buildUpdateDocumentStatusParam', () => {
     test('Update status correctly when there is a requirement for what the old status needs to be', () => {
         const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
-        const vid = '1';
+        const vid = 1;
 
         // Check that the old status is AVAILABLE before changing it to LOCK
         const actualParam = DynamoDbParamBuilder.buildUpdateDocumentStatusParam(
@@ -28,7 +28,7 @@ describe('buildUpdateDocumentStatusParam', () => {
                         S: id,
                     },
                     vid: {
-                        S: vid,
+                        N: vid.toString(),
                     },
                 },
                 UpdateExpression: 'set documentStatus = :newStatus, lockEndTs = :futureEndTs',
@@ -67,7 +67,7 @@ describe('buildUpdateDocumentStatusParam', () => {
         expect(actualParam).toEqual(expectedParam);
     });
 
-    const getExpectedParamForUpdateWithoutOldStatus = (documentStatus: DOCUMENT_STATUS, id: string, vid: string) => {
+    const getExpectedParamForUpdateWithoutOldStatus = (documentStatus: DOCUMENT_STATUS, id: string, vid: number) => {
         return {
             Update: {
                 TableName: '',
@@ -76,7 +76,7 @@ describe('buildUpdateDocumentStatusParam', () => {
                         S: id,
                     },
                     vid: {
-                        S: vid,
+                        N: vid.toString(),
                     },
                 },
                 UpdateExpression: 'set documentStatus = :newStatus, lockEndTs = :futureEndTs',
@@ -95,7 +95,7 @@ describe('buildUpdateDocumentStatusParam', () => {
 
     test('When a document is being locked, lockEndTs should have a timestamp that expires in the future', () => {
         const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
-        const vid = '1';
+        const vid = 1;
         const actualParam = DynamoDbParamBuilder.buildUpdateDocumentStatusParam(null, DOCUMENT_STATUS.LOCKED, id, vid);
 
         const futureTs = Number(actualParam.Update.ExpressionAttributeValues[':futureEndTs'].N);
@@ -112,7 +112,7 @@ describe('buildUpdateDocumentStatusParam', () => {
 
     test('Update status correctly when there is NO requirement for what the old status needs to be', () => {
         const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
-        const vid = '1';
+        const vid = 1;
         // Check the status to be AVAILABLE no matter what the previous status was
         const actualParam = DynamoDbParamBuilder.buildUpdateDocumentStatusParam(
             null,
@@ -135,7 +135,7 @@ describe('buildUpdateDocumentStatusParam', () => {
 describe('buildPutItemParam', () => {
     test('check that param has the fields documentStatus and lockEndTs', () => {
         const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
-        const vid = '1';
+        const vid = 1;
         const item = {
             resourceType: 'Patient',
             id,
@@ -148,7 +148,7 @@ describe('buildPutItemParam', () => {
             gender: 'male',
             meta: {
                 lastUpdated: '2020-03-26T15:46:55.848Z',
-                versionId: vid,
+                versionId: vid.toString(),
             },
         };
         const actualParams = DynamoDbParamBuilder.buildPutAvailableItemParam(item, id, vid);
@@ -162,7 +162,7 @@ describe('buildPutItemParam', () => {
                     S: id,
                 },
                 vid: {
-                    S: vid,
+                    N: vid.toString(),
                 },
                 name: {
                     L: [

@@ -28,8 +28,7 @@ import {
     TooManyConcurrentExportRequestsError,
     ExportJobStatus,
 } from 'fhir-works-on-aws-interface';
-import { DynamoDB } from 'aws-sdk';
-import { ItemList } from 'aws-sdk/clients/dynamodb';
+import DynamoDB, { ItemList } from 'aws-sdk/clients/dynamodb';
 import { DynamoDBConverter } from './dynamoDb';
 import DOCUMENT_STATUS from './documentStatus';
 import { DynamoDbBundleService } from './dynamoDbBundleService';
@@ -50,11 +49,10 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
 
     private readonly dynamoDb: DynamoDB;
 
-    // Allow Mocking DDB
     constructor(dynamoDb: DynamoDB) {
-        this.dynamoDb = dynamoDb;
         this.dynamoDbHelper = new DynamoDbHelper(dynamoDb);
         this.transactionService = new DynamoDbBundleService(dynamoDb);
+        this.dynamoDb = dynamoDb;
     }
 
     async readResource(request: ReadResourceRequest): Promise<GenericResponse> {
@@ -63,7 +61,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
 
     async vReadResource(request: vReadResourceRequest): Promise<GenericResponse> {
         const { resourceType, id, vid } = request;
-        const params = DynamoDbParamBuilder.buildGetItemParam(id, vid);
+        const params = DynamoDbParamBuilder.buildGetItemParam(id, parseInt(vid, 10));
         const result = await this.dynamoDb.getItem(params).promise();
         if (result.Item === undefined) {
             throw new ResourceVersionNotFoundError(resourceType, id, vid);
@@ -78,12 +76,12 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
 
     async createResource(request: CreateResourceRequest) {
         const { resourceType, resource, id } = request;
+        const vid = 1;
         let item = resource;
         item.resourceType = resourceType;
+        item.meta = generateMeta(vid.toString());
 
-        item.meta = generateMeta('1');
-
-        const params = DynamoDbParamBuilder.buildPutAvailableItemParam(item, id || uuidv4(), resource.meta.versionId);
+        const params = DynamoDbParamBuilder.buildPutAvailableItemParam(item, id || uuidv4(), vid);
         await this.dynamoDb.putItem(params).promise();
         const newItem = DynamoDBConverter.unmarshall(params.Item);
         item = DynamoDbUtil.cleanItem(newItem);
@@ -100,10 +98,10 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
 
         const { versionId } = itemServiceResponse.resource.meta;
 
-        return this.deleteVersionedResource(resourceType, id, versionId);
+        return this.deleteVersionedResource(resourceType, id, parseInt(versionId, 10));
     }
 
-    async deleteVersionedResource(resourceType: string, id: string, vid: string) {
+    async deleteVersionedResource(resourceType: string, id: string, vid: number) {
         const updateStatusToDeletedParam = DynamoDbParamBuilder.buildUpdateDocumentStatusParam(
             DOCUMENT_STATUS.AVAILABLE,
             DOCUMENT_STATUS.DELETED,

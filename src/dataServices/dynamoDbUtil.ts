@@ -26,15 +26,15 @@ export class DynamoDbUtil {
         return cleanedItem;
     }
 
-    static prepItemForDdbInsert(resource: any, id: string, vid: string, documentStatus: DOCUMENT_STATUS) {
+    static prepItemForDdbInsert(resource: any, id: string, vid: number, documentStatus: DOCUMENT_STATUS) {
         const item = clone(resource);
         item.id = id;
         item.vid = vid;
         if (vid && !item.meta) {
-            item.meta = generateMeta(vid);
+            item.meta = generateMeta(vid.toString());
         }
         if (vid && item.meta && !item.meta.versionId) {
-            const generatedMeta = generateMeta(vid);
+            const generatedMeta = generateMeta(vid.toString());
             item.meta = { ...item.meta, ...generatedMeta };
         }
         item[DOCUMENT_STATUS_FIELD] = documentStatus;

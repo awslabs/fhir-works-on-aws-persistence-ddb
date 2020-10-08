@@ -10,7 +10,7 @@ import { timeFromEpochInMsRegExp, utcTimeRegExp } from '../../testUtilities/regE
 
 describe('cleanItem', () => {
     const id = 'ee3928b9-8699-4970-ba49-8f41bd122f46';
-    const vid = '2';
+    const vid = 2;
 
     test('Remove documentStatus field and format id correctly', () => {
         const item: any = {
@@ -49,7 +49,7 @@ describe('cleanItem', () => {
 
 describe('prepItemForDdbInsert', () => {
     const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
-    const vid = '1';
+    const vid = 1;
     const resource = {
         resourceType: 'Patient',
         id,
@@ -62,7 +62,7 @@ describe('prepItemForDdbInsert', () => {
         gender: 'male',
         meta: {
             lastUpdated: '2020-03-26T15:46:55.848Z',
-            versionId: vid,
+            versionId: vid.toString(),
         },
     };
 
@@ -72,7 +72,7 @@ describe('prepItemForDdbInsert', () => {
         expectedItem.id = id;
         expectedItem.vid = vid;
         expectedItem.meta = {
-            versionId: vid,
+            versionId: vid.toString(),
             lastUpdated: expect.stringMatching(utcTimeRegExp),
         };
 
@@ -88,7 +88,7 @@ describe('prepItemForDdbInsert', () => {
         const actualItem = DynamoDbUtil.prepItemForDdbInsert(updatedResource, id, vid, DOCUMENT_STATUS.PENDING);
 
         // CHECK
-        updatedResource.meta.versionId = vid;
+        updatedResource.meta.versionId = vid.toString();
         checkExpectedItemMatchActualItem(actualItem, updatedResource);
     });
 
