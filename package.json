@@ -29,6 +29,7 @@
   },
   "dependencies": {
     "@elastic/elasticsearch": "7",
+    "@types/aws-lambda": "^8.10.63",
     "aws-elasticsearch-connector": "^8.2.0",
     "aws-sdk": "^2.610.0",
     "aws-xray-sdk": "^3.1.0",
