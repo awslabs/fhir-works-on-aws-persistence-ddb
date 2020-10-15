@@ -5,8 +5,12 @@
 
 import { Handler } from 'aws-lambda';
 import AWS from 'aws-sdk';
+import { BulkExportStateMachineGlobalParameters } from './types';
 
-export const startCrawlerHandler: Handler = async event => {
+export const startCrawlerHandler: Handler<
+    BulkExportStateMachineGlobalParameters,
+    BulkExportStateMachineGlobalParameters
+> = async event => {
     const { CRAWLER_NAME } = process.env;
     if (CRAWLER_NAME === undefined) {
         throw new Error('CRAWLER_NAME environment variable is not defined');

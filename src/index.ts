@@ -9,3 +9,5 @@ export { DynamoDb } from './dataServices/dynamoDb';
 export * from './objectStorageService/s3DataService';
 export { handleDdbToEsEvent } from './ddbToEs/index';
 export { startCrawlerHandler } from './bulkExport/startCrawler';
+export { startExportJobHandler } from './bulkExport/startExportJob';
+export { getJobStatusHandler } from './bulkExport/getJobStatus';
