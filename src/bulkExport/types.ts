@@ -13,11 +13,9 @@ export interface BulkExportStateMachineGlobalParameters {
     jobId: string;
     exportType: ExportType;
     transactionTime: string;
-    requestQueryParams?: {
-        _outputFormat?: string;
-        _since?: string;
-        _type?: string;
-    };
+    outputFormat?: string;
+    since?: string;
+    type?: string;
     executionParameters?: BulkExportStateMachineExecutionParameters;
 }
 
