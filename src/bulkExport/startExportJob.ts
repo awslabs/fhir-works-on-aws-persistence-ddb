@@ -22,8 +22,11 @@ export const startExportJobHandler: Handler<
             Arguments: {
                 jobId: event.jobId,
                 exportType: event.exportType,
+                transactionTime: event.transactionTime,
+                groupId: event.groupId!,
                 since: event.since!,
                 type: event.type!,
+                outputFormat: event.outputFormat!,
             },
         })
         .promise();
