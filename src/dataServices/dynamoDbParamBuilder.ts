@@ -159,8 +159,10 @@ export default class DynamoDbParamBuilder {
                 jobId,
             }),
             UpdateExpression: 'set jobStatus = :newStatus',
+            ConditionExpression: 'jobId = :jobIdVal',
             ExpressionAttributeValues: DynamoDBConverter.marshall({
                 ':newStatus': jobStatus,
+                ':jobIdVal': jobId,
             }),
         };
 

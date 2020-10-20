@@ -11,3 +11,4 @@ export { handleDdbToEsEvent } from './ddbToEs/index';
 export { startCrawlerHandler } from './bulkExport/startCrawler';
 export { startExportJobHandler } from './bulkExport/startExportJob';
 export { getJobStatusHandler } from './bulkExport/getJobStatus';
+export { updateStatusStatusHandler } from './bulkExport/updateStatus';
