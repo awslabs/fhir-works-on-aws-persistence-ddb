@@ -5,6 +5,7 @@
 
 import * as AWSMock from 'aws-sdk-mock';
 import AWS from 'aws-sdk';
+import each from 'jest-each';
 import { updateStatusStatusHandler } from './updateStatus';
 
 AWSMock.setSDKInstance(AWS);
@@ -24,9 +25,11 @@ describe('updateStatus', () => {
         ).resolves.toBeUndefined();
     });
 
-    test('invalid status', async () => {
-        await expect(
-            updateStatusStatusHandler({ jobId: '1', status: 'not-a-valid-status' }, null as any, null as any),
-        ).rejects.toThrowError('Invalid status "not-a-valid-status"');
+    describe('Invalid status', () => {
+        each([null, undefined, 'not-a-valid-status']).test('%j', async (status: any) => {
+            await expect(
+                updateStatusStatusHandler({ jobId: '1', status }, null as any, null as any),
+            ).rejects.toThrowError(`Invalid status "${status}"`);
+        });
     });
 });
