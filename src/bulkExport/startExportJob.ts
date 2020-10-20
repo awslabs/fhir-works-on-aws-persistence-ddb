@@ -16,7 +16,20 @@ export const startExportJobHandler: Handler<
         throw new Error('GLUE_JOB_NAME environment variable is not defined');
     }
     const glue = new AWS.Glue();
-    const startJobRunResponse = await glue.startJobRun({ JobName: GLUE_JOB_NAME }).promise();
+    const startJobRunResponse = await glue
+        .startJobRun({
+            JobName: GLUE_JOB_NAME,
+            Arguments: {
+                jobId: event.jobId,
+                exportType: event.exportType,
+                transactionTime: event.transactionTime,
+                groupId: event.groupId!,
+                since: event.since!,
+                type: event.type!,
+                outputFormat: event.outputFormat!,
+            },
+        })
+        .promise();
     return {
         ...event,
         executionParameters: {

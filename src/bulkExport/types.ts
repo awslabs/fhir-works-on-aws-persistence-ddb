@@ -13,6 +13,7 @@ export interface BulkExportStateMachineGlobalParameters {
     jobId: string;
     exportType: ExportType;
     transactionTime: string;
+    groupId?: string;
     outputFormat?: string;
     since?: string;
     type?: string;
