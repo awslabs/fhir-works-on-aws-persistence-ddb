@@ -49,7 +49,7 @@ const signExportResults = async (keys: string[]): Promise<{ key: string; url: st
 };
 
 const getResourceType = (key: string, jobId: string): string => {
-    const regex = new RegExp(`^${jobId}/([A-Za-z]+)-.*$`);
+    const regex = new RegExp(`^${jobId}/([A-Za-z]+)-\\d+.ndjson$`);
     const match = regex.exec(key);
     if (match === null) {
         throw new Error(`Could not parse the name of bulk exports result file: ${key}`);
