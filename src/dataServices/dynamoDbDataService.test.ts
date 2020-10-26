@@ -27,6 +27,7 @@ import { DynamoDBConverter } from './dynamoDb';
 import DynamoDbHelper from './dynamoDbHelper';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 
+jest.mock('../bulkExport/bulkExportResults');
 AWSMock.setSDKInstance(AWS);
 
 // eslint-disable-next-line import/order
@@ -461,7 +462,6 @@ describe('getExportStatus', () => {
         AWSMock.mock('DynamoDB', 'getItem', (params: QueryInput, callback: Function) => {
             callback(null, {
                 Item: DynamoDBConverter.marshall({
-                    s3PresignedUrls: [],
                     jobFailedMessage: '',
                     outputFormat: 'ndjson',
                     exportType: 'system',
