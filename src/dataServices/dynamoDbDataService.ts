@@ -35,6 +35,7 @@ import { DynamoDbBundleService } from './dynamoDbBundleService';
 import { DynamoDbUtil } from './dynamoDbUtil';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 import DynamoDbHelper from './dynamoDbHelper';
+import { getBulkExportResults } from '../bulkExport/bulkExportResults';
 
 export class DynamoDbDataService implements Persistence, BulkDataAccess {
     private readonly MAXIMUM_SYSTEM_LEVEL_CONCURRENT_REQUESTS = 2;
@@ -230,7 +231,6 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
         const {
             jobStatus,
             jobOwnerId,
-            s3PresignedUrls,
             transactionTime,
             exportType,
             outputFormat,
@@ -241,10 +241,12 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
             errorMessage = '',
         } = item;
 
+        const exportedFileUrls = await getBulkExportResults(jobId);
+
         const getExportStatusResponse: GetExportStatusResponse = {
             jobOwnerId,
             jobStatus,
-            exportedFileUrls: s3PresignedUrls,
+            exportedFileUrls,
             transactionTime,
             exportType,
             outputFormat,
