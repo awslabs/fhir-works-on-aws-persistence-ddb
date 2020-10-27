@@ -11,8 +11,8 @@ const EXPORT_RESULTS_SIGNER_ROLE_ARN = process.env.EXPORT_RESULTS_SIGNER_ROLE_AR
 const getFiles = async (jobId: string): Promise<string[]> => {
     const s3 = new AWS.S3();
 
-    const listObjecsResult = await s3.listObjectsV2({ Bucket: EXPORT_RESULTS_BUCKET, Prefix: jobId }).promise();
-    return listObjecsResult.Contents!.map(x => x.Key!);
+    const listObjectsResult = await s3.listObjectsV2({ Bucket: EXPORT_RESULTS_BUCKET, Prefix: jobId }).promise();
+    return listObjectsResult.Contents!.map(x => x.Key!);
 };
 
 const signExportResults = async (keys: string[]): Promise<{ key: string; url: string }[]> => {
