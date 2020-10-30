@@ -39,7 +39,7 @@ describe('getJobStatus', () => {
                 Errors: [],
             });
         });
-        await expect(stopExportJobHandler(event, null as any, null as any)).resolves.not.toThrowError();
+        await expect(stopExportJobHandler(event, null as any, null as any)).resolves.toEqual({ jobId: '1' });
     });
     test('stop job failed', async () => {
         const glueJobRunId = 'jr_1';
