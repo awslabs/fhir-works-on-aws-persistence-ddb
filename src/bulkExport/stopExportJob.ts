@@ -7,7 +7,7 @@ import { Handler } from 'aws-lambda';
 import AWS from 'aws-sdk';
 import { BulkExportStateMachineGlobalParameters } from './types';
 
-export const stopExportJobHandler: Handler<BulkExportStateMachineGlobalParameters, void> = async event => {
+export const stopExportJobHandler: Handler<BulkExportStateMachineGlobalParameters, { jobId: string }> = async event => {
     const { GLUE_JOB_NAME } = process.env;
     if (GLUE_JOB_NAME === undefined) {
         throw new Error('GLUE_JOB_NAME environment variable is not defined');
@@ -28,4 +28,7 @@ export const stopExportJobHandler: Handler<BulkExportStateMachineGlobalParameter
         console.log('Failed to stop job', JSON.stringify(stopJobRunResponse));
         throw new Error(`Failed to stop job`);
     }
+    return {
+        jobId: event.jobId,
+    };
 };
