@@ -120,7 +120,7 @@ export default class DynamoDbParamBuilder {
             exportType: initiateExportRequest.exportType,
             groupId: initiateExportRequest.groupId ?? '',
             outputFormat: initiateExportRequest.outputFormat ?? 'ndjson',
-            since: initiateExportRequest.since ?? '1800-01-01T00:00:00Z', // Default to a long time ago in the past
+            since: initiateExportRequest.since ?? '1800-01-01T00:00:00.000Z', // Default to a long time ago in the past
             type: initiateExportRequest.type ?? '',
             transactionTime: initiateExportRequest.transactionTime,
             s3PresignedUrls: [],
