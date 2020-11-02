@@ -27,4 +27,5 @@ export interface BulkExportStateMachineExecutionParameters {
     glueJobRunId?: string;
     glueJobRunStatus?: JobRunState;
     isCanceled?: boolean;
+    crawlerStatus?: 'succeeded' | 'failed' | 'running';
 }
