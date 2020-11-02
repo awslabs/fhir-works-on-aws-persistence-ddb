@@ -10,13 +10,14 @@ import { stopExportJobHandler } from './stopExportJob';
 AWSMock.setSDKInstance(AWS);
 
 describe('getJobStatus', () => {
+    const glueJobName = 'jobName';
+    const glueJobRunId = 'jr_1';
     beforeEach(() => {
         process.env.GLUE_JOB_NAME = 'jobName';
         AWSMock.restore();
     });
 
     test('stop job successfully', async () => {
-        const glueJobRunId = 'jr_1';
         const event: BulkExportStateMachineGlobalParameters = {
             jobId: '1',
             exportType: 'system',
@@ -25,8 +26,6 @@ describe('getJobStatus', () => {
                 glueJobRunId,
             },
         };
-        const glueJobName = 'jobName';
-        process.env.GLUE_JOB_NAME = glueJobName;
 
         AWSMock.mock('Glue', 'batchStopJobRun', (params: any, callback: Function) => {
             callback(null, {
@@ -41,8 +40,8 @@ describe('getJobStatus', () => {
         });
         await expect(stopExportJobHandler(event, null as any, null as any)).resolves.toEqual({ jobId: '1' });
     });
+
     test('stop job failed', async () => {
-        const glueJobRunId = 'jr_1';
         const event: BulkExportStateMachineGlobalParameters = {
             jobId: '1',
             exportType: 'system',
@@ -51,8 +50,6 @@ describe('getJobStatus', () => {
                 glueJobRunId,
             },
         };
-        const glueJobName = 'jobName';
-        process.env.GLUE_JOB_NAME = glueJobName;
 
         AWSMock.mock('Glue', 'batchStopJobRun', (params: any, callback: Function) => {
             callback(null, {
@@ -69,6 +66,35 @@ describe('getJobStatus', () => {
                 ],
             });
         });
-        await expect(stopExportJobHandler(event, null as any, null as any)).rejects.toThrow('Failed to stop job');
+        await expect(stopExportJobHandler(event, null as any, null as any)).rejects.toThrow(
+            `Failed to stop job ${glueJobRunId}`,
+        );
+    });
+
+    test('missing env variable GLUE_JOB_NAME ', async () => {
+        delete process.env.GLUE_JOB_NAME;
+        const event: BulkExportStateMachineGlobalParameters = {
+            jobId: '1',
+            exportType: 'system',
+            transactionTime: '',
+            executionParameters: {
+                glueJobRunId,
+            },
+        };
+        await expect(stopExportJobHandler(event, null as any, null as any)).rejects.toThrow(
+            'GLUE_JOB_NAME environment variable is not defined',
+        );
+    });
+
+    test('missing glueJobRunId ', async () => {
+        const event: BulkExportStateMachineGlobalParameters = {
+            jobId: '1',
+            exportType: 'system',
+            transactionTime: '',
+            executionParameters: {},
+        };
+        await expect(stopExportJobHandler(event, null as any, null as any)).rejects.toThrow(
+            'executionParameters.glueJobRunId is missing in input event',
+        );
     });
 });

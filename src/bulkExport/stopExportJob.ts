@@ -26,7 +26,7 @@ export const stopExportJobHandler: Handler<BulkExportStateMachineGlobalParameter
         .promise();
     if (stopJobRunResponse.Errors!.length > 0) {
         console.log('Failed to stop job', JSON.stringify(stopJobRunResponse));
-        throw new Error(`Failed to stop job`);
+        throw new Error(`Failed to stop job ${glueJobRunId}`);
     }
     return {
         jobId: event.jobId,
