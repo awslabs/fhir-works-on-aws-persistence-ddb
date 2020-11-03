@@ -3,10 +3,12 @@
  *  SPDX-License-Identifier: Apache-2.0
  */
 import AWS from '../AWS';
+import { BulkExportJob } from './types';
 
 const EXPIRATION_TIME_SECONDS = 1800;
 const EXPORT_RESULTS_BUCKET = process.env.EXPORT_RESULTS_BUCKET || ' ';
 const EXPORT_RESULTS_SIGNER_ROLE_ARN = process.env.EXPORT_RESULTS_SIGNER_ROLE_ARN || '';
+const EXPORT_STATE_MACHINE_ARN = process.env.EXPORT_STATE_MACHINE_ARN || '';
 
 const getFiles = async (jobId: string): Promise<string[]> => {
     const s3 = new AWS.S3();
@@ -64,4 +66,23 @@ export const getBulkExportResults = async (jobId: string): Promise<{ type: strin
         type: getResourceType(key, jobId),
         url,
     }));
+};
+
+export const startJobExecution = async (bulkExportJob: BulkExportJob): Promise<void> => {
+    const { jobId, exportType, transactionTime, outputFormat, since } = bulkExportJob;
+    const params = {
+        jobId,
+        exportType,
+        transactionTime,
+        outputFormat,
+        since,
+    };
+
+    await new AWS.StepFunctions()
+        .startExecution({
+            stateMachineArn: EXPORT_STATE_MACHINE_ARN,
+            name: jobId,
+            input: JSON.stringify(params),
+        })
+        .promise();
 };

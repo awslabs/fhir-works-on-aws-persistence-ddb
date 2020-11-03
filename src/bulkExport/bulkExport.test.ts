@@ -4,7 +4,8 @@
  */
 import * as AWSMock from 'aws-sdk-mock';
 import AWS from '../AWS';
-import { getBulkExportResults } from './bulkExportResults';
+import { getBulkExportResults, startJobExecution } from './bulkExport';
+import { BulkExportJob } from './types';
 
 AWSMock.setSDKInstance(AWS);
 
@@ -56,6 +57,38 @@ describe('getBulkExportResults', () => {
 
         await expect(getBulkExportResults('job-1')).rejects.toThrowError(
             'Could not parse the name of bulk exports result file: job-1/BadFilenameFormat$$.exe',
+        );
+    });
+});
+
+describe('startJobExecution', () => {
+    beforeEach(() => {
+        AWSMock.restore();
+    });
+    test('starts step functions execution', async () => {
+        const mockStartExecution = jest.fn((params: any, callback: Function) => {
+            callback(null);
+        });
+        AWSMock.mock('StepFunctions', 'startExecution', mockStartExecution);
+
+        const job: BulkExportJob = {
+            jobId: 'job-1',
+            jobStatus: 'in-progress',
+            jobOwnerId: 'owner-1',
+            exportType: 'system',
+            transactionTime: '2020-10-10T00:00:00.000Z',
+            outputFormat: 'ndjson',
+            since: '2020-10-09T00:00:00.000Z',
+        };
+
+        await startJobExecution(job);
+        expect(mockStartExecution).toHaveBeenCalledWith(
+            expect.objectContaining({
+                input:
+                    '{"jobId":"job-1","exportType":"system","transactionTime":"2020-10-10T00:00:00.000Z","outputFormat":"ndjson","since":"2020-10-09T00:00:00.000Z"}',
+                name: 'job-1',
+            }),
+            expect.anything(), // we don't care about the callback function. It is managed by the sdk
         );
     });
 });

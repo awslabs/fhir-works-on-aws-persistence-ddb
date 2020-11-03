@@ -2,7 +2,7 @@
  *  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *  SPDX-License-Identifier: Apache-2.0
  */
-import { ExportType } from 'fhir-works-on-aws-interface';
+import { ExportJobStatus, ExportType } from 'fhir-works-on-aws-interface';
 import { JobRunState } from 'aws-sdk/clients/glue';
 
 /**
@@ -27,4 +27,18 @@ export interface BulkExportStateMachineExecutionParameters {
     glueJobRunId?: string;
     glueJobRunStatus?: JobRunState;
     isCanceled?: boolean;
+}
+
+export interface BulkExportJob {
+    jobId: string;
+    jobStatus: ExportJobStatus;
+    jobOwnerId: string;
+    exportType: ExportType;
+    transactionTime: string;
+    outputFormat: string;
+    since: string;
+    s3PresignedUrls?: any[];
+    groupId?: string;
+    jobFailedMessage?: string;
+    type?: string;
 }

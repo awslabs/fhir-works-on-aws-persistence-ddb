@@ -3,7 +3,7 @@
  *  SPDX-License-Identifier: Apache-2.0
  */
 
-import { ExportJobStatus, InitiateExportRequest } from 'fhir-works-on-aws-interface';
+import { ExportJobStatus } from 'fhir-works-on-aws-interface';
 import {
     DynamoDBConverter,
     RESOURCE_TABLE,
@@ -12,6 +12,7 @@ import {
 } from './dynamoDb';
 import { DynamoDbUtil, DOCUMENT_STATUS_FIELD, LOCK_END_TS_FIELD } from './dynamoDbUtil';
 import DOCUMENT_STATUS from './documentStatus';
+import { BulkExportJob } from '../bulkExport/types';
 
 export default class DynamoDbParamBuilder {
     static LOCK_DURATION_IN_MS = 35 * 1000;
@@ -109,28 +110,10 @@ export default class DynamoDbParamBuilder {
         };
     }
 
-    static buildPutCreateExportRequest(
-        jobId: string,
-        initiateExportRequest: InitiateExportRequest,
-        stepFunctionExecutionArn: string,
-    ) {
-        const item = {
-            jobId,
-            jobOwnerId: initiateExportRequest.requesterUserId,
-            exportType: initiateExportRequest.exportType,
-            groupId: initiateExportRequest.groupId ?? '',
-            outputFormat: initiateExportRequest.outputFormat ?? 'ndjson',
-            since: initiateExportRequest.since ?? '1800-01-01T00:00:00.000Z', // Default to a long time ago in the past
-            type: initiateExportRequest.type ?? '',
-            transactionTime: initiateExportRequest.transactionTime,
-            s3PresignedUrls: [],
-            stepFunctionExecutionArn,
-            jobStatus: 'in-progress',
-            jobFailedMessage: '',
-        };
+    static buildPutCreateExportRequest(bulkExportJob: BulkExportJob) {
         return {
             TableName: EXPORT_REQUEST_TABLE,
-            Item: DynamoDBConverter.marshall(item),
+            Item: DynamoDBConverter.marshall(bulkExportJob),
         };
     }
 
