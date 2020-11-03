@@ -7,26 +7,26 @@
 
 import uuidv4 from 'uuid/v4';
 import {
-    GenericResponse,
-    Persistence,
-    ReadResourceRequest,
-    vReadResourceRequest,
+    BatchReadWriteRequest,
+    BulkDataAccess,
+    BundleResponse,
+    clone,
+    ConditionalDeleteResourceRequest,
     CreateResourceRequest,
     DeleteResourceRequest,
-    UpdateResourceRequest,
-    PatchResourceRequest,
-    ConditionalDeleteResourceRequest,
-    BatchReadWriteRequest,
-    BundleResponse,
-    generateMeta,
-    clone,
-    ResourceVersionNotFoundError,
-    InitiateExportRequest,
-    GetExportStatusResponse,
-    BulkDataAccess,
-    ResourceNotFoundError,
-    TooManyConcurrentExportRequestsError,
     ExportJobStatus,
+    generateMeta,
+    GenericResponse,
+    GetExportStatusResponse,
+    InitiateExportRequest,
+    PatchResourceRequest,
+    Persistence,
+    ReadResourceRequest,
+    ResourceNotFoundError,
+    ResourceVersionNotFoundError,
+    TooManyConcurrentExportRequestsError,
+    UpdateResourceRequest,
+    vReadResourceRequest,
 } from 'fhir-works-on-aws-interface';
 import DynamoDB, { ItemList } from 'aws-sdk/clients/dynamodb';
 import { DynamoDBConverter } from './dynamoDb';
@@ -35,7 +35,25 @@ import { DynamoDbBundleService } from './dynamoDbBundleService';
 import { DynamoDbUtil } from './dynamoDbUtil';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 import DynamoDbHelper from './dynamoDbHelper';
-import { getBulkExportResults } from '../bulkExport/bulkExportResults';
+import { getBulkExportResults, startJobExecution } from '../bulkExport/bulkExport';
+import { BulkExportJob } from '../bulkExport/types';
+
+const buildExportJob = (initiateExportRequest: InitiateExportRequest): BulkExportJob => {
+    const initialStatus: ExportJobStatus = 'in-progress';
+    return {
+        jobId: uuidv4(),
+        jobOwnerId: initiateExportRequest.requesterUserId,
+        exportType: initiateExportRequest.exportType,
+        groupId: initiateExportRequest.groupId ?? '',
+        outputFormat: initiateExportRequest.outputFormat ?? 'ndjson',
+        since: initiateExportRequest.since ?? '1800-01-01T00:00:00.000Z', // Default to a long time ago in the past
+        type: initiateExportRequest.type ?? '',
+        transactionTime: initiateExportRequest.transactionTime,
+        s3PresignedUrls: [],
+        jobStatus: initialStatus,
+        jobFailedMessage: '',
+    };
+};
 
 export class DynamoDbDataService implements Persistence, BulkDataAccess {
     private readonly MAXIMUM_SYSTEM_LEVEL_CONCURRENT_REQUESTS = 2;
@@ -153,14 +171,13 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
     async initiateExport(initiateExportRequest: InitiateExportRequest): Promise<string> {
         await this.throttleExportRequestsIfNeeded(initiateExportRequest.requesterUserId);
         // Create new export job
-        const jobId = uuidv4();
+        const exportJob: BulkExportJob = buildExportJob(initiateExportRequest);
 
-        // TODO: Start Export Job Step Function
-        // const stepFunctionArn = await StartStepFunctionAndGetStepFunctionArn
+        await startJobExecution(exportJob);
 
-        const params = DynamoDbParamBuilder.buildPutCreateExportRequest(jobId, initiateExportRequest, '');
+        const params = DynamoDbParamBuilder.buildPutCreateExportRequest(exportJob);
         await this.dynamoDb.putItem(params).promise();
-        return jobId;
+        return exportJob.jobId;
     }
 
     async throttleExportRequestsIfNeeded(requesterUserId: string) {
