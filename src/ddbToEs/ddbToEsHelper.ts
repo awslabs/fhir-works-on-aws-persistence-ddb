@@ -22,10 +22,10 @@ export default class DdbToEsHelper {
     constructor() {
         let ES_DOMAIN_ENDPOINT = ELASTICSEARCH_DOMAIN_ENDPOINT || 'https://fake-es-endpoint.com';
         if (IS_OFFLINE === 'true') {
-            const { ACCESS_KEY, SECRET_KEY, OFFLINE_ELASTICSEARCH_DOMAIN_ENDPOINT } = process.env;
+            const { ACCESS_KEY, SECRET_KEY, AWS_REGION, OFFLINE_ELASTICSEARCH_DOMAIN_ENDPOINT } = process.env;
 
             AWS.config.update({
-                region: 'us-west-2',
+                region: AWS_REGION || 'us-west-2',
                 accessKeyId: ACCESS_KEY,
                 secretAccessKey: SECRET_KEY,
             });
