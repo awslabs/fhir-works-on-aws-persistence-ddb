@@ -1,6 +1,8 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [3.0.0] - 2020-11-10
+- feat: Add support for Bulk Export by implementing BulkDataAccess in `fhir-works-on-aws-interface` v3.0.0
 
 ## [2.0.1] - 2020-10-31
 - chore: Upgrade fhir-works-on-aws-interface dependency
