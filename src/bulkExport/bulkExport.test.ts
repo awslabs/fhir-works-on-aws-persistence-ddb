@@ -71,23 +71,37 @@ describe('startJobExecution', () => {
         });
         AWSMock.mock('StepFunctions', 'startExecution', mockStartExecution);
 
+        const jobId = 'job-1';
+        const exportType = 'system';
+        const transactionTime = '2020-10-10T00:00:00.000Z';
+        const since = '2020-10-09T00:00:00.000Z';
+        const outputFormat = 'ndjson';
+
         const job: BulkExportJob = {
-            jobId: 'job-1',
+            jobId,
             jobStatus: 'in-progress',
             jobOwnerId: 'owner-1',
-            exportType: 'system',
-            transactionTime: '2020-10-10T00:00:00.000Z',
-            outputFormat: 'ndjson',
-            since: '2020-10-09T00:00:00.000Z',
+            exportType,
+            transactionTime,
+            outputFormat,
+            since,
+        };
+
+        const expectedInput = {
+            jobId,
+            exportType,
+            transactionTime,
+            since,
+            outputFormat,
         };
 
         await startJobExecution(job);
         expect(mockStartExecution).toHaveBeenCalledWith(
-            expect.objectContaining({
-                input:
-                    '{"jobId":"job-1","exportType":"system","transactionTime":"2020-10-10T00:00:00.000Z","outputFormat":"ndjson","since":"2020-10-09T00:00:00.000Z"}',
+            {
+                input: JSON.stringify(expectedInput),
                 name: 'job-1',
-            }),
+                stateMachineArn: '',
+            },
             expect.anything(), // we don't care about the callback function. It is managed by the sdk
         );
     });

@@ -27,7 +27,7 @@ import { DynamoDBConverter } from './dynamoDb';
 import DynamoDbHelper from './dynamoDbHelper';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 
-jest.mock('../bulkExport/bulkExportResults');
+jest.mock('../bulkExport/bulkExport');
 AWSMock.setSDKInstance(AWS);
 
 // eslint-disable-next-line import/order
