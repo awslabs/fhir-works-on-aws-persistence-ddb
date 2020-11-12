@@ -3,9 +3,16 @@
  *  SPDX-License-Identifier: Apache-2.0
  */
 
-import { DynamoDBConverter, RESOURCE_TABLE } from './dynamoDb';
+import { ExportJobStatus } from 'fhir-works-on-aws-interface';
+import {
+    DynamoDBConverter,
+    RESOURCE_TABLE,
+    EXPORT_REQUEST_TABLE,
+    EXPORT_REQUEST_TABLE_JOB_STATUS_INDEX,
+} from './dynamoDb';
 import { DynamoDbUtil, DOCUMENT_STATUS_FIELD, LOCK_END_TS_FIELD } from './dynamoDbUtil';
 import DOCUMENT_STATUS from './documentStatus';
+import { BulkExportJob } from '../bulkExport/types';
 
 export default class DynamoDbParamBuilder {
     static LOCK_DURATION_IN_MS = 35 * 1000;
@@ -101,5 +108,58 @@ export default class DynamoDbParamBuilder {
             TableName: RESOURCE_TABLE,
             Item: DynamoDBConverter.marshall(newItem),
         };
+    }
+
+    static buildPutCreateExportRequest(bulkExportJob: BulkExportJob) {
+        return {
+            TableName: EXPORT_REQUEST_TABLE,
+            Item: DynamoDBConverter.marshall(bulkExportJob),
+        };
+    }
+
+    static buildQueryExportRequestJobStatus(jobStatus: ExportJobStatus, projectionExpression?: string) {
+        const params = {
+            TableName: EXPORT_REQUEST_TABLE,
+            KeyConditionExpression: 'jobStatus = :hkey',
+            ExpressionAttributeValues: DynamoDBConverter.marshall({
+                ':hkey': jobStatus,
+            }),
+            IndexName: EXPORT_REQUEST_TABLE_JOB_STATUS_INDEX,
+        };
+
+        if (projectionExpression) {
+            // @ts-ignore
+            params.ProjectionExpression = projectionExpression;
+        }
+
+        return params;
+    }
+
+    static buildUpdateExportRequestJobStatus(jobId: string, jobStatus: ExportJobStatus) {
+        const params = {
+            TableName: EXPORT_REQUEST_TABLE,
+            Key: DynamoDBConverter.marshall({
+                jobId,
+            }),
+            UpdateExpression: 'set jobStatus = :newStatus',
+            ConditionExpression: 'jobId = :jobIdVal',
+            ExpressionAttributeValues: DynamoDBConverter.marshall({
+                ':newStatus': jobStatus,
+                ':jobIdVal': jobId,
+            }),
+        };
+
+        return params;
+    }
+
+    static buildGetExportRequestJob(jobId: string) {
+        const params = {
+            TableName: EXPORT_REQUEST_TABLE,
+            Key: DynamoDBConverter.marshall({
+                jobId,
+            }),
+        };
+
+        return params;
     }
 }

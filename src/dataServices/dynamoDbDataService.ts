@@ -5,33 +5,61 @@
 
 /* eslint-disable class-methods-use-this */
 
-import DynamoDB from 'aws-sdk/clients/dynamodb';
-
 import uuidv4 from 'uuid/v4';
 import {
-    GenericResponse,
-    Persistence,
-    ReadResourceRequest,
-    vReadResourceRequest,
+    BatchReadWriteRequest,
+    BulkDataAccess,
+    BundleResponse,
+    clone,
+    ConditionalDeleteResourceRequest,
     CreateResourceRequest,
     DeleteResourceRequest,
-    UpdateResourceRequest,
-    PatchResourceRequest,
-    ConditionalDeleteResourceRequest,
-    BatchReadWriteRequest,
-    BundleResponse,
+    ExportJobStatus,
     generateMeta,
-    clone,
+    GenericResponse,
+    GetExportStatusResponse,
+    InitiateExportRequest,
+    PatchResourceRequest,
+    Persistence,
+    ReadResourceRequest,
+    ResourceNotFoundError,
     ResourceVersionNotFoundError,
+    TooManyConcurrentExportRequestsError,
+    UpdateResourceRequest,
+    vReadResourceRequest,
 } from 'fhir-works-on-aws-interface';
+import DynamoDB, { ItemList } from 'aws-sdk/clients/dynamodb';
 import { DynamoDBConverter } from './dynamoDb';
 import DOCUMENT_STATUS from './documentStatus';
 import { DynamoDbBundleService } from './dynamoDbBundleService';
 import { DynamoDbUtil } from './dynamoDbUtil';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 import DynamoDbHelper from './dynamoDbHelper';
+import { getBulkExportResults, startJobExecution } from '../bulkExport/bulkExport';
+import { BulkExportJob } from '../bulkExport/types';
 
-export class DynamoDbDataService implements Persistence {
+const buildExportJob = (initiateExportRequest: InitiateExportRequest): BulkExportJob => {
+    const initialStatus: ExportJobStatus = 'in-progress';
+    return {
+        jobId: uuidv4(),
+        jobOwnerId: initiateExportRequest.requesterUserId,
+        exportType: initiateExportRequest.exportType,
+        groupId: initiateExportRequest.groupId ?? '',
+        outputFormat: initiateExportRequest.outputFormat ?? 'ndjson',
+        since: initiateExportRequest.since ?? '1800-01-01T00:00:00.000Z', // Default to a long time ago in the past
+        type: initiateExportRequest.type ?? '',
+        transactionTime: initiateExportRequest.transactionTime,
+        s3PresignedUrls: [],
+        jobStatus: initialStatus,
+        jobFailedMessage: '',
+    };
+};
+
+export class DynamoDbDataService implements Persistence, BulkDataAccess {
+    private readonly MAXIMUM_SYSTEM_LEVEL_CONCURRENT_REQUESTS = 2;
+
+    private readonly MAXIMUM_CONCURRENT_REQUEST_PER_USER = 1;
+
     updateCreateSupported: boolean = false;
 
     private readonly transactionService: DynamoDbBundleService;
@@ -138,6 +166,115 @@ export class DynamoDbDataService implements Persistence {
             message: 'Resource updated',
             resource: item,
         };
+    }
+
+    async initiateExport(initiateExportRequest: InitiateExportRequest): Promise<string> {
+        await this.throttleExportRequestsIfNeeded(initiateExportRequest.requesterUserId);
+        // Create new export job
+        const exportJob: BulkExportJob = buildExportJob(initiateExportRequest);
+
+        await startJobExecution(exportJob);
+
+        const params = DynamoDbParamBuilder.buildPutCreateExportRequest(exportJob);
+        await this.dynamoDb.putItem(params).promise();
+        return exportJob.jobId;
+    }
+
+    async throttleExportRequestsIfNeeded(requesterUserId: string) {
+        const jobStatusesToThrottle: ExportJobStatus[] = ['canceling', 'in-progress'];
+        const exportJobItems = await this.getJobsWithExportStatuses(jobStatusesToThrottle);
+
+        if (exportJobItems) {
+            const numberOfConcurrentUserRequest = exportJobItems.filter(item => {
+                return DynamoDBConverter.unmarshall(item).jobOwnerId === requesterUserId;
+            }).length;
+            if (
+                numberOfConcurrentUserRequest >= this.MAXIMUM_CONCURRENT_REQUEST_PER_USER ||
+                exportJobItems.length >= this.MAXIMUM_SYSTEM_LEVEL_CONCURRENT_REQUESTS
+            ) {
+                throw new TooManyConcurrentExportRequestsError();
+            }
+        }
+    }
+
+    async getJobsWithExportStatuses(jobStatuses: ExportJobStatus[]): Promise<ItemList> {
+        const jobStatusPromises = jobStatuses.map((jobStatus: ExportJobStatus) => {
+            const projectionExpression = 'jobOwnerId, jobStatus';
+            const queryJobStatusParam = DynamoDbParamBuilder.buildQueryExportRequestJobStatus(
+                jobStatus,
+                projectionExpression,
+            );
+            return this.dynamoDb.query(queryJobStatusParam).promise();
+        });
+
+        const jobStatusResponses = await Promise.all(jobStatusPromises);
+        let allJobStatusItems: ItemList = [];
+        jobStatusResponses.forEach((jobStatusResponse: DynamoDB.QueryOutput) => {
+            if (jobStatusResponse.Items) {
+                allJobStatusItems = allJobStatusItems.concat(jobStatusResponse.Items);
+            }
+        });
+        return allJobStatusItems;
+    }
+
+    async cancelExport(jobId: string): Promise<void> {
+        const jobDetailsParam = DynamoDbParamBuilder.buildGetExportRequestJob(jobId);
+        const jobDetailsResponse = await this.dynamoDb.getItem(jobDetailsParam).promise();
+        if (!jobDetailsResponse.Item) {
+            throw new ResourceNotFoundError('$export', jobId);
+        }
+        const jobItem = DynamoDBConverter.unmarshall(jobDetailsResponse.Item);
+        if (['completed', 'failed'].includes(jobItem.jobStatus)) {
+            throw new Error(`Job cannot be canceled because job is already in ${jobItem.jobStatus} state`);
+        }
+        // A job in the canceled or canceling state doesn't need to be updated to 'canceling'
+        if (['canceled', 'canceling'].includes(jobItem.jobStatus)) {
+            return;
+        }
+
+        const params = DynamoDbParamBuilder.buildUpdateExportRequestJobStatus(jobId, 'canceling');
+        await this.dynamoDb.updateItem(params).promise();
+    }
+
+    async getExportStatus(jobId: string): Promise<GetExportStatusResponse> {
+        const jobDetailsParam = DynamoDbParamBuilder.buildGetExportRequestJob(jobId);
+        const jobDetailsResponse = await this.dynamoDb.getItem(jobDetailsParam).promise();
+        if (!jobDetailsResponse.Item) {
+            throw new ResourceNotFoundError('$export', jobId);
+        }
+
+        const item = DynamoDBConverter.unmarshall(<DynamoDB.AttributeMap>jobDetailsResponse.Item);
+
+        const {
+            jobStatus,
+            jobOwnerId,
+            transactionTime,
+            exportType,
+            outputFormat,
+            since,
+            type,
+            groupId,
+            errorArray = [],
+            errorMessage = '',
+        } = item;
+
+        const exportedFileUrls = jobStatus === 'completed' ? await getBulkExportResults(jobId) : [];
+
+        const getExportStatusResponse: GetExportStatusResponse = {
+            jobOwnerId,
+            jobStatus,
+            exportedFileUrls,
+            transactionTime,
+            exportType,
+            outputFormat,
+            since,
+            type,
+            groupId,
+            errorArray,
+            errorMessage,
+        };
+
+        return getExportStatusResponse;
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars

@@ -18,6 +18,8 @@ import {
     ConditionalDeleteResourceRequest,
     FhirVersion,
     ResourceNotFoundError,
+    InitiateExportRequest,
+    GetExportStatusResponse,
 } from 'fhir-works-on-aws-interface';
 
 import S3ObjectStorageService from './s3ObjectStorageService';
@@ -136,6 +138,21 @@ export class S3DataService implements Persistence {
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     conditionalDeleteResource(request: ConditionalDeleteResourceRequest, queryParams: any): Promise<GenericResponse> {
+        throw new Error('Method not implemented.');
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async initiateExport(initiateExportRequest: InitiateExportRequest): Promise<string> {
+        throw new Error('method not implemented');
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async cancelExport(jobId: string): Promise<void> {
+        throw new Error('Method not implemented.');
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async getExportStatus(jobId: string): Promise<GetExportStatusResponse> {
         throw new Error('Method not implemented.');
     }
 
