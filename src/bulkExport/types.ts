@@ -37,7 +37,6 @@ export interface BulkExportJob {
     transactionTime: string;
     outputFormat: string;
     since: string;
-    s3PresignedUrls?: any[];
     groupId?: string;
     jobFailedMessage?: string;
     type?: string;
