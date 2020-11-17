@@ -49,7 +49,6 @@ const buildExportJob = (initiateExportRequest: InitiateExportRequest): BulkExpor
         since: initiateExportRequest.since ?? '1800-01-01T00:00:00.000Z', // Default to a long time ago in the past
         type: initiateExportRequest.type ?? '',
         transactionTime: initiateExportRequest.transactionTime,
-        s3PresignedUrls: [],
         jobStatus: initialStatus,
         jobFailedMessage: '',
     };
