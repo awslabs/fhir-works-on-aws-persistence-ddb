@@ -4,7 +4,7 @@
  */
 
 import { clone } from 'fhir-works-on-aws-interface';
-import { DynamoDbUtil, DOCUMENT_STATUS_FIELD, LOCK_END_TS_FIELD, VID_FIELD } from './dynamoDbUtil';
+import { DynamoDbUtil, DOCUMENT_STATUS_FIELD, LOCK_END_TS_FIELD, VID_FIELD, REFERENCES_FIELD } from './dynamoDbUtil';
 import DOCUMENT_STATUS from './documentStatus';
 import { timeFromEpochInMsRegExp, utcTimeRegExp } from '../../testUtilities/regExpressions';
 
@@ -21,6 +21,7 @@ describe('cleanItem', () => {
         item[LOCK_END_TS_FIELD] = Date.now();
         item[DOCUMENT_STATUS_FIELD] = DOCUMENT_STATUS.AVAILABLE;
         item[VID_FIELD] = vid;
+        item[REFERENCES_FIELD] = ['Organization/1', 'Patient/pat2'];
 
         const actualItem = DynamoDbUtil.cleanItem(item);
 
@@ -30,7 +31,7 @@ describe('cleanItem', () => {
         });
     });
 
-    test('Return item correctly if documentStatus and lockEndTs is not in the item', () => {
+    test('Return item correctly if documentStatus, lockEndTs, and references is not in the item', () => {
         const item: any = {
             resourceType: 'Patient',
             id: `${id}_${vid}`,
@@ -50,6 +51,8 @@ describe('cleanItem', () => {
 describe('prepItemForDdbInsert', () => {
     const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
     const vid = 1;
+    const organization = 'Organization/1';
+    const otherPatient = 'Patient/pat2';
     const resource = {
         resourceType: 'Patient',
         id,
@@ -64,6 +67,16 @@ describe('prepItemForDdbInsert', () => {
             lastUpdated: '2020-03-26T15:46:55.848Z',
             versionId: vid.toString(),
         },
+        managingOrganization: {
+            reference: organization,
+        },
+        link: [
+            {
+                other: {
+                    reference: otherPatient,
+                },
+            },
+        ],
     };
 
     const checkExpectedItemMatchActualItem = (actualItem: any, updatedResource: any) => {
@@ -76,6 +89,7 @@ describe('prepItemForDdbInsert', () => {
             lastUpdated: expect.stringMatching(utcTimeRegExp),
         };
 
+        expectedItem[REFERENCES_FIELD] = [organization, otherPatient];
         expect(actualItem).toMatchObject(expectedItem);
         expect(actualItem[LOCK_END_TS_FIELD].toString()).toEqual(expect.stringMatching(timeFromEpochInMsRegExp));
     };

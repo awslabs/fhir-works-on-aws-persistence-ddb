@@ -9,16 +9,27 @@ import AWSMock from 'aws-sdk-mock';
 import { QueryInput, TransactWriteItemsInput } from 'aws-sdk/clients/dynamodb';
 import * as AWS from 'aws-sdk';
 import { BundleResponse, BatchReadWriteRequest } from 'fhir-works-on-aws-interface';
+import { SinonSandbox } from 'sinon';
 import { DynamoDbBundleService } from './dynamoDbBundleService';
 import { DynamoDBConverter } from './dynamoDb';
 import { timeFromEpochInMsRegExp, utcTimeRegExp, uuidRegExp } from '../../testUtilities/regExpressions';
 import DynamoDbHelper from './dynamoDbHelper';
+import { DOCUMENT_STATUS_FIELD, LOCK_END_TS_FIELD, REFERENCES_FIELD, VID_FIELD } from './dynamoDbUtil';
 // eslint-disable-next-line import/order
 import sinon = require('sinon');
 
 AWSMock.setSDKInstance(AWS);
 
 describe('atomicallyReadWriteResources', () => {
+    let sandbox: SinonSandbox;
+    beforeEach(function() {
+        sandbox = sinon.createSandbox();
+    });
+
+    afterEach(function() {
+        sandbox.restore();
+    });
+
     afterEach(() => {
         AWSMock.restore();
     });
@@ -104,7 +115,7 @@ describe('atomicallyReadWriteResources', () => {
                 });
             });
 
-            const transactWriteItemStub = sinon.stub();
+            const transactWriteItemStub = sandbox.stub();
             // LOCK Items (Success)
             transactWriteItemStub.onFirstCall().returns({ error: null, value: {} });
 
@@ -130,10 +141,9 @@ describe('atomicallyReadWriteResources', () => {
     });
 
     describe('SUCCESS Cases', () => {
-        // When creating a resource, no locks is needed because no items in DDB to put a lock on yet
-        test('CREATING a resource', async () => {
+        async function runCreateTest(shouldReqHasReferences: boolean) {
             // BUILD
-            const transactWriteItemSpy = sinon.spy();
+            const transactWriteItemSpy = sandbox.spy();
             AWSMock.mock('DynamoDB', 'transactWriteItems', (params: TransactWriteItemsInput, callback: Function) => {
                 transactWriteItemSpy(params);
                 callback(null, {});
@@ -143,7 +153,7 @@ describe('atomicallyReadWriteResources', () => {
             const transactionService = new DynamoDbBundleService(dynamoDb);
 
             const resourceType = 'Patient';
-            const resource = {
+            const resource: any = {
                 resourceType,
                 name: [
                     {
@@ -153,6 +163,13 @@ describe('atomicallyReadWriteResources', () => {
                 ],
                 gender: 'male',
             };
+
+            const organization = 'Organization/1';
+            if (shouldReqHasReferences) {
+                resource.managingOrganization = {
+                    reference: organization,
+                };
+            }
 
             const createRequest: BatchReadWriteRequest = {
                 operation: 'create',
@@ -171,19 +188,24 @@ describe('atomicallyReadWriteResources', () => {
             // transactWriteItem requests is called twice
             expect(transactWriteItemSpy.calledTwice).toBeTruthy();
 
-            const insertedResource = DynamoDBConverter.marshall({
+            const insertedResourceJson: any = {
                 ...resource,
-                documentStatus: 'PENDING',
-                vid: 1,
                 id: 'holder',
-                lockEndTs: 5, // test number
                 meta: {
                     lastUpdated: 'holder',
                     versionId: '1',
                 },
-            });
+            };
+            insertedResourceJson[DOCUMENT_STATUS_FIELD] = 'PENDING';
+            insertedResourceJson[VID_FIELD] = 1;
+            insertedResourceJson[REFERENCES_FIELD] = shouldReqHasReferences ? [organization] : [];
+            insertedResourceJson[LOCK_END_TS_FIELD] = Date.now();
+
+            const insertedResource = DynamoDBConverter.marshall(insertedResourceJson);
+
+            // Setting up test assertions
             insertedResource.id.S = expect.stringMatching(uuidRegExp);
-            insertedResource.lockEndTs.N = expect.stringMatching(timeFromEpochInMsRegExp);
+            insertedResource[LOCK_END_TS_FIELD].N = expect.stringMatching(timeFromEpochInMsRegExp);
             if (insertedResource.meta.M) {
                 insertedResource.meta.M.lastUpdated.S = expect.stringMatching(utcTimeRegExp);
             }
@@ -234,11 +256,19 @@ describe('atomicallyReadWriteResources', () => {
                 ],
                 success: true,
             });
+        }
+        // When creating a resource, no locks is needed because no items in DDB to put a lock on yet
+        test('CREATING a resource with no references', async () => {
+            await runCreateTest(false);
         });
 
-        test('UPDATING a resource', async () => {
+        test('CREATING a resource references', async () => {
+            await runCreateTest(true);
+        });
+
+        async function runUpdateTest(shouldReqHasReferences: boolean) {
             // BUILD
-            const transactWriteItemSpy = sinon.spy();
+            const transactWriteItemSpy = sandbox.spy();
             AWSMock.mock('DynamoDB', 'transactWriteItems', (params: TransactWriteItemsInput, callback: Function) => {
                 transactWriteItemSpy(params);
                 callback(null, {});
@@ -246,7 +276,8 @@ describe('atomicallyReadWriteResources', () => {
             const resourceType = 'Patient';
             const oldVid = 1;
             const newVid = oldVid + 1;
-            const oldResource = {
+            const organization = 'Organization/1';
+            const oldResource: any = {
                 id,
                 resourceType,
                 name: [
@@ -257,9 +288,15 @@ describe('atomicallyReadWriteResources', () => {
                 ],
                 meta: { versionId: oldVid.toString(), lastUpdated: new Date().toISOString() },
             };
+
+            if (shouldReqHasReferences) {
+                oldResource.managingOrganization = {
+                    reference: organization,
+                };
+            }
             const newResource = { ...oldResource, test: 'test' };
 
-            sinon
+            sandbox
                 .stub(DynamoDbHelper.prototype, 'getMostRecentResource')
                 .returns(Promise.resolve({ message: 'Resource found', resource: oldResource }));
 
@@ -310,12 +347,15 @@ describe('atomicallyReadWriteResources', () => {
                 ],
             });
 
-            const insertedResource = DynamoDBConverter.marshall({
+            const insertedResourceJson: any = {
                 ...newResource,
-                documentStatus: 'PENDING',
-                vid: newVid,
-                lockEndTs: 5, // test number
-            });
+            };
+            insertedResourceJson[DOCUMENT_STATUS_FIELD] = 'PENDING';
+            insertedResourceJson[VID_FIELD] = newVid;
+            insertedResourceJson[REFERENCES_FIELD] = shouldReqHasReferences ? [organization] : [];
+            insertedResourceJson[LOCK_END_TS_FIELD] = Date.now();
+
+            const insertedResource = DynamoDBConverter.marshall(insertedResourceJson);
             insertedResource.lockEndTs.N = expect.stringMatching(timeFromEpochInMsRegExp);
 
             // 1. create new Patient record with documentStatus of 'PENDING'
@@ -378,6 +418,14 @@ describe('atomicallyReadWriteResources', () => {
                 ],
                 success: true,
             });
+        }
+
+        test('UPDATING a resource with no references', async () => {
+            await runUpdateTest(false);
+        });
+
+        test('UPDATING a resource with references', async () => {
+            await runUpdateTest(true);
         });
     });
 });
