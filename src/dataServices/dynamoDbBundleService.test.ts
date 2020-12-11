@@ -141,6 +141,7 @@ describe('atomicallyReadWriteResources', () => {
     });
 
     describe('SUCCESS Cases', () => {
+        // When creating a resource, no locks is needed because no items in DDB to put a lock on yet
         async function runCreateTest(shouldReqHasReferences: boolean) {
             // BUILD
             const transactWriteItemSpy = sandbox.spy();
@@ -257,7 +258,6 @@ describe('atomicallyReadWriteResources', () => {
                 success: true,
             });
         }
-        // When creating a resource, no locks is needed because no items in DDB to put a lock on yet
         test('CREATING a resource with no references', async () => {
             await runCreateTest(false);
         });

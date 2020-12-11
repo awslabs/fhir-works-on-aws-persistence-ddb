@@ -67,20 +67,10 @@ describe('prepItemForDdbInsert', () => {
             lastUpdated: '2020-03-26T15:46:55.848Z',
             versionId: vid.toString(),
         },
-        managingOrganization: {
-            reference: organization,
-        },
-        link: [
-            {
-                other: {
-                    reference: otherPatient,
-                },
-            },
-        ],
     };
 
-    const checkExpectedItemMatchActualItem = (actualItem: any, updatedResource: any) => {
-        const expectedItem = clone(updatedResource);
+    const checkExpectedItemMatchActualItem = (actualItem: any, expectedResource: any) => {
+        const expectedItem = clone(expectedResource);
         expectedItem[DOCUMENT_STATUS_FIELD] = DOCUMENT_STATUS.PENDING;
         expectedItem.id = id;
         expectedItem.vid = vid;
@@ -89,10 +79,34 @@ describe('prepItemForDdbInsert', () => {
             lastUpdated: expect.stringMatching(utcTimeRegExp),
         };
 
-        expectedItem[REFERENCES_FIELD] = [organization, otherPatient];
         expect(actualItem).toMatchObject(expectedItem);
         expect(actualItem[LOCK_END_TS_FIELD].toString()).toEqual(expect.stringMatching(timeFromEpochInMsRegExp));
     };
+
+    test('Return item correctly when resource to be prepped contains references', () => {
+        // BUILD
+        const updatedResource = clone(resource);
+        updatedResource.managingOrganization = {
+            reference: organization,
+        };
+        updatedResource.link = [
+            {
+                other: {
+                    reference: otherPatient,
+                },
+            },
+        ];
+
+        // OPERATE
+        const actualItem = DynamoDbUtil.prepItemForDdbInsert(updatedResource, id, vid, DOCUMENT_STATUS.PENDING);
+
+        // CHECK
+        updatedResource.meta.versionId = vid.toString();
+
+        const expectedResource = clone(updatedResource);
+        expectedResource[REFERENCES_FIELD] = [organization, otherPatient];
+        checkExpectedItemMatchActualItem(actualItem, expectedResource);
+    });
 
     test('Return item correctly when full meta field already exists', () => {
         // BUILD
