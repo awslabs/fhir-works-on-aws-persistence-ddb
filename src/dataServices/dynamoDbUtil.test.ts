@@ -51,8 +51,6 @@ describe('cleanItem', () => {
 describe('prepItemForDdbInsert', () => {
     const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
     const vid = 1;
-    const organization = 'Organization/1';
-    const otherPatient = 'Patient/pat2';
     const resource = {
         resourceType: 'Patient',
         id,
@@ -84,6 +82,8 @@ describe('prepItemForDdbInsert', () => {
     };
 
     test('Return item correctly when resource to be prepped contains references', () => {
+        const organization = 'Organization/1';
+        const otherPatient = 'Patient/pat2';
         // BUILD
         const updatedResource = clone(resource);
         updatedResource.managingOrganization = {
