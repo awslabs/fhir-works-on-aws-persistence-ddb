@@ -105,7 +105,7 @@ describe('prepItemForDdbInsert', () => {
         checkExpectedItemMatchActualItem(actualItem, updatedResource);
     });
 
-    test('FHIR Resource with referenceSeq as a field should not have field added to `_references`', () => {
+    test('Return item correctly when resource has "referenceSeq" as a field. Only resource fields named "reference" should be added to `_references`', () => {
         // BUILD
         const patient = 'Patient/pat1';
         const updatedResource: any = {
@@ -140,7 +140,6 @@ describe('prepItemForDdbInsert', () => {
 
         // CHECK
         updatedResource[REFERENCES_FIELD] = [patient];
-
         checkExpectedItemMatchActualItem(actualItem, updatedResource);
     });
 
