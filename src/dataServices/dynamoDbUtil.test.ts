@@ -4,9 +4,9 @@
  */
 
 import { clone } from 'fhir-works-on-aws-interface';
-import { DynamoDbUtil, DOCUMENT_STATUS_FIELD, LOCK_END_TS_FIELD, VID_FIELD } from './dynamoDbUtil';
+import { DOCUMENT_STATUS_FIELD, DynamoDbUtil, LOCK_END_TS_FIELD, REFERENCES_FIELD, VID_FIELD } from './dynamoDbUtil';
 import DOCUMENT_STATUS from './documentStatus';
-import { timeFromEpochInMsRegExp, utcTimeRegExp } from '../../testUtilities/regExpressions';
+import { utcTimeRegExp } from '../../testUtilities/regExpressions';
 
 describe('cleanItem', () => {
     const id = 'ee3928b9-8699-4970-ba49-8f41bd122f46';
@@ -21,6 +21,7 @@ describe('cleanItem', () => {
         item[LOCK_END_TS_FIELD] = Date.now();
         item[DOCUMENT_STATUS_FIELD] = DOCUMENT_STATUS.AVAILABLE;
         item[VID_FIELD] = vid;
+        item[REFERENCES_FIELD] = ['Organization/1', 'Patient/pat2'];
 
         const actualItem = DynamoDbUtil.cleanItem(item);
 
@@ -30,7 +31,7 @@ describe('cleanItem', () => {
         });
     });
 
-    test('Return item correctly if documentStatus and lockEndTs is not in the item', () => {
+    test('Return item correctly if documentStatus, lockEndTs, and references is not in the item', () => {
         const item: any = {
             resourceType: 'Patient',
             id: `${id}_${vid}`,
@@ -66,8 +67,8 @@ describe('prepItemForDdbInsert', () => {
         },
     };
 
-    const checkExpectedItemMatchActualItem = (actualItem: any, updatedResource: any) => {
-        const expectedItem = clone(updatedResource);
+    const checkExpectedItemMatchActualItem = (actualItem: any, expectedResource: any) => {
+        const expectedItem = clone(expectedResource);
         expectedItem[DOCUMENT_STATUS_FIELD] = DOCUMENT_STATUS.PENDING;
         expectedItem.id = id;
         expectedItem.vid = vid;
@@ -75,10 +76,72 @@ describe('prepItemForDdbInsert', () => {
             versionId: vid.toString(),
             lastUpdated: expect.stringMatching(utcTimeRegExp),
         };
-
-        expect(actualItem).toMatchObject(expectedItem);
-        expect(actualItem[LOCK_END_TS_FIELD].toString()).toEqual(expect.stringMatching(timeFromEpochInMsRegExp));
+        expectedItem.lockEndTs = expect.any(Number);
+        expect(actualItem).toEqual(expectedItem);
     };
+
+    test('Return item correctly when resource to be prepped contains references', () => {
+        const organization = 'Organization/1';
+        const otherPatient = 'Patient/pat2';
+        // BUILD
+        const updatedResource = clone(resource);
+        updatedResource.managingOrganization = {
+            reference: organization,
+        };
+        updatedResource.link = [
+            {
+                other: {
+                    reference: otherPatient,
+                },
+            },
+        ];
+
+        // OPERATE
+        const actualItem = DynamoDbUtil.prepItemForDdbInsert(updatedResource, id, vid, DOCUMENT_STATUS.PENDING);
+
+        // CHECK
+        updatedResource.meta.versionId = vid.toString();
+        updatedResource[REFERENCES_FIELD] = [organization, otherPatient];
+        checkExpectedItemMatchActualItem(actualItem, updatedResource);
+    });
+
+    test('Return item correctly when resource has "referenceSeq" as a field. Only resource fields named "reference" should be added to `_references`', () => {
+        // BUILD
+        const patient = 'Patient/pat1';
+        const updatedResource: any = {
+            resourceType: 'MolecularSequence',
+            id,
+            type: 'dna',
+            coordinateSystem: 0,
+            patient: {
+                reference: patient,
+            },
+            referenceSeq: {
+                referenceSeqId: {
+                    coding: [
+                        {
+                            system: 'http://www.ncbi.nlm.nih.gov/nuccore',
+                            code: 'NC_000009.11',
+                        },
+                    ],
+                },
+                strand: 'watson',
+                windowStart: 22125500,
+                windowEnd: 22125510,
+            },
+            meta: {
+                lastUpdated: '2020-03-26T15:46:55.848Z',
+                versionId: vid.toString(),
+            },
+        };
+
+        // OPERATE
+        const actualItem = DynamoDbUtil.prepItemForDdbInsert(updatedResource, id, vid, DOCUMENT_STATUS.PENDING);
+
+        // CHECK
+        updatedResource[REFERENCES_FIELD] = [patient];
+        checkExpectedItemMatchActualItem(actualItem, updatedResource);
+    });
 
     test('Return item correctly when full meta field already exists', () => {
         // BUILD
@@ -89,6 +152,7 @@ describe('prepItemForDdbInsert', () => {
 
         // CHECK
         updatedResource.meta.versionId = vid.toString();
+        updatedResource[REFERENCES_FIELD] = [];
         checkExpectedItemMatchActualItem(actualItem, updatedResource);
     });
 
@@ -100,6 +164,8 @@ describe('prepItemForDdbInsert', () => {
         // OPERATE
         const actualItem = DynamoDbUtil.prepItemForDdbInsert(updatedResource, id, vid, DOCUMENT_STATUS.PENDING);
 
+        // CHECK
+        updatedResource[REFERENCES_FIELD] = [];
         checkExpectedItemMatchActualItem(actualItem, updatedResource);
     });
 
@@ -112,6 +178,7 @@ describe('prepItemForDdbInsert', () => {
         const actualItem = DynamoDbUtil.prepItemForDdbInsert(updatedResource, id, vid, DOCUMENT_STATUS.PENDING);
 
         // CHECK
+        updatedResource[REFERENCES_FIELD] = [];
         checkExpectedItemMatchActualItem(actualItem, updatedResource);
     });
 });
