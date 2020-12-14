@@ -9,7 +9,6 @@ import AWSMock from 'aws-sdk-mock';
 import { QueryInput, TransactWriteItemsInput } from 'aws-sdk/clients/dynamodb';
 import * as AWS from 'aws-sdk';
 import { BundleResponse, BatchReadWriteRequest } from 'fhir-works-on-aws-interface';
-import { SinonSandbox } from 'sinon';
 import { DynamoDbBundleService } from './dynamoDbBundleService';
 import { DynamoDBConverter } from './dynamoDb';
 import { timeFromEpochInMsRegExp, utcTimeRegExp, uuidRegExp } from '../../testUtilities/regExpressions';
@@ -21,17 +20,9 @@ import sinon = require('sinon');
 AWSMock.setSDKInstance(AWS);
 
 describe('atomicallyReadWriteResources', () => {
-    let sandbox: SinonSandbox;
-    beforeEach(function() {
-        sandbox = sinon.createSandbox();
-    });
-
-    afterEach(function() {
-        sandbox.restore();
-    });
-
     afterEach(() => {
         AWSMock.restore();
+        sinon.restore();
     });
 
     const id = 'bce8411e-c15e-448c-95dd-69155a837405';
@@ -115,7 +106,7 @@ describe('atomicallyReadWriteResources', () => {
                 });
             });
 
-            const transactWriteItemStub = sandbox.stub();
+            const transactWriteItemStub = sinon.stub();
             // LOCK Items (Success)
             transactWriteItemStub.onFirstCall().returns({ error: null, value: {} });
 
@@ -144,7 +135,7 @@ describe('atomicallyReadWriteResources', () => {
         // When creating a resource, no locks is needed because no items in DDB to put a lock on yet
         async function runCreateTest(shouldReqHasReferences: boolean) {
             // BUILD
-            const transactWriteItemSpy = sandbox.spy();
+            const transactWriteItemSpy = sinon.spy();
             AWSMock.mock('DynamoDB', 'transactWriteItems', (params: TransactWriteItemsInput, callback: Function) => {
                 transactWriteItemSpy(params);
                 callback(null, {});
@@ -268,7 +259,7 @@ describe('atomicallyReadWriteResources', () => {
 
         async function runUpdateTest(shouldReqHasReferences: boolean) {
             // BUILD
-            const transactWriteItemSpy = sandbox.spy();
+            const transactWriteItemSpy = sinon.spy();
             AWSMock.mock('DynamoDB', 'transactWriteItems', (params: TransactWriteItemsInput, callback: Function) => {
                 transactWriteItemSpy(params);
                 callback(null, {});
@@ -296,7 +287,7 @@ describe('atomicallyReadWriteResources', () => {
             }
             const newResource = { ...oldResource, test: 'test' };
 
-            sandbox
+            sinon
                 .stub(DynamoDbHelper.prototype, 'getMostRecentResource')
                 .returns(Promise.resolve({ message: 'Resource found', resource: oldResource }));
 
