@@ -50,7 +50,6 @@ export class DynamoDbUtil {
         const references = Object.keys(flattenedResources)
             .filter((key: string) => {
                 return key.endsWith('.reference');
-
             })
             .map((key: string) => {
                 return flattenedResources[key];
