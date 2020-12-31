@@ -15,6 +15,14 @@ import DOCUMENT_STATUS from './documentStatus';
 import { DynamoDBConverter, RESOURCE_TABLE } from './dynamoDb';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 
+export interface ItemRequest {
+    id: string;
+    vid?: number;
+    resourceType: string;
+    operation: TypeOperation | SystemOperation;
+    isOriginalUpdateItem?: boolean;
+}
+
 export default class DynamoDbBundleServiceHelper {
     static generateStagingRequests(requests: BatchReadWriteRequest[], idToVersionId: Record<string, number>) {
         const deleteRequests: any = [];
@@ -234,12 +242,4 @@ export default class DynamoDbBundleServiceHelper {
 
         return { stagingResponse, itemLocked };
     }
-}
-
-export interface ItemRequest {
-    id: string;
-    vid?: number;
-    resourceType: string;
-    operation: TypeOperation | SystemOperation;
-    isOriginalUpdateItem?: boolean;
 }
