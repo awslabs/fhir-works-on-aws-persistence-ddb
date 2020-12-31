@@ -26,6 +26,8 @@ module.exports = {
         // See https://github.com/typescript-eslint/typescript-eslint/issues/1624
         // eslint-disable-next-line import/no-unresolved
         'import/no-unresolved': ['error', { ignore: ['aws-lambda'] }],
+        'no-shadow': 'off', // replaced by ts-eslint rule below
+        '@typescript-eslint/no-shadow': 'error',
     },
     settings: {
         'import/resolver': {

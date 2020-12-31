@@ -12,6 +12,14 @@ import { timeFromEpochInMsRegExp, utcTimeRegExp, uuidRegExp } from './regExpress
 import DynamoDbParamBuilder from '../src/dataServices/dynamoDbParamBuilder';
 import { ItemRequest } from '../src/dataServices/dynamoDbBundleServiceHelper';
 
+interface RequestResult {
+    request: any;
+    expectedRequest: any;
+    expectedLock: any;
+    expectedStagingResponse: any;
+    idToVersionId: Record<string, number>;
+}
+
 export default class GenerateStagingRequestsFactory {
     static getCreate(): RequestResult {
         const createResource = {
@@ -224,11 +232,4 @@ export default class GenerateStagingRequestsFactory {
             idToVersionId,
         };
     }
-}
-interface RequestResult {
-    request: any;
-    expectedRequest: any;
-    expectedLock: any;
-    expectedStagingResponse: any;
-    idToVersionId: Record<string, number>;
 }

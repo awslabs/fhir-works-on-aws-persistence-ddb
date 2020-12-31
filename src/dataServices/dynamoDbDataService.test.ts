@@ -4,10 +4,10 @@
  */
 
 // eslint-disable-next-line import/no-extraneous-dependencies
-import AWSMock from 'aws-sdk-mock';
+import * as AWSMock from 'aws-sdk-mock';
 
 import { GetItemInput, PutItemInput, QueryInput, UpdateItemInput } from 'aws-sdk/clients/dynamodb';
-import * as AWS from 'aws-sdk';
+import AWS from 'aws-sdk';
 import isEqual from 'lodash/isEqual';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import {
@@ -152,7 +152,7 @@ describe('READ', () => {
 
         // CHECK
         expect(serviceResponse.message).toEqual('Resource found');
-        const expectedResource = { ...resource };
+        const expectedResource = { ...resource } as any;
         delete expectedResource.vid;
         delete expectedResource.documentStatus;
         expect(serviceResponse.resource).toStrictEqual(expectedResource);
