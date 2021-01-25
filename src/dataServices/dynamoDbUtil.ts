@@ -55,7 +55,7 @@ export class DynamoDbUtil {
                 return flattenedResources[key];
             });
         // Add self to references as the resource is self referencing
-        references.push(`${resource.resourceType}/${id}`);
+        references.push(`${resource.resourceType}/${id}`)
         item[REFERENCES_FIELD] = references;
         return item;
     }
