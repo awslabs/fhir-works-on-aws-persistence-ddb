@@ -46,21 +46,30 @@ export default class DdbToEsHelper {
                 // Create Index
                 const params = {
                     index: indexName,
-                };
-                await this.ElasticSearch.indices.create(params);
-                // Set index's "id" field to be type "keyword". This will enable us to do case sensitive search
-                const putMappingParams = {
-                    index: indexName,
                     body: {
-                        properties: {
-                            id: {
-                                type: 'keyword',
-                                index: true,
+                        mappings: {
+                            properties: {
+                                id: {
+                                    type: 'keyword',
+                                    index: true,
+                                },
+                                resourceType: {
+                                    type: 'keyword',
+                                    index: true,
+                                },
+                                _references: {
+                                    type: 'keyword',
+                                    index: true,
+                                },
+                                documentStatus: {
+                                    type: 'keyword',
+                                    index: true,
+                                },
                             },
                         },
                     },
                 };
-                await this.ElasticSearch.indices.putMapping(putMappingParams);
+                await this.ElasticSearch.indices.create(params);
             }
         } catch (error) {
             console.log('Failed to check if index exist or create index', error);
