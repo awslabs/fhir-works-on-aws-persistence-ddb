@@ -166,7 +166,7 @@ describe('prepItemForDdbInsert', () => {
         const actualItem = DynamoDbUtil.prepItemForDdbInsert(updatedResource, id, vid, DOCUMENT_STATUS.PENDING);
 
         // CHECK
-        updatedResource[REFERENCES_FIELD] = [];
+        updatedResource[REFERENCES_FIELD] = [`${resourceType}/${id}`];
         checkExpectedItemMatchActualItem(actualItem, updatedResource);
     });
 
@@ -179,7 +179,7 @@ describe('prepItemForDdbInsert', () => {
         const actualItem = DynamoDbUtil.prepItemForDdbInsert(updatedResource, id, vid, DOCUMENT_STATUS.PENDING);
 
         // CHECK
-        updatedResource[REFERENCES_FIELD] = [];
+        updatedResource[REFERENCES_FIELD] = [`${resourceType}/${id}`];
         checkExpectedItemMatchActualItem(actualItem, updatedResource);
     });
 });

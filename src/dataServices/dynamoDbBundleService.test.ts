@@ -190,7 +190,10 @@ describe('atomicallyReadWriteResources', () => {
             };
             insertedResourceJson[DOCUMENT_STATUS_FIELD] = 'PENDING';
             insertedResourceJson[VID_FIELD] = 1;
-            insertedResourceJson[REFERENCES_FIELD] = shouldReqHasReferences ? [organization] : [];
+            insertedResourceJson[REFERENCES_FIELD] = [`${resourceType}/${id}`];
+            if (shouldReqHasReferences) {
+                insertedResourceJson[REFERENCES_FIELD].unshift(organization);
+            }
             insertedResourceJson[LOCK_END_TS_FIELD] = Date.now();
 
             const insertedResource = DynamoDBConverter.marshall(insertedResourceJson);
@@ -343,7 +346,10 @@ describe('atomicallyReadWriteResources', () => {
             };
             insertedResourceJson[DOCUMENT_STATUS_FIELD] = 'PENDING';
             insertedResourceJson[VID_FIELD] = newVid;
-            insertedResourceJson[REFERENCES_FIELD] = shouldReqHasReferences ? [organization] : [];
+            insertedResourceJson[REFERENCES_FIELD] = [`${resourceType}/${id}`];
+            if (shouldReqHasReferences) {
+                insertedResourceJson[REFERENCES_FIELD].unshift(organization);
+            }
             insertedResourceJson[LOCK_END_TS_FIELD] = Date.now();
 
             const insertedResource = DynamoDBConverter.marshall(insertedResourceJson);
