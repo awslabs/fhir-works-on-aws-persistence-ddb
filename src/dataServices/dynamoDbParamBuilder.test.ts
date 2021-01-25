@@ -156,7 +156,7 @@ describe('buildPutAvailableItemParam', () => {
             TableName: '',
             Item: {
                 _references: {
-                    L: [{ S: `Patient/${id}` }],
+                    L: [],
                 },
                 resourceType: {
                     S: 'Patient',
