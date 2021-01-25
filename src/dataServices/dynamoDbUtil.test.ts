@@ -51,8 +51,9 @@ describe('cleanItem', () => {
 describe('prepItemForDdbInsert', () => {
     const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
     const vid = 1;
+    const resourceType = 'Patient';
     const resource = {
-        resourceType: 'Patient',
+        resourceType,
         id,
         name: [
             {
@@ -101,7 +102,7 @@ describe('prepItemForDdbInsert', () => {
 
         // CHECK
         updatedResource.meta.versionId = vid.toString();
-        updatedResource[REFERENCES_FIELD] = [organization, otherPatient];
+        updatedResource[REFERENCES_FIELD] = [organization, otherPatient, `${resourceType}/${id}`];
         checkExpectedItemMatchActualItem(actualItem, updatedResource);
     });
 
@@ -139,7 +140,7 @@ describe('prepItemForDdbInsert', () => {
         const actualItem = DynamoDbUtil.prepItemForDdbInsert(updatedResource, id, vid, DOCUMENT_STATUS.PENDING);
 
         // CHECK
-        updatedResource[REFERENCES_FIELD] = [patient];
+        updatedResource[REFERENCES_FIELD] = [patient, `MolecularSequence/${id}`];
         checkExpectedItemMatchActualItem(actualItem, updatedResource);
     });
 
@@ -152,7 +153,7 @@ describe('prepItemForDdbInsert', () => {
 
         // CHECK
         updatedResource.meta.versionId = vid.toString();
-        updatedResource[REFERENCES_FIELD] = [];
+        updatedResource[REFERENCES_FIELD] = [`${resourceType}/${id}`];
         checkExpectedItemMatchActualItem(actualItem, updatedResource);
     });
 
