@@ -47,15 +47,13 @@ export class DynamoDbUtil {
         // https://www.npmjs.com/package/flat
         // flatten({ key1: { keyA: 'valueI' } })  => { key1.keyA: 'valueI'}
         const flattenedResources: Record<string, string> = flatten(resource);
-        const references: string[] = Object.keys(flattenedResources)
+        const references = Object.keys(flattenedResources)
             .filter((key: string) => {
                 return key.endsWith('.reference');
             })
             .map((key: string) => {
                 return flattenedResources[key];
             });
-        // Add self to references as the resource is self referencing
-        references.push(`${resource.resourceType}/${id}`)
         item[REFERENCES_FIELD] = references;
         return item;
     }
