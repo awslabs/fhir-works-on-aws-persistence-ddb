@@ -7,7 +7,7 @@
 import * as AWSMock from 'aws-sdk-mock';
 
 import { GetItemInput, PutItemInput, QueryInput, UpdateItemInput } from 'aws-sdk/clients/dynamodb';
-import AWS from 'aws-sdk';
+import AWS, { AWSError } from 'aws-sdk';
 import isEqual from 'lodash/isEqual';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import {
@@ -44,21 +44,20 @@ describe('CREATE', () => {
     afterEach(() => {
         AWSMock.restore();
     });
+    // BUILD
+    const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
+    const resourceType = 'Patient';
+    const resource = {
+        id,
+        resourceType,
+        name: [
+            {
+                family: 'Jameson',
+                given: ['Matt'],
+            },
+        ],
+    };
     test('SUCCESS: Create Resource', async () => {
-        // BUILD
-        const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
-        const resourceType = 'Patient';
-        const resource = {
-            id,
-            resourceType,
-            name: [
-                {
-                    family: 'Jameson',
-                    given: ['Matt'],
-                },
-            ],
-        };
-
         // READ items (Success)
         AWSMock.mock('DynamoDB', 'putItem', (params: PutItemInput, callback: Function) => {
             callback(null, 'success');
@@ -79,6 +78,17 @@ describe('CREATE', () => {
         expect(serviceResponse.success).toEqual(true);
         expect(serviceResponse.message).toEqual('Resource created');
         expect(serviceResponse.resource).toStrictEqual(expectedResource);
+    });
+    test('FAILED: Resource with Id already exists', async () => {
+        // READ items (Success)
+        AWSMock.mock('DynamoDB', 'putItem', (params: PutItemInput, callback: Function) => {
+            callback(new AWSError());
+        });
+
+        const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
+
+        // OPERATE, CHECK
+        await expect(dynamoDbDataService.createResource({ resource, resourceType, id })).rejects.toThrowError();
     });
 });
 

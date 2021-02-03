@@ -94,6 +94,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
 
     async createResource(request: CreateResourceRequest) {
         const { resourceType, resource, id } = request;
+
         const vid = 1;
         let item = resource;
         item.resourceType = resourceType;

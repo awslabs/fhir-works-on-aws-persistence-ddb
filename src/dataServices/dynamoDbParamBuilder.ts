@@ -60,14 +60,22 @@ export default class DynamoDbParamBuilder {
         return params;
     }
 
-    static buildGetResourcesQueryParam(id: string, maxNumberOfVersions: number, projectionExpression?: string) {
+    static buildGetResourcesQueryParam(
+        id: string,
+        resourceType: string,
+        maxNumberOfVersions: number,
+        projectionExpression?: string,
+    ) {
         const params: any = {
             TableName: RESOURCE_TABLE,
             ScanIndexForward: false,
             Limit: maxNumberOfVersions,
+            FilterExpression: '#r = :resourceType',
             KeyConditionExpression: 'id = :hkey',
+            ExpressionAttributeNames: { '#r': 'resourceType' },
             ExpressionAttributeValues: DynamoDBConverter.marshall({
                 ':hkey': id,
+                ':resourceType': resourceType,
             }),
         };
 
@@ -102,12 +110,24 @@ export default class DynamoDbParamBuilder {
         };
     }
 
-    static buildPutAvailableItemParam(item: any, id: string, vid: number) {
+    /**
+     * Build DDB PUT param to insert a new resource
+     * @param item
+     * @param id
+     * @param vid
+     * @param allowOverwrite - Allow overwriting a resource that already exists
+     */
+    static buildPutAvailableItemParam(item: any, id: string, vid: number, allowOverwrite: boolean = false) {
         const newItem = DynamoDbUtil.prepItemForDdbInsert(item, id, vid, DOCUMENT_STATUS.AVAILABLE);
-        return {
+        const param: any = {
             TableName: RESOURCE_TABLE,
             Item: DynamoDBConverter.marshall(newItem),
         };
+
+        if (!allowOverwrite) {
+            param.ConditionExpression = 'attribute_not_exists(id)';
+        }
+        return param;
     }
 
     static buildPutCreateExportRequest(bulkExportJob: BulkExportJob) {

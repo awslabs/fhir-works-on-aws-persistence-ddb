@@ -3,6 +3,7 @@
  *  SPDX-License-Identifier: Apache-2.0
  */
 
+import { cloneDeep } from 'lodash';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 import DOCUMENT_STATUS from './documentStatus';
 import { timeFromEpochInMsRegExp } from '../../testUtilities/regExpressions';
@@ -133,80 +134,128 @@ describe('buildUpdateDocumentStatusParam', () => {
 });
 
 describe('buildPutAvailableItemParam', () => {
-    test('check that param has the fields documentStatus, lockEndTs, and references', () => {
-        const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
-        const vid = 1;
-        const item = {
-            resourceType: 'Patient',
-            id,
-            name: [
-                {
-                    family: 'Jameson',
-                    given: ['Matt'],
-                },
-            ],
-            gender: 'male',
-            meta: {
-                lastUpdated: '2020-03-26T15:46:55.848Z',
-                versionId: vid.toString(),
+    const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
+    const vid = 1;
+    const item = {
+        resourceType: 'Patient',
+        id,
+        name: [
+            {
+                family: 'Jameson',
+                given: ['Matt'],
             },
-        };
-        const actualParams = DynamoDbParamBuilder.buildPutAvailableItemParam(item, id, vid);
-        const expectedParams = {
-            TableName: '',
-            Item: {
-                _references: {
-                    L: [],
-                },
-                resourceType: {
-                    S: 'Patient',
-                },
-                id: {
-                    S: id,
-                },
-                vid: {
-                    N: vid.toString(),
-                },
-                name: {
-                    L: [
-                        {
-                            M: {
-                                family: {
-                                    S: 'Jameson',
-                                },
-                                given: {
-                                    L: [
-                                        {
-                                            S: 'Matt',
-                                        },
-                                    ],
-                                },
+        ],
+        gender: 'male',
+        meta: {
+            lastUpdated: '2020-03-26T15:46:55.848Z',
+            versionId: vid.toString(),
+        },
+    };
+    const expectedParams: any = {
+        TableName: '',
+        Item: {
+            _references: {
+                L: [],
+            },
+            resourceType: {
+                S: 'Patient',
+            },
+            id: {
+                S: id,
+            },
+            vid: {
+                N: vid.toString(),
+            },
+            name: {
+                L: [
+                    {
+                        M: {
+                            family: {
+                                S: 'Jameson',
+                            },
+                            given: {
+                                L: [
+                                    {
+                                        S: 'Matt',
+                                    },
+                                ],
                             },
                         },
-                    ],
-                },
-                gender: {
-                    S: 'male',
-                },
-                meta: {
-                    M: {
-                        lastUpdated: {
-                            S: '2020-03-26T15:46:55.848Z',
-                        },
-                        versionId: {
-                            S: '1',
-                        },
+                    },
+                ],
+            },
+            gender: {
+                S: 'male',
+            },
+            meta: {
+                M: {
+                    lastUpdated: {
+                        S: '2020-03-26T15:46:55.848Z',
+                    },
+                    versionId: {
+                        S: '1',
                     },
                 },
-                documentStatus: {
-                    S: 'AVAILABLE',
-                },
-                lockEndTs: {
-                    N: expect.stringMatching(timeFromEpochInMsRegExp),
-                },
+            },
+            documentStatus: {
+                S: 'AVAILABLE',
+            },
+            lockEndTs: {
+                N: expect.stringMatching(timeFromEpochInMsRegExp),
+            },
+        },
+        ConditionExpression: 'attribute_not_exists(id)',
+    };
+    test('Param has the fields documentStatus, lockEndTs, and references', () => {
+        const actualParams = DynamoDbParamBuilder.buildPutAvailableItemParam(item, id, vid);
+        expect(actualParams).toEqual(expectedParams);
+    });
+
+    test('Allow overwriting a resource', () => {
+        const actualParams = DynamoDbParamBuilder.buildPutAvailableItemParam(item, id, vid, true);
+        const clonedExpectedParams = cloneDeep(expectedParams);
+        delete clonedExpectedParams.ConditionExpression;
+
+        expect(actualParams).toEqual(clonedExpectedParams);
+    });
+});
+
+describe('buildGetResourcesQueryParam', () => {
+    const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
+    test('Param without projection expression', () => {
+        const actualParam = DynamoDbParamBuilder.buildGetResourcesQueryParam(id, 'Patient', 2);
+        const expectedParam = {
+            TableName: '',
+            ScanIndexForward: false,
+            Limit: 2,
+            FilterExpression: '#r = :resourceType',
+            KeyConditionExpression: 'id = :hkey',
+            ExpressionAttributeNames: { '#r': 'resourceType' },
+            ExpressionAttributeValues: {
+                ':hkey': { S: '8cafa46d-08b4-4ee4-b51b-803e20ae8126' },
+                ':resourceType': { S: 'Patient' },
             },
         };
+        expect(actualParam).toEqual(expectedParam);
+    });
 
-        expect(actualParams).toEqual(expectedParams);
+    test('Param with projection expression', () => {
+        const projectionExpression = 'id, resourceType, name';
+        const actualParam = DynamoDbParamBuilder.buildGetResourcesQueryParam(id, 'Patient', 2, projectionExpression);
+
+        const expectedParam = {
+            TableName: '',
+            ScanIndexForward: false,
+            Limit: 2,
+            FilterExpression: '#r = :resourceType',
+            KeyConditionExpression: 'id = :hkey',
+            ExpressionAttributeNames: { '#r': 'resourceType' },
+            ExpressionAttributeValues: {
+                ':hkey': { S: '8cafa46d-08b4-4ee4-b51b-803e20ae8126' },
+                ':resourceType': { S: 'Patient' },
+            },
+            ProjectionExpression: projectionExpression,
+        };
+        expect(actualParam).toEqual(expectedParam);
     });
 });
