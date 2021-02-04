@@ -26,6 +26,7 @@ import { DynamoDbDataService } from './dynamoDbDataService';
 import { DynamoDBConverter } from './dynamoDb';
 import DynamoDbHelper from './dynamoDbHelper';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
+import { ConditionalCheckFailedExceptionMock } from '../../testUtilities/ConditionalCheckFailedException';
 
 jest.mock('../bulkExport/bulkExport');
 AWSMock.setSDKInstance(AWS);
@@ -40,17 +41,6 @@ afterEach(() => {
     AWSMock.restore();
 });
 
-class ConditionalCheckFailedException extends Error {
-    public code: string;
-
-    constructor() {
-        super('');
-        this.code = 'ConditionalCheckFailedException';
-
-        // Set the prototype explicitly.
-        Object.setPrototypeOf(this, ConditionalCheckFailedException.prototype);
-    }
-}
 describe('CREATE', () => {
     afterEach(() => {
         AWSMock.restore();
@@ -93,7 +83,7 @@ describe('CREATE', () => {
     test('FAILED: Resource with Id already exists', async () => {
         // READ items (Success)
         AWSMock.mock('DynamoDB', 'putItem', (params: PutItemInput, callback: Function) => {
-            callback(new ConditionalCheckFailedException(), {});
+            callback(new ConditionalCheckFailedExceptionMock(), {});
         });
 
         const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
