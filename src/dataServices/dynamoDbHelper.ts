@@ -38,9 +38,19 @@ export default class DynamoDbHelper {
     }
 
     async getMostRecentValidResource(resourceType: string, id: string): Promise<GenericResponse> {
+        // TODO: Add a test in for this method?
         const params = DynamoDbParamBuilder.buildGetResourcesQueryParam(id, resourceType, 2);
         let item = null;
-        const result = await this.dynamoDb.query(params).promise();
+        let result: any = {};
+        try {
+            result = await this.dynamoDb.query(params).promise();
+        } catch (e) {
+            if (e.code === 'ConditionalCheckFailedException') {
+                throw new ResourceNotFoundError(resourceType, id);
+            }
+            throw e;
+        }
+
         const items = result.Items
             ? result.Items.map((ddbJsonItem: any) => DynamoDBConverter.unmarshall(ddbJsonItem))
             : [];

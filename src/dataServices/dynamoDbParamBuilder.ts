@@ -22,6 +22,7 @@ export default class DynamoDbParamBuilder {
         newStatus: DOCUMENT_STATUS,
         id: string,
         vid: number,
+        resourceType: string,
     ) {
         const currentTs = Date.now();
         let futureEndTs = currentTs;
@@ -40,12 +41,14 @@ export default class DynamoDbParamBuilder {
                 ExpressionAttributeValues: DynamoDBConverter.marshall({
                     ':newStatus': newStatus,
                     ':futureEndTs': futureEndTs,
+                    ':resourceType': resourceType,
                 }),
+                ConditionExpression: `resourceType = :resourceType`,
             },
         };
 
         if (oldStatus) {
-            params.Update.ConditionExpression = `${DOCUMENT_STATUS_FIELD} = :oldStatus OR (${LOCK_END_TS_FIELD} < :currentTs AND (${DOCUMENT_STATUS_FIELD} = :lockStatus OR ${DOCUMENT_STATUS_FIELD} = :pendingStatus OR ${DOCUMENT_STATUS_FIELD} = :pendingDeleteStatus))`;
+            params.Update.ConditionExpression = `resourceType = :resourceType AND (${DOCUMENT_STATUS_FIELD} = :oldStatus OR (${LOCK_END_TS_FIELD} < :currentTs AND (${DOCUMENT_STATUS_FIELD} = :lockStatus OR ${DOCUMENT_STATUS_FIELD} = :pendingStatus OR ${DOCUMENT_STATUS_FIELD} = :pendingDeleteStatus)))`;
             params.Update.ExpressionAttributeValues = DynamoDBConverter.marshall({
                 ':newStatus': newStatus,
                 ':oldStatus': oldStatus,
@@ -54,6 +57,7 @@ export default class DynamoDbParamBuilder {
                 ':pendingDeleteStatus': DOCUMENT_STATUS.PENDING_DELETE,
                 ':currentTs': currentTs,
                 ':futureEndTs': futureEndTs,
+                ':resourceType': resourceType,
             });
         }
 

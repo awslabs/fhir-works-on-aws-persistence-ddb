@@ -40,6 +40,17 @@ afterEach(() => {
     AWSMock.restore();
 });
 
+class ConditionalCheckFailedException extends Error {
+    public code: string;
+
+    constructor() {
+        super('');
+        this.code = 'ConditionalCheckFailedException';
+
+        // Set the prototype explicitly.
+        Object.setPrototypeOf(this, ConditionalCheckFailedException.prototype);
+    }
+}
 describe('CREATE', () => {
     afterEach(() => {
         AWSMock.restore();
@@ -82,13 +93,15 @@ describe('CREATE', () => {
     test('FAILED: Resource with Id already exists', async () => {
         // READ items (Success)
         AWSMock.mock('DynamoDB', 'putItem', (params: PutItemInput, callback: Function) => {
-            callback(new Error());
+            callback(new ConditionalCheckFailedException(), {});
         });
 
         const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
 
         // OPERATE, CHECK
-        await expect(dynamoDbDataService.createResource({ resource, resourceType, id })).rejects.toThrowError();
+        await expect(dynamoDbDataService.createResource({ resource, resourceType, id })).rejects.toThrowError(
+            new Error(`Unable to create resource with id ${id}, because resource already exists`),
+        );
     });
 });
 
@@ -168,7 +181,7 @@ describe('READ', () => {
         expect(serviceResponse.resource).toStrictEqual(expectedResource);
     });
 
-    test('ERROR: Get Versioned Resource', async () => {
+    test('ERROR: Get Versioned Resource: Unable to find resource', async () => {
         // BUILD
         const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
         const vid = '5';
@@ -180,13 +193,28 @@ describe('READ', () => {
         });
 
         const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
-        try {
-            // OPERATE
-            await dynamoDbDataService.vReadResource({ resourceType, id, vid });
-        } catch (e) {
-            // CHECK
-            expect(e).toMatchObject(new ResourceVersionNotFoundError(resourceType, id, vid));
-        }
+
+        // OPERATE, CHECK
+        await expect(dynamoDbDataService.vReadResource({ resourceType, id, vid })).rejects.toThrowError(
+            new ResourceVersionNotFoundError(resourceType, id, vid),
+        );
+    });
+
+    test('ERROR: Get Versioned Resource: resourceType of request does not match resourceType retrieved', async () => {
+        // BUILD
+        const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
+        const vid = '5';
+        const resourceType = 'Patient';
+
+        // READ items (Success)
+        AWSMock.mock('DynamoDB', 'getItem', (params: GetItemInput, callback: Function) => {
+            callback(null, { Item: DynamoDBConverter.marshall({ id, vid, resourceType: 'Observation' }) });
+        });
+
+        const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
+        await expect(dynamoDbDataService.vReadResource({ resourceType, id, vid })).rejects.toThrowError(
+            new ResourceVersionNotFoundError(resourceType, id, vid),
+        );
     });
 });
 

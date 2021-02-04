@@ -9,6 +9,7 @@ import DOCUMENT_STATUS from './documentStatus';
 import { timeFromEpochInMsRegExp } from '../../testUtilities/regExpressions';
 
 describe('buildUpdateDocumentStatusParam', () => {
+    const resourceType = 'Patient';
     test('Update status correctly when there is a requirement for what the old status needs to be', () => {
         const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
         const vid = 1;
@@ -19,6 +20,7 @@ describe('buildUpdateDocumentStatusParam', () => {
             DOCUMENT_STATUS.LOCKED,
             id,
             vid,
+            resourceType,
         );
 
         const expectedParam = {
@@ -46,6 +48,9 @@ describe('buildUpdateDocumentStatusParam', () => {
                     ':pendingStatus': {
                         S: 'PENDING',
                     },
+                    ':resourceType': {
+                        S: 'Patient',
+                    },
                     ':lockStatus': {
                         S: 'LOCKED',
                     },
@@ -57,7 +62,7 @@ describe('buildUpdateDocumentStatusParam', () => {
                     },
                 },
                 ConditionExpression:
-                    'documentStatus = :oldStatus OR (lockEndTs < :currentTs AND (documentStatus = :lockStatus OR documentStatus = :pendingStatus OR documentStatus = :pendingDeleteStatus))',
+                    'resourceType = :resourceType AND (documentStatus = :oldStatus OR (lockEndTs < :currentTs AND (documentStatus = :lockStatus OR documentStatus = :pendingStatus OR documentStatus = :pendingDeleteStatus)))',
             },
         };
 
@@ -81,12 +86,16 @@ describe('buildUpdateDocumentStatusParam', () => {
                     },
                 },
                 UpdateExpression: 'set documentStatus = :newStatus, lockEndTs = :futureEndTs',
+                ConditionExpression: 'resourceType = :resourceType',
                 ExpressionAttributeValues: {
                     ':newStatus': {
                         S: documentStatus,
                     },
                     ':futureEndTs': {
                         N: expect.stringMatching(timeFromEpochInMsRegExp),
+                    },
+                    ':resourceType': {
+                        S: 'Patient',
                     },
                 },
             },
@@ -97,7 +106,13 @@ describe('buildUpdateDocumentStatusParam', () => {
     test('When a document is being locked, lockEndTs should have a timestamp that expires in the future', () => {
         const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
         const vid = 1;
-        const actualParam = DynamoDbParamBuilder.buildUpdateDocumentStatusParam(null, DOCUMENT_STATUS.LOCKED, id, vid);
+        const actualParam = DynamoDbParamBuilder.buildUpdateDocumentStatusParam(
+            null,
+            DOCUMENT_STATUS.LOCKED,
+            id,
+            vid,
+            resourceType,
+        );
 
         const futureTs = Number(actualParam.Update.ExpressionAttributeValues[':futureEndTs'].N);
         // We have to generate the current time, because when there is no requirement for an oldStatus, the expected param doesn't
@@ -120,6 +135,7 @@ describe('buildUpdateDocumentStatusParam', () => {
             DOCUMENT_STATUS.AVAILABLE,
             id,
             vid,
+            resourceType,
         );
 
         const futureTs = Number(actualParam.Update.ExpressionAttributeValues[':futureEndTs'].N);

@@ -85,6 +85,9 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
             throw new ResourceVersionNotFoundError(resourceType, id, vid);
         }
         let item = DynamoDBConverter.unmarshall(result.Item);
+        if (item.resourceType !== resourceType) {
+            throw new ResourceVersionNotFoundError(resourceType, id, vid);
+        }
         item = DynamoDbUtil.cleanItem(item);
         return {
             message: 'Resource found',
@@ -101,7 +104,14 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
         item.meta = generateMeta(vid.toString());
 
         const params = DynamoDbParamBuilder.buildPutAvailableItemParam(item, id || uuidv4(), vid);
-        await this.dynamoDb.putItem(params).promise();
+        try {
+            await this.dynamoDb.putItem(params).promise();
+        } catch (e) {
+            if (e.code === 'ConditionalCheckFailedException') {
+                throw new Error(`Unable to create resource with id ${id}, because resource already exists`);
+            }
+            throw e;
+        }
         const newItem = DynamoDBConverter.unmarshall(params.Item);
         item = DynamoDbUtil.cleanItem(newItem);
         return {
@@ -126,6 +136,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
             DOCUMENT_STATUS.DELETED,
             id,
             vid,
+            resourceType,
         ).Update;
         await this.dynamoDb.updateItem(updateStatusToDeletedParam).promise();
         return {
