@@ -116,6 +116,7 @@ export default class DynamoDbParamBuilder {
      * @param id
      * @param vid
      * @param allowOverwrite - Allow overwriting a resource that already exists
+     * @return DDB params for PUT operation
      */
     static buildPutAvailableItemParam(item: any, id: string, vid: number, allowOverwrite: boolean = false) {
         const newItem = DynamoDbUtil.prepItemForDdbInsert(item, id, vid, DOCUMENT_STATUS.AVAILABLE);
