@@ -50,20 +50,18 @@ describe('getMostRecentResource', () => {
             });
         });
 
-        const ddbHelper = new DynamoDbHelper(new AWS.DynamoDB());
-
         const expectedResponse = getExpectedResponse(resource, '1');
 
+        const ddbHelper = new DynamoDbHelper(new AWS.DynamoDB());
         await expect(ddbHelper.getMostRecentResource(resourceType, id)).resolves.toEqual(expectedResponse);
     });
-    test('FAILED: Resource type in request does not match resource', async () => {
+    test('FAILED: resourceType of request does not match resourceType retrieved', async () => {
         // READ items (Success)
         AWSMock.mock('DynamoDB', 'query', (params: QueryInput, callback: Function) => {
             callback(new ConditionalCheckFailedExceptionMock(), {});
         });
 
         const ddbHelper = new DynamoDbHelper(new AWS.DynamoDB());
-
         await expect(ddbHelper.getMostRecentResource(resourceType, id)).rejects.toThrowError(
             new ResourceNotFoundError(resourceType, id),
         );
@@ -76,7 +74,6 @@ describe('getMostRecentResource', () => {
         });
 
         const ddbHelper = new DynamoDbHelper(new AWS.DynamoDB());
-
         await expect(ddbHelper.getMostRecentResource(resourceType, id)).rejects.toThrowError(
             new ResourceNotFoundError(resourceType, id),
         );
@@ -105,10 +102,9 @@ describe('getMostRecentValidResource', () => {
             });
         });
 
-        const ddbHelper = new DynamoDbHelper(new AWS.DynamoDB());
-
         const expectedResponse = getExpectedResponse(v2Resource, '2');
 
+        const ddbHelper = new DynamoDbHelper(new AWS.DynamoDB());
         // If latest version is in AVAILABLE status, then the resource being returned should be the latest version
         await expect(ddbHelper.getMostRecentValidResource(resourceType, id)).resolves.toEqual(expectedResponse);
     });
@@ -124,22 +120,20 @@ describe('getMostRecentValidResource', () => {
             });
         });
 
-        const ddbHelper = new DynamoDbHelper(new AWS.DynamoDB());
-
         const expectedResponse = getExpectedResponse(resource, '1');
 
+        const ddbHelper = new DynamoDbHelper(new AWS.DynamoDB());
         // If latest version is in PENDING status, then the resource being returned should be the second latest version
         await expect(ddbHelper.getMostRecentValidResource(resourceType, id)).resolves.toEqual(expectedResponse);
     });
 
-    test('FAILED: Resource type in request does not match resource', async () => {
+    test('FAILED: resourceType of request does not match resourceType retrieved', async () => {
         // READ items (Success)
         AWSMock.mock('DynamoDB', 'query', (params: QueryInput, callback: Function) => {
             callback(new ConditionalCheckFailedExceptionMock(), {});
         });
 
         const ddbHelper = new DynamoDbHelper(new AWS.DynamoDB());
-
         await expect(ddbHelper.getMostRecentValidResource(resourceType, id)).rejects.toThrowError(
             new ResourceNotFoundError(resourceType, id),
         );
@@ -152,7 +146,6 @@ describe('getMostRecentValidResource', () => {
         });
 
         const ddbHelper = new DynamoDbHelper(new AWS.DynamoDB());
-
         await expect(ddbHelper.getMostRecentValidResource(resourceType, id)).rejects.toThrowError(
             new ResourceNotFoundError(resourceType, id),
         );
