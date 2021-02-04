@@ -222,20 +222,20 @@ describe('buildPutAvailableItemParam', () => {
 
 describe('buildGetResourcesQueryParam', () => {
     const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
+    const expectedParam = {
+        TableName: '',
+        ScanIndexForward: false,
+        Limit: 2,
+        FilterExpression: '#r = :resourceType',
+        KeyConditionExpression: 'id = :hkey',
+        ExpressionAttributeNames: { '#r': 'resourceType' },
+        ExpressionAttributeValues: {
+            ':hkey': { S: '8cafa46d-08b4-4ee4-b51b-803e20ae8126' },
+            ':resourceType': { S: 'Patient' },
+        },
+    };
     test('Param without projection expression', () => {
         const actualParam = DynamoDbParamBuilder.buildGetResourcesQueryParam(id, 'Patient', 2);
-        const expectedParam = {
-            TableName: '',
-            ScanIndexForward: false,
-            Limit: 2,
-            FilterExpression: '#r = :resourceType',
-            KeyConditionExpression: 'id = :hkey',
-            ExpressionAttributeNames: { '#r': 'resourceType' },
-            ExpressionAttributeValues: {
-                ':hkey': { S: '8cafa46d-08b4-4ee4-b51b-803e20ae8126' },
-                ':resourceType': { S: 'Patient' },
-            },
-        };
         expect(actualParam).toEqual(expectedParam);
     });
 
@@ -243,19 +243,9 @@ describe('buildGetResourcesQueryParam', () => {
         const projectionExpression = 'id, resourceType, name';
         const actualParam = DynamoDbParamBuilder.buildGetResourcesQueryParam(id, 'Patient', 2, projectionExpression);
 
-        const expectedParam = {
-            TableName: '',
-            ScanIndexForward: false,
-            Limit: 2,
-            FilterExpression: '#r = :resourceType',
-            KeyConditionExpression: 'id = :hkey',
-            ExpressionAttributeNames: { '#r': 'resourceType' },
-            ExpressionAttributeValues: {
-                ':hkey': { S: '8cafa46d-08b4-4ee4-b51b-803e20ae8126' },
-                ':resourceType': { S: 'Patient' },
-            },
-            ProjectionExpression: projectionExpression,
-        };
-        expect(actualParam).toEqual(expectedParam);
+        const clonedExpectedParam: any = cloneDeep(expectedParam);
+        clonedExpectedParam.ProjectionExpression = projectionExpression;
+
+        expect(actualParam).toEqual(clonedExpectedParam);
     });
 });

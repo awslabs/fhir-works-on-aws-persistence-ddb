@@ -7,7 +7,7 @@
 import * as AWSMock from 'aws-sdk-mock';
 
 import { GetItemInput, PutItemInput, QueryInput, UpdateItemInput } from 'aws-sdk/clients/dynamodb';
-import AWS, { AWSError } from 'aws-sdk';
+import AWS from 'aws-sdk';
 import isEqual from 'lodash/isEqual';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import {
@@ -82,7 +82,7 @@ describe('CREATE', () => {
     test('FAILED: Resource with Id already exists', async () => {
         // READ items (Success)
         AWSMock.mock('DynamoDB', 'putItem', (params: PutItemInput, callback: Function) => {
-            callback(new AWSError());
+            callback(new Error());
         });
 
         const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
