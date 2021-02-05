@@ -19,7 +19,6 @@ import {
     GenericResponse,
     GetExportStatusResponse,
     InitiateExportRequest,
-    InvalidResourceError,
     PatchResourceRequest,
     Persistence,
     ReadResourceRequest,
