@@ -102,6 +102,7 @@ describe('READ', () => {
     // });
     afterEach(() => {
         AWSMock.restore();
+        sinon.restore();
     });
     test('SUCCESS: Get Resource', async () => {
         // BUILD
@@ -120,7 +121,7 @@ describe('READ', () => {
         };
 
         sinon
-            .stub(DynamoDbHelper.prototype, 'getMostRecentValidResource')
+            .stub(DynamoDbHelper.prototype, 'getMostRecentUserReadableResource')
             .returns(Promise.resolve({ message: 'Resource found', resource }));
 
         const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
@@ -211,6 +212,7 @@ describe('READ', () => {
 describe('UPDATE', () => {
     afterEach(() => {
         AWSMock.restore();
+        sinon.restore();
     });
 
     test('Successfully update resource', async () => {
@@ -257,6 +259,10 @@ describe('UPDATE', () => {
             .stub(DynamoDbBundleService.prototype, 'transaction')
             .returns(Promise.resolve(batchReadWriteServiceResponse));
 
+        sinon
+            .stub(DynamoDbHelper.prototype, 'getMostRecentUserReadableResource')
+            .returns(Promise.resolve({ message: 'Resource found', resource }));
+
         const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
 
         // OPERATE
@@ -278,6 +284,7 @@ describe('UPDATE', () => {
 describe('DELETE', () => {
     afterEach(() => {
         AWSMock.restore();
+        sinon.restore();
     });
 
     test('Successfully delete resource', async () => {
@@ -311,6 +318,10 @@ describe('DELETE', () => {
                 Items: [DynamoDBConverter.marshall(resource)],
             });
         });
+
+        sinon
+            .stub(DynamoDbHelper.prototype, 'getMostRecentUserReadableResource')
+            .returns(Promise.resolve({ message: 'Resource found', resource }));
 
         const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
 

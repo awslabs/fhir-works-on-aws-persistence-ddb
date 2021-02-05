@@ -106,7 +106,7 @@ describe('getMostRecentValidResource', () => {
 
         const ddbHelper = new DynamoDbHelper(new AWS.DynamoDB());
         // If latest version is in AVAILABLE status, then the resource being returned should be the latest version
-        await expect(ddbHelper.getMostRecentValidResource(resourceType, id)).resolves.toEqual(expectedResponse);
+        await expect(ddbHelper.getMostRecentUserReadableResource(resourceType, id)).resolves.toEqual(expectedResponse);
     });
 
     test('SUCCESS: Second latest version is in AVAILABLE status', async () => {
@@ -124,7 +124,7 @@ describe('getMostRecentValidResource', () => {
 
         const ddbHelper = new DynamoDbHelper(new AWS.DynamoDB());
         // If latest version is in PENDING status, then the resource being returned should be the second latest version
-        await expect(ddbHelper.getMostRecentValidResource(resourceType, id)).resolves.toEqual(expectedResponse);
+        await expect(ddbHelper.getMostRecentUserReadableResource(resourceType, id)).resolves.toEqual(expectedResponse);
     });
 
     test('FAILED: resourceType of request does not match resourceType retrieved', async () => {
@@ -134,7 +134,7 @@ describe('getMostRecentValidResource', () => {
         });
 
         const ddbHelper = new DynamoDbHelper(new AWS.DynamoDB());
-        await expect(ddbHelper.getMostRecentValidResource(resourceType, id)).rejects.toThrowError(
+        await expect(ddbHelper.getMostRecentUserReadableResource(resourceType, id)).rejects.toThrowError(
             new ResourceNotFoundError(resourceType, id),
         );
     });
@@ -146,7 +146,7 @@ describe('getMostRecentValidResource', () => {
         });
 
         const ddbHelper = new DynamoDbHelper(new AWS.DynamoDB());
-        await expect(ddbHelper.getMostRecentValidResource(resourceType, id)).rejects.toThrowError(
+        await expect(ddbHelper.getMostRecentUserReadableResource(resourceType, id)).rejects.toThrowError(
             new ResourceNotFoundError(resourceType, id),
         );
     });
