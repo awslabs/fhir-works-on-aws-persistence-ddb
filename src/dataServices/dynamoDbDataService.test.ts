@@ -12,7 +12,6 @@ import isEqual from 'lodash/isEqual';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import {
     BundleResponse,
-    BatchReadWriteResponse,
     InitiateExportRequest,
     ResourceNotFoundError,
     ExportJobStatus,

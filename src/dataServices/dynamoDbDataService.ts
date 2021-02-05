@@ -149,6 +149,8 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
     async updateResource(request: UpdateResourceRequest) {
         const { resource, resourceType, id } = request;
         const resourceCopy = { ...resource };
+
+        // Will throw ResourceNotFoundError if resource can't be found
         await this.readResource({ resourceType, id });
 
         const batchRequest: BatchReadWriteRequest = {
