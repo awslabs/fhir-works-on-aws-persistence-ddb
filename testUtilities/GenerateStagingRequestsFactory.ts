@@ -187,11 +187,12 @@ export default class GenerateStagingRequestsFactory {
 
     static getDelete(): RequestResult {
         const id = 'bce8411e-c15e-448c-95dd-69155a837405';
+        const resourceType = 'Patient';
         const request: BatchReadWriteRequest = {
             operation: 'delete',
             resource: `Patient/${id}`,
             fullUrl: '',
-            resourceType: 'Patient',
+            resourceType,
             id,
         };
 
@@ -201,6 +202,7 @@ export default class GenerateStagingRequestsFactory {
             DOCUMENT_STATUS.PENDING_DELETE,
             id,
             vid,
+            resourceType,
         );
 
         expectedRequest.Update.ExpressionAttributeValues[':currentTs'].N = expect.stringMatching(

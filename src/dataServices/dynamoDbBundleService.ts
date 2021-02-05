@@ -228,6 +228,7 @@ export class DynamoDbBundleService implements Bundle {
                     DOCUMENT_STATUS.LOCKED,
                     id,
                     vid,
+                    resourceType,
                 ),
             );
         }
@@ -292,6 +293,7 @@ export class DynamoDbBundleService implements Bundle {
                 newStatus,
                 lockedItem.id,
                 lockedItem.vid || 0,
+                lockedItem.resourceType,
             );
         });
 

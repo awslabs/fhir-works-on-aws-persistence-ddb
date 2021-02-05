@@ -3,12 +3,12 @@
  *  SPDX-License-Identifier: Apache-2.0
  */
 
-import DynamoDB from 'aws-sdk/clients/dynamodb';
+import DynamoDB, { ItemList } from 'aws-sdk/clients/dynamodb';
 import { GenericResponse, ResourceNotFoundError } from 'fhir-works-on-aws-interface';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 import { DynamoDBConverter } from './dynamoDb';
 import DOCUMENT_STATUS from './documentStatus';
-import { DynamoDbUtil, DOCUMENT_STATUS_FIELD } from './dynamoDbUtil';
+import { DOCUMENT_STATUS_FIELD, DynamoDbUtil } from './dynamoDbUtil';
 
 export default class DynamoDbHelper {
     private dynamoDb: DynamoDB;
@@ -17,18 +17,43 @@ export default class DynamoDbHelper {
         this.dynamoDb = dynamoDb;
     }
 
+    private async getMostRecentResources(
+        resourceType: string,
+        id: string,
+        maxNumberOfVersionsToGet: number,
+        projectionExpression?: string,
+    ): Promise<ItemList> {
+        const params = DynamoDbParamBuilder.buildGetResourcesQueryParam(
+            id,
+            resourceType,
+            maxNumberOfVersionsToGet,
+            projectionExpression,
+        );
+        let result: any = {};
+        try {
+            result = await this.dynamoDb.query(params).promise();
+        } catch (e) {
+            if (e.code === 'ConditionalCheckFailedException') {
+                throw new ResourceNotFoundError(resourceType, id);
+            }
+            throw e;
+        }
+
+        const items = result.Items
+            ? result.Items.map((ddbJsonItem: any) => DynamoDBConverter.unmarshall(ddbJsonItem))
+            : [];
+        if (items.length === 0) {
+            throw new ResourceNotFoundError(resourceType, id);
+        }
+        return items;
+    }
+
     async getMostRecentResource(
         resourceType: string,
         id: string,
         projectionExpression?: string,
     ): Promise<GenericResponse> {
-        const params = DynamoDbParamBuilder.buildGetResourcesQueryParam(id, 1, projectionExpression);
-
-        const result = await this.dynamoDb.query(params).promise();
-        if (result.Items === undefined || result.Items.length === 0) {
-            throw new ResourceNotFoundError(resourceType, id);
-        }
-        let item = DynamoDBConverter.unmarshall(result.Items[0]);
+        let item = (await this.getMostRecentResources(resourceType, id, 1, projectionExpression))[0];
         item = DynamoDbUtil.cleanItem(item);
 
         return {
@@ -37,28 +62,30 @@ export default class DynamoDbHelper {
         };
     }
 
-    async getMostRecentValidResource(resourceType: string, id: string): Promise<GenericResponse> {
-        const params = DynamoDbParamBuilder.buildGetResourcesQueryParam(id, 2);
-        let item = null;
-        const result = await this.dynamoDb.query(params).promise();
-        const items = result.Items
-            ? result.Items.map((ddbJsonItem: any) => DynamoDBConverter.unmarshall(ddbJsonItem))
-            : [];
-        if (items.length === 0) {
-            throw new ResourceNotFoundError(resourceType, id);
-        }
-        const latestItemDocStatus = items[0][DOCUMENT_STATUS_FIELD];
+    /**
+     * @return The most recent resource that has not been deleted and has been committed to the database (i.e. The resource is not in a transitional state)
+     */
+    async getMostRecentUserReadableResource(resourceType: string, id: string): Promise<GenericResponse> {
+        const items = await this.getMostRecentResources(resourceType, id, 2);
+        const latestItemDocStatus: DOCUMENT_STATUS = <DOCUMENT_STATUS>items[0][DOCUMENT_STATUS_FIELD];
         if (latestItemDocStatus === DOCUMENT_STATUS.DELETED) {
             throw new ResourceNotFoundError(resourceType, id);
         }
-        // If the latest version of the resource is in PENDING, grab the previous version
-        if (latestItemDocStatus === DOCUMENT_STATUS.PENDING && items.length > 1) {
+        let item: any = {};
+        // Latest version that are in LOCKED/PENDING_DELETE/AVAILABLE are valid to be read from
+        if (
+            [DOCUMENT_STATUS.AVAILABLE, DOCUMENT_STATUS.PENDING_DELETE, DOCUMENT_STATUS.LOCKED].includes(
+                latestItemDocStatus,
+            )
+        ) {
+            // eslint-disable-next-line prefer-destructuring
+            item = items[0];
+        } else if (latestItemDocStatus === DOCUMENT_STATUS.PENDING && items.length > 1) {
+            // If the latest version of the resource is in PENDING, grab the previous version
             // eslint-disable-next-line prefer-destructuring
             item = items[1];
         } else {
-            // Latest version that are in LOCKED/PENDING_DELETE/AVAILABLE are valid to be read from
-            // eslint-disable-next-line prefer-destructuring
-            item = items[0];
+            throw new ResourceNotFoundError(resourceType, id);
         }
         item = DynamoDbUtil.cleanItem(item);
         return {
