@@ -17,10 +17,11 @@ import {
     ResourceNotFoundError,
     ExportJobStatus,
     ResourceVersionNotFoundError,
+    InvalidResourceError,
 } from 'fhir-works-on-aws-interface';
 import { TooManyConcurrentExportRequestsError } from 'fhir-works-on-aws-interface/lib/errors/TooManyConcurrentExportRequestsError';
 import each from 'jest-each';
-import { utcTimeRegExp } from '../../testUtilities/regExpressions';
+import { utcTimeRegExp, uuidRegExp } from '../../testUtilities/regExpressions';
 import { DynamoDbBundleService } from './dynamoDbBundleService';
 import { DynamoDbDataService } from './dynamoDbDataService';
 import { DynamoDBConverter } from './dynamoDb';
@@ -67,7 +68,7 @@ describe('CREATE', () => {
         const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
 
         // OPERATE
-        const serviceResponse = await dynamoDbDataService.createResource({ resource, resourceType, id });
+        const serviceResponse = await dynamoDbDataService.createResource({ resource, resourceType });
 
         // CHECK
         const expectedResource: any = { ...resource };
@@ -75,6 +76,7 @@ describe('CREATE', () => {
             versionId: '1',
             lastUpdated: expect.stringMatching(utcTimeRegExp),
         };
+        expectedResource.id = expect.stringMatching(uuidRegExp);
 
         expect(serviceResponse.success).toEqual(true);
         expect(serviceResponse.message).toEqual('Resource created');
@@ -90,7 +92,7 @@ describe('CREATE', () => {
 
         // OPERATE, CHECK
         await expect(dynamoDbDataService.createResource({ resource, resourceType, id })).rejects.toThrowError(
-            new Error(`Unable to create resource with id ${id}, because resource already exists`),
+            new InvalidResourceError('Auto generated id matched an existing id'),
         );
     });
 });
