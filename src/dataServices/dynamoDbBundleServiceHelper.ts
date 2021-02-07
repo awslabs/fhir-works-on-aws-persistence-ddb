@@ -88,7 +88,7 @@ export default class DynamoDbBundleServiceHelper {
                 }
                 case 'delete': {
                     // Mark documentStatus as PENDING_DELETE
-                    const { id } = request;
+                    const { id, resourceType } = request;
                     const vid = idToVersionId[id];
                     deleteRequests.push(
                         DynamoDbParamBuilder.buildUpdateDocumentStatusParam(
@@ -96,6 +96,7 @@ export default class DynamoDbBundleServiceHelper {
                             DOCUMENT_STATUS.PENDING_DELETE,
                             id,
                             vid,
+                            resourceType,
                         ),
                     );
                     newBundleEntryResponses.push({
