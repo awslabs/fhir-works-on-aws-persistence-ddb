@@ -355,6 +355,8 @@ describe('atomicallyReadWriteResources', () => {
 
             const insertedResource = DynamoDBConverter.marshall(insertedResourceJson);
             insertedResource.lockEndTs.N = expect.stringMatching(timeFromEpochInMsRegExp);
+            insertedResource.meta!.M!.lastUpdated.S = expect.stringMatching(utcTimeRegExp);
+            insertedResource.meta!.M!.versionId.S = newVid.toString();
 
             // 1. create new Patient record with documentStatus of 'PENDING'
             expect(transactWriteItemSpy.getCall(1).args[0]).toStrictEqual({

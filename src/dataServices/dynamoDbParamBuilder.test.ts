@@ -6,7 +6,7 @@
 import { cloneDeep } from 'lodash';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 import DOCUMENT_STATUS from './documentStatus';
-import { timeFromEpochInMsRegExp } from '../../testUtilities/regExpressions';
+import { timeFromEpochInMsRegExp, utcTimeRegExp } from '../../testUtilities/regExpressions';
 
 describe('buildUpdateDocumentStatusParam', () => {
     const resourceType = 'Patient';
@@ -206,7 +206,7 @@ describe('buildPutAvailableItemParam', () => {
             meta: {
                 M: {
                     lastUpdated: {
-                        S: '2020-03-26T15:46:55.848Z',
+                        S: expect.stringMatching(utcTimeRegExp),
                     },
                     versionId: {
                         S: '1',
@@ -222,6 +222,7 @@ describe('buildPutAvailableItemParam', () => {
         },
         ConditionExpression: 'attribute_not_exists(id)',
     };
+
     test('Param has the fields documentStatus, lockEndTs, and references', () => {
         const actualParams = DynamoDbParamBuilder.buildPutAvailableItemParam(item, id, vid);
         expect(actualParams).toEqual(expectedParams);
