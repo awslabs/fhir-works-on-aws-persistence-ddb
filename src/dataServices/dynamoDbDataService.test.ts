@@ -12,7 +12,6 @@ import isEqual from 'lodash/isEqual';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import {
     BundleResponse,
-    BatchReadWriteResponse,
     InitiateExportRequest,
     ResourceNotFoundError,
     ExportJobStatus,
@@ -230,40 +229,31 @@ describe('UPDATE', () => {
                     given: ['Matt'],
                 },
             ],
-            meta: { versionId: '1', lastUpdated: new Date().toISOString() },
         };
-
-        // READ items (Success)
-        AWSMock.mock('DynamoDB', 'query', (params: QueryInput, callback: Function) => {
-            callback(null, {
-                Items: [DynamoDBConverter.marshall(resource)],
-            });
-        });
-
-        const vid = 2;
-        const batchReadWriteResponse: BatchReadWriteResponse = {
-            id,
-            vid: vid.toString(),
-            resourceType: 'Patient',
-            operation: 'update',
-            resource: {},
-            lastModified: '2020-06-18T20:20:12.763Z',
-        };
-
-        const batchReadWriteServiceResponse: BundleResponse = {
-            success: true,
-            message: '',
-            batchReadWriteResponses: [batchReadWriteResponse],
-        };
-
-        sinon.stub(DynamoDbBundleService.prototype, 'batch').returns(Promise.resolve(batchReadWriteServiceResponse));
-        sinon
-            .stub(DynamoDbBundleService.prototype, 'transaction')
-            .returns(Promise.resolve(batchReadWriteServiceResponse));
 
         sinon
             .stub(DynamoDbHelper.prototype, 'getMostRecentUserReadableResource')
             .returns(Promise.resolve({ message: 'Resource found', resource }));
+
+        const vid = 2;
+        const batchReadWriteServiceResponse: BundleResponse = {
+            success: true,
+            message: '',
+            batchReadWriteResponses: [
+                {
+                    id,
+                    vid: vid.toString(),
+                    resourceType: 'Patient',
+                    operation: 'update',
+                    resource: {},
+                    lastModified: '2020-06-18T20:20:12.763Z',
+                },
+            ],
+        };
+
+        sinon
+            .stub(DynamoDbBundleService.prototype, 'transaction')
+            .returns(Promise.resolve(batchReadWriteServiceResponse));
 
         const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
 

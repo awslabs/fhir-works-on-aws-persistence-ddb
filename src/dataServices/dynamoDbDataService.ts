@@ -149,12 +149,9 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
     async updateResource(request: UpdateResourceRequest) {
         const { resource, resourceType, id } = request;
         const resourceCopy = { ...resource };
-        const getResponse = await this.readResource({ resourceType, id });
-        const currentVId: number = getResponse.resource.meta
-            ? parseInt(getResponse.resource.meta.versionId, 10) || 0
-            : 0;
 
-        resourceCopy.meta = generateMeta((currentVId + 1).toString());
+        // Will throw ResourceNotFoundError if resource can't be found
+        await this.readResource({ resourceType, id });
 
         const batchRequest: BatchReadWriteRequest = {
             operation: 'update',
@@ -163,14 +160,13 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
             resource: resourceCopy,
         };
 
-        let item: any = {};
         // Sending the request to `atomicallyReadWriteResources` to take advantage of LOCKING management handled by
         // that method
         const response: BundleResponse = await this.transactionService.transaction({
             requests: [batchRequest],
             startTime: new Date(),
         });
-        item = clone(resource);
+        const item = clone(resource);
         const batchReadWriteEntryResponse = response.batchReadWriteResponses[0];
         item.meta = generateMeta(batchReadWriteEntryResponse.vid, new Date(batchReadWriteEntryResponse.lastModified));
         return {
