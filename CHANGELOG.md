@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [3.2.1](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.2.0...v3.2.1) (2021-02-08)
+
+
+### Bug Fixes
+
+* match on resourceType as well as id when executing Read/VRead/DeleteVersionedRes operations ([#51](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/51)) ([4f433d2](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/commit/4f433d2eacdd81c25bdc6e5a2d5e9ea755a33204))
+* resolve vid and meta attribute mismatch on concurrent Update requests ([#53](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/53)) ([2ecc1cd](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/commit/2ecc1cd894c9b10b984598f654654a92a1ae5c50))
+
 ## [3.2.0](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.1.0...v3.2.0) (2021-01-27)
 
 
