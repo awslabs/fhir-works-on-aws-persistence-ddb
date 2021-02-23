@@ -91,7 +91,7 @@ describe('CREATE', () => {
         const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
 
         // OPERATE, CHECK
-        await expect(dynamoDbDataService.createResource({ resource, resourceType})).rejects.toThrowError(
+        await expect(dynamoDbDataService.createResource({ resource, resourceType })).rejects.toThrowError(
             new InvalidResourceError('Resource creation failed, id matches an existing resource'),
         );
     });
