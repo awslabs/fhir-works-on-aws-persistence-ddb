@@ -19,6 +19,7 @@ import {
     GenericResponse,
     GetExportStatusResponse,
     InitiateExportRequest,
+    isResourceNotFoundError,
     PatchResourceRequest,
     Persistence,
     ReadResourceRequest,
@@ -59,7 +60,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
 
     private readonly MAXIMUM_CONCURRENT_REQUEST_PER_USER = 1;
 
-    updateCreateSupported: boolean = false;
+    readonly updateCreateSupported: boolean;
 
     private readonly transactionService: DynamoDbBundleService;
 
@@ -67,10 +68,11 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
 
     private readonly dynamoDb: DynamoDB;
 
-    constructor(dynamoDb: DynamoDB) {
+    constructor(dynamoDb: DynamoDB, supportUpdateCreate: boolean = false) {
         this.dynamoDbHelper = new DynamoDbHelper(dynamoDb);
         this.transactionService = new DynamoDbBundleService(dynamoDb);
         this.dynamoDb = dynamoDb;
+        this.updateCreateSupported = supportUpdateCreate;
     }
 
     async readResource(request: ReadResourceRequest): Promise<GenericResponse> {
@@ -97,13 +99,16 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
 
     async createResource(request: CreateResourceRequest) {
         const { resourceType, resource } = request;
+        return this.createResourceWithId(resourceType, resource, uuidv4());
+    }
 
+    private async createResourceWithId(resourceType: string, resource: any, resourceId: string) {
         const vid = 1;
         let item = resource;
         item.resourceType = resourceType;
         item.meta = generateMeta(vid.toString());
 
-        const params = DynamoDbParamBuilder.buildPutAvailableItemParam(item, uuidv4(), vid);
+        const params = DynamoDbParamBuilder.buildPutAvailableItemParam(item, resourceId, vid);
         try {
             await this.dynamoDb.putItem(params).promise();
         } catch (e) {
@@ -149,10 +154,15 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
     async updateResource(request: UpdateResourceRequest) {
         const { resource, resourceType, id } = request;
         const resourceCopy = { ...resource };
-
-        // Will throw ResourceNotFoundError if resource can't be found
-        await this.readResource({ resourceType, id });
-
+        try {
+            // Will throw ResourceNotFoundError if resource can't be found
+            await this.readResource({ resourceType, id });
+        } catch (e) {
+            if (this.updateCreateSupported && isResourceNotFoundError(e)) {
+                return this.createResourceWithId(resourceType, resource, id);
+            }
+            throw e;
+        }
         const batchRequest: BatchReadWriteRequest = {
             operation: 'update',
             resourceType,
