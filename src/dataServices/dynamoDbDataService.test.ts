@@ -91,7 +91,7 @@ describe('CREATE', () => {
         const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
 
         // OPERATE, CHECK
-        await expect(dynamoDbDataService.createResource({ resource, resourceType, id })).rejects.toThrowError(
+        await expect(dynamoDbDataService.createResource({ resource, resourceType})).rejects.toThrowError(
             new InvalidResourceError('Auto generated id matched an existing id'),
         );
     });
@@ -337,6 +337,32 @@ describe('UPDATE', () => {
         expect(serviceResponse.success).toEqual(true);
         expect(serviceResponse.message).toEqual('Resource created');
         expect(serviceResponse.resource).toStrictEqual(expectedResource);
+    });
+
+    test('ERROR: Id supplied for Update as Create is not valid', async () => {
+        // BUILD
+        const id = 'uuid:$deadbeef';
+        const resourceType = 'Patient';
+        const resource = {
+            resourceType,
+            name: [
+                {
+                    family: 'Jameson',
+                    given: ['Matt'],
+                },
+            ],
+        };
+        sinon
+            .stub(DynamoDbHelper.prototype, 'getMostRecentUserReadableResource')
+            .throws(new ResourceNotFoundError('Patient', id));
+        const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB(), true);
+        // OPERATE
+        try {
+            await dynamoDbDataService.updateResource({ resourceType: 'Patient', id, resource });
+        } catch (e) {
+            // CHECK
+            expect(e.message).toEqual(`Resource creation failed, id ${id} is not valid`);
+        }
     });
 });
 

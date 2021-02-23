@@ -103,6 +103,11 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
     }
 
     private async createResourceWithId(resourceType: string, resource: any, resourceId: string) {
+        const regex = new RegExp('^[a-zA-Z0-9-.]{1,64}$');
+        if (!regex.test(resourceId)) {
+            throw new Error(`Resource creation failed, id ${resourceId} is not valid`);
+        };
+
         const vid = 1;
         let item = resource;
         item.resourceType = resourceType;
