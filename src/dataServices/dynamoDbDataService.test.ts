@@ -92,7 +92,7 @@ describe('CREATE', () => {
 
         // OPERATE, CHECK
         await expect(dynamoDbDataService.createResource({ resource, resourceType})).rejects.toThrowError(
-            new InvalidResourceError('Auto generated id matched an existing id'),
+            new InvalidResourceError('Resource creation failed, id matches an existing resource'),
         );
     });
 });
