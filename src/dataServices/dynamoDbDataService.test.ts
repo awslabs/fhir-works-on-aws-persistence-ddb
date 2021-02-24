@@ -17,6 +17,8 @@ import {
     ExportJobStatus,
     ResourceVersionNotFoundError,
     InvalidResourceError,
+    isResourceNotFoundError,
+    isInvalidResourceError,
 } from 'fhir-works-on-aws-interface';
 import { TooManyConcurrentExportRequestsError } from 'fhir-works-on-aws-interface/lib/errors/TooManyConcurrentExportRequestsError';
 import each from 'jest-each';
@@ -90,8 +92,8 @@ describe('CREATE', () => {
         const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
 
         // OPERATE, CHECK
-        await expect(dynamoDbDataService.createResource({ resource, resourceType, id })).rejects.toThrowError(
-            new InvalidResourceError('Auto generated id matched an existing id'),
+        await expect(dynamoDbDataService.createResource({ resource, resourceType })).rejects.toThrowError(
+            new InvalidResourceError('Resource creation failed, id matches an existing resource'),
         );
     });
 });
@@ -216,7 +218,7 @@ describe('UPDATE', () => {
         sinon.restore();
     });
 
-    test('Successfully update resource', async () => {
+    test('SUCCESS: Update Resource', async () => {
         // BUILD
         const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
         const resource = {
@@ -270,6 +272,99 @@ describe('UPDATE', () => {
         expect(serviceResponse.success).toEqual(true);
         expect(serviceResponse.message).toEqual('Resource updated');
         expect(serviceResponse.resource).toStrictEqual(expectedResource);
+    });
+
+    test('ERROR: Update Resource not present in DynamoDB', async () => {
+        // BUILD
+        const id = 'd3847e9f-a551-47b0-b8d9-fcb7d324bc2b';
+        const resource = {
+            id,
+            vid: 1,
+            resourceType: 'Patient',
+            name: [
+                {
+                    family: 'Jameson',
+                    given: ['Matt'],
+                },
+            ],
+        };
+        sinon
+            .stub(DynamoDbHelper.prototype, 'getMostRecentUserReadableResource')
+            .throws(new ResourceNotFoundError('Patient', id));
+        const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
+
+        // OPERATE
+        try {
+            await dynamoDbDataService.updateResource({ resourceType: 'Patient', id, resource });
+        } catch (e) {
+            // CHECK
+            expect(isResourceNotFoundError(e)).toEqual(true);
+            expect(e.message).toEqual(`Resource Patient/${id} is not known`);
+        }
+    });
+
+    test('SUCCESS: Update Resource as Create', async () => {
+        // BUILD
+        const id = 'e264efb1-147e-43ac-92ea-a050bc236ff3';
+        const resourceType = 'Patient';
+        const resource = {
+            resourceType,
+            name: [
+                {
+                    family: 'Jameson',
+                    given: ['Matt'],
+                },
+            ],
+        };
+        sinon
+            .stub(DynamoDbHelper.prototype, 'getMostRecentUserReadableResource')
+            .throws(new ResourceNotFoundError('Patient', id));
+        AWSMock.mock('DynamoDB', 'putItem', (params: PutItemInput, callback: Function) => {
+            callback(null, 'success');
+        });
+        const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB(), true);
+
+        // OPERATE
+        const serviceResponse = await dynamoDbDataService.updateResource({ resourceType: 'Patient', id, resource });
+
+        // CHECK
+        const expectedResource: any = { ...resource };
+        expectedResource.meta = {
+            versionId: '1',
+            lastUpdated: expect.stringMatching(utcTimeRegExp),
+        };
+        expectedResource.id = id;
+
+        expect(serviceResponse.success).toEqual(true);
+        expect(serviceResponse.message).toEqual('Resource created');
+        expect(serviceResponse.resource).toStrictEqual(expectedResource);
+    });
+
+    test('ERROR: Id supplied for Update as Create is not valid', async () => {
+        // BUILD
+        const id = 'uuid:$deadbeef';
+        const resourceType = 'Patient';
+        const resource = {
+            resourceType,
+            name: [
+                {
+                    family: 'Jameson',
+                    given: ['Matt'],
+                },
+            ],
+        };
+        sinon
+            .stub(DynamoDbHelper.prototype, 'getMostRecentUserReadableResource')
+            .throws(new ResourceNotFoundError('Patient', id));
+        const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB(), true);
+        // OPERATE
+        try {
+            await dynamoDbDataService.updateResource({ resourceType: 'Patient', id, resource });
+        } catch (e) {
+            // CHECK
+            expect(isInvalidResourceError(e)).toEqual(true);
+            expect(e.message).toEqual(`Resource creation failed, id ${id} is not valid`);
+        }
     });
 });
 
@@ -325,6 +420,19 @@ describe('DELETE', () => {
         expect(serviceResponse.message).toEqual(
             `Successfully deleted ResourceType: ${resourceType}, Id: ${id}, VersionId: ${vid}`,
         );
+    });
+});
+
+describe('updateCreateSupported flag', () => {
+    test('defaults to false', async () => {
+        const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
+        expect(dynamoDbDataService.updateCreateSupported).toEqual(false);
+    });
+    test('retains value set at Persistence component creation', async () => {
+        const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB(), false);
+        expect(dynamoDbDataService.updateCreateSupported).toEqual(false);
+        const dynamoDbDataServiceWithUpdateCreate = new DynamoDbDataService(new AWS.DynamoDB(), true);
+        expect(dynamoDbDataServiceWithUpdateCreate.updateCreateSupported).toEqual(true);
     });
 });
 
