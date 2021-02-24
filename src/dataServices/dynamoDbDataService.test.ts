@@ -18,6 +18,7 @@ import {
     ResourceVersionNotFoundError,
     InvalidResourceError,
     isResourceNotFoundError,
+    isInvalidResourceError,
 } from 'fhir-works-on-aws-interface';
 import { TooManyConcurrentExportRequestsError } from 'fhir-works-on-aws-interface/lib/errors/TooManyConcurrentExportRequestsError';
 import each from 'jest-each';
@@ -361,6 +362,7 @@ describe('UPDATE', () => {
             await dynamoDbDataService.updateResource({ resourceType: 'Patient', id, resource });
         } catch (e) {
             // CHECK
+            expect(isInvalidResourceError(e)).toEqual(true);
             expect(e.message).toEqual(`Resource creation failed, id ${id} is not valid`);
         }
     });
