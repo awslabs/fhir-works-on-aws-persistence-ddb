@@ -4,7 +4,7 @@
  */
 
 import { Handler } from 'aws-lambda';
-import AWS from 'aws-sdk';
+import AWS from '../AWS';
 import { BulkExportStateMachineGlobalParameters } from './types';
 
 export const startExportJobHandler: Handler<
