@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [3.3.0](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.2.1...v3.3.0) (2021-03-26)
+
+
+### Features
+
+* add support for Update as Create ([#57](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/57)) ([14a254e](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/commit/14a254e7c290b459660506c637de4601a0c36aa8))
+
 ### [3.2.1](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.2.0...v3.2.1) (2021-02-08)
 
 
