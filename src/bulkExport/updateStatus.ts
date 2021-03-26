@@ -4,8 +4,8 @@
  */
 
 import { Handler } from 'aws-lambda';
-import AWS from 'aws-sdk';
 import { ExportJobStatus } from 'fhir-works-on-aws-interface';
+import AWS from '../AWS';
 import DynamoDbParamBuilder from '../dataServices/dynamoDbParamBuilder';
 
 const EXPORT_JOB_STATUS = ['completed', 'failed', 'in-progress', 'canceled', 'canceling'];

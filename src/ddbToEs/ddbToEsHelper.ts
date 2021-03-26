@@ -4,10 +4,10 @@
  */
 
 import { Client } from '@elastic/elasticsearch';
-import AWS from 'aws-sdk';
 // @ts-ignore
 import { AmazonConnection, AmazonTransport } from 'aws-elasticsearch-connector';
 import allSettled from 'promise.allsettled';
+import AWS from '../AWS';
 import PromiseParamAndId, { PromiseType } from './promiseParamAndId';
 import { DOCUMENT_STATUS_FIELD } from '../dataServices/dynamoDbUtil';
 import DOCUMENT_STATUS from '../dataServices/documentStatus';
