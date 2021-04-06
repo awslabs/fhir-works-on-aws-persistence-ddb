@@ -11,15 +11,15 @@ const AWSWithXray = AWSXRay.captureAWS(AWS);
 
 const { IS_OFFLINE } = process.env;
 
-AWS.config.update({
-    customUserAgent: process.env.CUSTOM_USER_AGENT,
-});
-
 if (IS_OFFLINE === 'true') {
     AWS.config.update({
         region: process.env.AWS_REGION || 'us-west-2',
         accessKeyId: process.env.ACCESS_KEY,
         secretAccessKey: process.env.SECRET_KEY,
+    });
+} else {
+    AWS.config.update({
+        customUserAgent: process.env.CUSTOM_USER_AGENT,
     });
 }
 
