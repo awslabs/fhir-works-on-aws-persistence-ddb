@@ -276,6 +276,7 @@ describe('UPDATE', () => {
             .returns(Promise.resolve({ message: 'Resource found', resource: resourcev1 }));
 
         const vid = 2;
+        const lastModified = '2020-06-18T20:20:12.763Z';
         const batchReadWriteServiceResponse: BundleResponse = {
             success: true,
             message: '',
@@ -285,8 +286,11 @@ describe('UPDATE', () => {
                     vid: vid.toString(),
                     resourceType: 'Patient',
                     operation: 'update',
-                    resource: {},
-                    lastModified: '2020-06-18T20:20:12.763Z',
+                    resource: {
+                        ...resourcev1,
+                        meta: { versionId: vid.toString(), lastUpdated: lastModified, security: { system: 'gondor' } },
+                    },
+                    lastModified,
                 },
             ],
         };

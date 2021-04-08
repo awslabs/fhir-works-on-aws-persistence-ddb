@@ -3,7 +3,7 @@
  *  SPDX-License-Identifier: Apache-2.0
  */
 
-import { ExportJobStatus } from 'fhir-works-on-aws-interface';
+import { ExportJobStatus, Meta } from 'fhir-works-on-aws-interface';
 import {
     DynamoDBConverter,
     RESOURCE_TABLE,
@@ -120,7 +120,12 @@ export default class DynamoDbParamBuilder {
      * @param allowOverwriteId - Allow overwriting a resource with the same id
      * @return DDB params for PUT operation
      */
-    static buildPutAvailableItemParam(item: any, id: string, vid: number, allowOverwriteId: boolean = false) {
+    static buildPutAvailableItemParam(
+        item: any,
+        id: string,
+        vid: number,
+        allowOverwriteId: boolean = false,
+    ): { param: any; meta: Meta } {
         const newItem = DynamoDbUtil.prepItemForDdbInsert(item, id, vid, DOCUMENT_STATUS.AVAILABLE);
         const param: any = {
             TableName: RESOURCE_TABLE,
@@ -130,7 +135,7 @@ export default class DynamoDbParamBuilder {
         if (!allowOverwriteId) {
             param.ConditionExpression = 'attribute_not_exists(id)';
         }
-        return param;
+        return { param, meta: newItem.meta };
     }
 
     static buildPutCreateExportRequest(bulkExportJob: BulkExportJob) {
