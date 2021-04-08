@@ -75,10 +75,8 @@ describe('CREATE', () => {
         const expectedResource: any = { ...resource };
         expectedResource.meta = {
             ...expectedResource.meta,
-            ...{
-                versionId: '1',
-                lastUpdated: expect.stringMatching(utcTimeRegExp),
-            },
+            versionId: '1',
+            lastUpdated: expect.stringMatching(utcTimeRegExp),
         };
         expectedResource.id = expect.stringMatching(uuidRegExp);
 
@@ -110,10 +108,8 @@ describe('CREATE', () => {
         const expectedResource: any = { ...resourceWithMeta };
         expectedResource.meta = {
             ...expectedResource.meta,
-            ...{
-                versionId: '1',
-                lastUpdated: expect.stringMatching(utcTimeRegExp),
-            },
+            versionId: '1',
+            lastUpdated: expect.stringMatching(utcTimeRegExp),
         };
         expectedResource.id = expect.stringMatching(uuidRegExp);
 
@@ -347,6 +343,11 @@ describe('UPDATE', () => {
             .returns(Promise.resolve({ message: 'Resource found', resource: resourcev1 }));
 
         const vid = 2;
+        const input = { ...resourcev1, meta: { security: { system: 'gondor' } } };
+        const expectedReturnFromBundle = {
+            ...input,
+            meta: { versionId: vid.toString(), lastUpdated: new Date().toISOString(), security: { system: 'gondor' } },
+        };
         const batchReadWriteServiceResponse: BundleResponse = {
             success: true,
             message: '',
@@ -356,7 +357,7 @@ describe('UPDATE', () => {
                     vid: vid.toString(),
                     resourceType: 'Patient',
                     operation: 'update',
-                    resource: {},
+                    resource: expectedReturnFromBundle,
                     lastModified: '2020-06-18T20:20:12.763Z',
                 },
             ],
@@ -372,19 +373,12 @@ describe('UPDATE', () => {
         const serviceResponse = await dynamoDbDataService.updateResource({
             resourceType: 'Patient',
             id,
-            resource: { ...resourcev1, meta: { security: { system: 'gondor' } } },
+            resource: input,
         });
 
         // CHECK
-        const expectedResource: any = { ...resourcev1 };
-        expectedResource.meta = {
-            ...resourcev1.meta,
-            ...{
-                versionId: vid.toString(),
-                lastUpdated: expect.stringMatching(utcTimeRegExp),
-                security: { system: 'gondor' },
-            },
-        };
+        const expectedResource: any = { ...expectedReturnFromBundle };
+        expectedResource.meta.lastUpdated = expect.stringMatching(utcTimeRegExp);
 
         expect(serviceResponse.success).toEqual(true);
         expect(serviceResponse.message).toEqual('Resource updated');
