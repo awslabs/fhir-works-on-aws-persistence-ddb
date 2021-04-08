@@ -110,10 +110,10 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
         }
 
         const vid = 1;
-        let item = resource;
-        item.resourceType = resourceType;
+        let resourceClone = clone(resource);
+        resourceClone.resourceType = resourceType;
 
-        const { param } = DynamoDbParamBuilder.buildPutAvailableItemParam(item, resourceId, vid);
+        const param = DynamoDbParamBuilder.buildPutAvailableItemParam(resourceClone, resourceId, vid);
         try {
             await this.dynamoDb.putItem(param).promise();
         } catch (e) {
@@ -123,12 +123,12 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
             }
             throw e;
         }
-        const newItem = DynamoDBConverter.unmarshall(param.Item);
-        item = DynamoDbUtil.cleanItem(newItem);
+        const item = DynamoDBConverter.unmarshall(param.Item);
+        resourceClone = DynamoDbUtil.cleanItem(item);
         return {
             success: true,
             message: 'Resource created',
-            resource: item,
+            resource: resourceClone,
         };
     }
 
@@ -158,21 +158,21 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
 
     async updateResource(request: UpdateResourceRequest) {
         const { resource, resourceType, id } = request;
-        const item = clone(resource);
         try {
             // Will throw ResourceNotFoundError if resource can't be found
             await this.readResource({ resourceType, id });
         } catch (e) {
             if (this.updateCreateSupported && isResourceNotFoundError(e)) {
-                return this.createResourceWithId(resourceType, item, id);
+                return this.createResourceWithId(resourceType, resource, id);
             }
             throw e;
         }
+        const resourceClone = clone(resource);
         const batchRequest: BatchReadWriteRequest = {
             operation: 'update',
             resourceType,
             id,
-            resource: item,
+            resource: resourceClone,
         };
 
         // Sending the request to `atomicallyReadWriteResources` to take advantage of LOCKING management handled by
@@ -182,11 +182,11 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
             startTime: new Date(),
         });
         const batchReadWriteEntryResponse = response.batchReadWriteResponses[0];
-        item.meta = batchReadWriteEntryResponse.resource.meta;
+        resourceClone.meta = batchReadWriteEntryResponse.resource.meta;
         return {
             success: true,
             message: 'Resource updated',
-            resource: item,
+            resource: resourceClone,
         };
     }
 

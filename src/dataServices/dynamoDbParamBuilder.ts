@@ -120,12 +120,7 @@ export default class DynamoDbParamBuilder {
      * @param allowOverwriteId - Allow overwriting a resource with the same id
      * @return DDB params for PUT operation
      */
-    static buildPutAvailableItemParam(
-        item: any,
-        id: string,
-        vid: number,
-        allowOverwriteId: boolean = false,
-    ): { param: any; meta: Meta } {
+    static buildPutAvailableItemParam(item: any, id: string, vid: number, allowOverwriteId: boolean = false) {
         const newItem = DynamoDbUtil.prepItemForDdbInsert(item, id, vid, DOCUMENT_STATUS.AVAILABLE);
         const param: any = {
             TableName: RESOURCE_TABLE,
@@ -135,7 +130,7 @@ export default class DynamoDbParamBuilder {
         if (!allowOverwriteId) {
             param.ConditionExpression = 'attribute_not_exists(id)';
         }
-        return { param, meta: newItem.meta };
+        return param;
     }
 
     static buildPutCreateExportRequest(bulkExportJob: BulkExportJob) {

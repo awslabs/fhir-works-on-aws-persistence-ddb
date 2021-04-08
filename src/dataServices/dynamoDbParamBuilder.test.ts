@@ -168,62 +168,59 @@ describe('buildPutAvailableItemParam', () => {
         },
     };
     const expectedParams: any = {
-        meta: { ...item.meta, lastUpdated: expect.stringMatching(utcTimeRegExp) },
-        param: {
-            TableName: '',
-            Item: {
-                _references: {
-                    L: [],
-                },
-                resourceType: {
-                    S: 'Patient',
-                },
-                id: {
-                    S: id,
-                },
-                vid: {
-                    N: vid.toString(),
-                },
-                name: {
-                    L: [
-                        {
-                            M: {
-                                family: {
-                                    S: 'Jameson',
-                                },
-                                given: {
-                                    L: [
-                                        {
-                                            S: 'Matt',
-                                        },
-                                    ],
-                                },
+        TableName: '',
+        Item: {
+            _references: {
+                L: [],
+            },
+            resourceType: {
+                S: 'Patient',
+            },
+            id: {
+                S: id,
+            },
+            vid: {
+                N: vid.toString(),
+            },
+            name: {
+                L: [
+                    {
+                        M: {
+                            family: {
+                                S: 'Jameson',
+                            },
+                            given: {
+                                L: [
+                                    {
+                                        S: 'Matt',
+                                    },
+                                ],
                             },
                         },
-                    ],
-                },
-                gender: {
-                    S: 'male',
-                },
-                meta: {
-                    M: {
-                        lastUpdated: {
-                            S: expect.stringMatching(utcTimeRegExp),
-                        },
-                        versionId: {
-                            S: '1',
-                        },
+                    },
+                ],
+            },
+            gender: {
+                S: 'male',
+            },
+            meta: {
+                M: {
+                    lastUpdated: {
+                        S: expect.stringMatching(utcTimeRegExp),
+                    },
+                    versionId: {
+                        S: '1',
                     },
                 },
-                documentStatus: {
-                    S: 'AVAILABLE',
-                },
-                lockEndTs: {
-                    N: expect.stringMatching(timeFromEpochInMsRegExp),
-                },
             },
-            ConditionExpression: 'attribute_not_exists(id)',
+            documentStatus: {
+                S: 'AVAILABLE',
+            },
+            lockEndTs: {
+                N: expect.stringMatching(timeFromEpochInMsRegExp),
+            },
         },
+        ConditionExpression: 'attribute_not_exists(id)',
     };
 
     test('Param has the fields documentStatus, lockEndTs, and references', () => {
