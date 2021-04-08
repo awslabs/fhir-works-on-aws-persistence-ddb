@@ -3,7 +3,7 @@
  *  SPDX-License-Identifier: Apache-2.0
  */
 
-import { ExportJobStatus, Meta } from 'fhir-works-on-aws-interface';
+import { ExportJobStatus } from 'fhir-works-on-aws-interface';
 import {
     DynamoDBConverter,
     RESOURCE_TABLE,
