@@ -112,7 +112,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
         const vid = 1;
         let item = resource;
         item.resourceType = resourceType;
-        item.meta = generateMeta(vid.toString());
+        item.meta = { ...(item.meta ?? {}), ...generateMeta(vid.toString()) };
 
         const params = DynamoDbParamBuilder.buildPutAvailableItemParam(item, resourceId, vid);
         try {
@@ -159,10 +159,10 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
 
     async updateResource(request: UpdateResourceRequest) {
         const { resource, resourceType, id } = request;
-        const resourceCopy = { ...resource };
         try {
             // Will throw ResourceNotFoundError if resource can't be found
-            await this.readResource({ resourceType, id });
+            const existingResource = (await this.readResource({ resourceType, id })).resource ?? { meta: {} };
+            resource.meta = { ...existingResource.meta, ...resource.meta };
         } catch (e) {
             if (this.updateCreateSupported && isResourceNotFoundError(e)) {
                 return this.createResourceWithId(resourceType, resource, id);
@@ -173,7 +173,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
             operation: 'update',
             resourceType,
             id,
-            resource: resourceCopy,
+            resource: { ...resource },
         };
 
         // Sending the request to `atomicallyReadWriteResources` to take advantage of LOCKING management handled by
@@ -184,7 +184,10 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
         });
         const item = clone(resource);
         const batchReadWriteEntryResponse = response.batchReadWriteResponses[0];
-        item.meta = generateMeta(batchReadWriteEntryResponse.vid, new Date(batchReadWriteEntryResponse.lastModified));
+        item.meta = {
+            ...item.meta,
+            ...generateMeta(batchReadWriteEntryResponse.vid, new Date(batchReadWriteEntryResponse.lastModified)),
+        };
         return {
             success: true,
             message: 'Resource updated',

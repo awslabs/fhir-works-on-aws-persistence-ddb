@@ -60,7 +60,7 @@ describe('CREATE', () => {
             },
         ],
     };
-    test('SUCCESS: Create Resource', async () => {
+    test('SUCCESS: Create Resource without meta', async () => {
         // READ items (Success)
         AWSMock.mock('DynamoDB', 'putItem', (params: PutItemInput, callback: Function) => {
             callback(null, 'success');
@@ -74,8 +74,46 @@ describe('CREATE', () => {
         // CHECK
         const expectedResource: any = { ...resource };
         expectedResource.meta = {
-            versionId: '1',
-            lastUpdated: expect.stringMatching(utcTimeRegExp),
+            ...expectedResource.meta,
+            ...{
+                versionId: '1',
+                lastUpdated: expect.stringMatching(utcTimeRegExp),
+            },
+        };
+        expectedResource.id = expect.stringMatching(uuidRegExp);
+
+        expect(serviceResponse.success).toEqual(true);
+        expect(serviceResponse.message).toEqual('Resource created');
+        expect(serviceResponse.resource).toStrictEqual(expectedResource);
+    });
+    test('SUCCESS: Create Resource with meta', async () => {
+        const resourceWithMeta = {
+            ...resource,
+            meta: {
+                versionId: 'shouldBeOverwritten',
+                lastUpdated: 'yesterday',
+                security: { system: 'skynet' },
+                tag: [{ display: 'test' }, { display: 'test1' }],
+            },
+        };
+        // READ items (Success)
+        AWSMock.mock('DynamoDB', 'putItem', (params: PutItemInput, callback: Function) => {
+            callback(null, 'success');
+        });
+
+        const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
+
+        // OPERATE
+        const serviceResponse = await dynamoDbDataService.createResource({ resource: resourceWithMeta, resourceType });
+
+        // CHECK
+        const expectedResource: any = { ...resourceWithMeta };
+        expectedResource.meta = {
+            ...expectedResource.meta,
+            ...{
+                versionId: '1',
+                lastUpdated: expect.stringMatching(utcTimeRegExp),
+            },
         };
         expectedResource.id = expect.stringMatching(uuidRegExp);
 
@@ -218,10 +256,10 @@ describe('UPDATE', () => {
         sinon.restore();
     });
 
-    test('SUCCESS: Update Resource', async () => {
+    test('SUCCESS: Update Resource without existing metadata', async () => {
         // BUILD
         const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
-        const resource = {
+        const resourcev1 = {
             id,
             vid: 1,
             resourceType: 'Patient',
@@ -235,7 +273,7 @@ describe('UPDATE', () => {
 
         sinon
             .stub(DynamoDbHelper.prototype, 'getMostRecentUserReadableResource')
-            .returns(Promise.resolve({ message: 'Resource found', resource }));
+            .returns(Promise.resolve({ message: 'Resource found', resource: resourcev1 }));
 
         const vid = 2;
         const batchReadWriteServiceResponse: BundleResponse = {
@@ -260,13 +298,88 @@ describe('UPDATE', () => {
         const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
 
         // OPERATE
-        const serviceResponse = await dynamoDbDataService.updateResource({ resourceType: 'Patient', id, resource });
+        const serviceResponse = await dynamoDbDataService.updateResource({
+            resourceType: 'Patient',
+            id,
+            resource: { ...resourcev1, meta: { security: { system: 'gondor' } } },
+        });
 
         // CHECK
-        const expectedResource: any = { ...resource };
+        const expectedResource: any = { ...resourcev1 };
         expectedResource.meta = {
             versionId: vid.toString(),
             lastUpdated: expect.stringMatching(utcTimeRegExp),
+            security: { system: 'gondor' },
+        };
+
+        expect(serviceResponse.success).toEqual(true);
+        expect(serviceResponse.message).toEqual('Resource updated');
+        expect(serviceResponse.resource).toStrictEqual(expectedResource);
+    });
+
+    test('SUCCESS: Update Resource with existing meta', async () => {
+        // BUILD
+        const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
+        const resourcev1 = {
+            id,
+            vid: 1,
+            resourceType: 'Patient',
+            name: [
+                {
+                    family: 'Jameson',
+                    given: ['Matt'],
+                },
+            ],
+            meta: {
+                versionId: '1',
+                lastUpdated: 'yesterday',
+                security: { system: 'skynet' },
+                tag: [{ display: 'test' }, { display: 'test1' }],
+            },
+        };
+
+        sinon
+            .stub(DynamoDbHelper.prototype, 'getMostRecentUserReadableResource')
+            .returns(Promise.resolve({ message: 'Resource found', resource: resourcev1 }));
+
+        const vid = 2;
+        const batchReadWriteServiceResponse: BundleResponse = {
+            success: true,
+            message: '',
+            batchReadWriteResponses: [
+                {
+                    id,
+                    vid: vid.toString(),
+                    resourceType: 'Patient',
+                    operation: 'update',
+                    resource: {},
+                    lastModified: '2020-06-18T20:20:12.763Z',
+                },
+            ],
+        };
+
+        sinon
+            .stub(DynamoDbBundleService.prototype, 'transaction')
+            .returns(Promise.resolve(batchReadWriteServiceResponse));
+
+        const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
+
+        // OPERATE
+        const serviceResponse = await dynamoDbDataService.updateResource({
+            resourceType: 'Patient',
+            id,
+            resource: { ...resourcev1, meta: { security: { system: 'gondor' } } },
+        });
+
+        // CHECK
+        const expectedResource: any = { ...resourcev1 };
+        expectedResource.meta = {
+            ...resourcev1.meta,
+            ...{
+                versionId: vid.toString(),
+                lastUpdated: expect.stringMatching(utcTimeRegExp),
+                security: { system: 'gondor' },
+            },
         };
 
         expect(serviceResponse.success).toEqual(true);
