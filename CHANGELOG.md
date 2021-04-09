@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [3.3.1](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.3.0...v3.3.1) (2021-04-09)
+
+
+### Bug Fixes
+
+* don't overwrite meta param in Resource update/create ([#62](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/62)) ([e913c71](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/commit/e913c711c842d922a9aa1902b6705d240af6ad68))
+* Only add customUserAgent when code is running on AWS, not when code is running locally ([#61](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/61)) ([c304ffd](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/commit/c304ffd5b1a5d7bf1f9dc5bc2e1088859f4a4968))
+
 ## [3.3.0](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.2.1...v3.3.0) (2021-03-26)
 
 
