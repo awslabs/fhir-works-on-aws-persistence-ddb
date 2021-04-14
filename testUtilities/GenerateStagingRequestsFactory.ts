@@ -62,7 +62,11 @@ export default class GenerateStagingRequestsFactory {
             vid: '1',
             operation: 'create',
             resourceType: 'Patient',
-            resource: {},
+            resource: {
+                ...createResource,
+                id: expect.stringMatching(uuidRegExp),
+                meta: { versionId: '1', lastUpdated: expect.stringMatching(utcTimeRegExp) },
+            },
             lastModified: expect.stringMatching(utcTimeRegExp),
         };
         return {
@@ -124,6 +128,9 @@ export default class GenerateStagingRequestsFactory {
 
     static getUpdate(): RequestResult {
         const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
+        const vid = 1;
+        const nextVid = 2;
+        const existingMeta = { security: [{ code: 'test' }], versionId: vid.toString() };
         const resource = {
             resourceType: 'Patient',
             id,
@@ -134,6 +141,7 @@ export default class GenerateStagingRequestsFactory {
                 },
             ],
             gender: 'male',
+            meta: existingMeta,
         };
         const request: BatchReadWriteRequest = {
             operation: 'update',
@@ -142,9 +150,8 @@ export default class GenerateStagingRequestsFactory {
             resource,
             fullUrl: `urn:uuid:${id}`,
         };
-        const vid = 1;
-        const nextVid = 2;
-        const expectedUpdateItem: any = { ...resource };
+
+        const expectedUpdateItem: any = { ...resource, meta: { ...existingMeta, versionId: nextVid.toString() } };
         expectedUpdateItem[DOCUMENT_STATUS_FIELD] = DOCUMENT_STATUS.PENDING;
         expectedUpdateItem.id = id;
         expectedUpdateItem.vid = nextVid;
@@ -157,7 +164,7 @@ export default class GenerateStagingRequestsFactory {
         };
 
         const expectedLock: ItemRequest = {
-            id: expect.stringMatching(uuidRegExp),
+            id,
             vid: nextVid,
             resourceType: 'Patient',
             operation: 'update',
@@ -165,11 +172,18 @@ export default class GenerateStagingRequestsFactory {
         };
 
         const expectedStagingResponse: BatchReadWriteResponse = {
-            id: expect.stringMatching(uuidRegExp),
+            id,
             vid: nextVid.toString(),
             operation: 'update',
             resourceType: 'Patient',
-            resource: {},
+            resource: {
+                ...resource,
+                meta: {
+                    ...existingMeta,
+                    versionId: nextVid.toString(),
+                    lastUpdated: expect.stringMatching(utcTimeRegExp),
+                },
+            },
             lastModified: expect.stringMatching(utcTimeRegExp),
         };
 

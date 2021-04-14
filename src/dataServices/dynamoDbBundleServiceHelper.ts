@@ -50,13 +50,11 @@ export default class DynamoDbBundleServiceHelper {
                             Item: DynamoDBConverter.marshall(Item),
                         },
                     });
-                    const { stagingResponse, itemLocked } = this.addStagingResponseAndItemsLocked(
+                    const { stagingResponse, itemLocked } = this.addStagingResponseAndItemsLocked(request.operation, {
+                        ...request.resource,
+                        meta: { ...Item.meta },
                         id,
-                        vid,
-                        request.resourceType,
-                        request.operation,
-                        Item.meta.lastUpdated,
-                    );
+                    });
                     newBundleEntryResponses = newBundleEntryResponses.concat(stagingResponse);
                     newLocks = newLocks.concat(itemLocked);
                     break;
@@ -75,13 +73,10 @@ export default class DynamoDbBundleServiceHelper {
                         },
                     });
 
-                    const { stagingResponse, itemLocked } = this.addStagingResponseAndItemsLocked(
-                        id,
-                        vid,
-                        request.resourceType,
-                        request.operation,
-                        Item.meta.lastUpdated,
-                    );
+                    const { stagingResponse, itemLocked } = this.addStagingResponseAndItemsLocked(request.operation, {
+                        ...request.resource,
+                        meta: { ...Item.meta },
+                    });
                     newBundleEntryResponses = newBundleEntryResponses.concat(stagingResponse);
                     newLocks = newLocks.concat(itemLocked);
                     break;
@@ -216,25 +211,19 @@ export default class DynamoDbBundleServiceHelper {
         return updatedStagingResponses;
     }
 
-    private static addStagingResponseAndItemsLocked(
-        id: string,
-        vid: number,
-        resourceType: string,
-        operation: TypeOperation,
-        lastModified: string,
-    ) {
-        const stagingResponse = {
-            id,
-            vid: vid.toString(),
+    private static addStagingResponseAndItemsLocked(operation: TypeOperation, resource: any) {
+        const stagingResponse: BatchReadWriteResponse = {
+            id: resource.id,
+            vid: resource.meta.versionId,
             operation,
-            lastModified,
-            resourceType,
-            resource: {},
+            lastModified: resource.meta.lastUpdated,
+            resourceType: resource.resourceType,
+            resource,
         };
         const itemLocked: ItemRequest = {
-            id,
-            vid,
-            resourceType,
+            id: resource.id,
+            vid: parseInt(resource.meta.versionId, 10),
+            resourceType: resource.resourceType,
             operation,
         };
         if (operation === 'update') {
