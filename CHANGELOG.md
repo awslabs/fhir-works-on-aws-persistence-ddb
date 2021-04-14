@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [3.3.2](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.3.1...v3.3.2) (2021-04-14)
+
+
+### Bug Fixes
+
+* return the newly create meta field from bundle processer ([#65](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/65)) ([a2b5206](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/commit/a2b5206d353c25d464e5290d08d375cb1b6d806e))
+
 ### [3.3.1](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.3.0...v3.3.1) (2021-04-09)
 
 
