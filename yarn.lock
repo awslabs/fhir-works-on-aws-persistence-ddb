@@ -1023,14 +1023,6 @@ atomic-batcher@^1.0.2:
   resolved "https://registry.yarnpkg.com/atomic-batcher/-/atomic-batcher-1.0.2.tgz#d16901d10ccec59516c197b9ccd8930689b813b4"
   integrity sha1-0WkB0QzOxZUWwZe5zNiTBom4E7Q=
 
-aws-elasticsearch-connector@^8.2.0:
-  version "8.3.0"
-  resolved "https://registry.yarnpkg.com/aws-elasticsearch-connector/-/aws-elasticsearch-connector-8.3.0.tgz#14637941ca1adcec878cc0f07ca02712f1e6736a"
-  integrity sha512-OPd1iNhebBBpGIvvjL79J5FcfdokD7LXbSeo6mENdWNqiIykYHnD5jT2wRFA4CSDpZBgEq9cUgc0D60GOxQp3A==
-  dependencies:
-    aws4 "^1.10.0"
-    lodash.get "^4.4.2"
-
 aws-sdk-mock@^5.1.0:
   version "5.1.0"
   resolved "https://registry.yarnpkg.com/aws-sdk-mock/-/aws-sdk-mock-5.1.0.tgz#6f2c0bd670d7f378c906a8dd806f812124db71aa"
@@ -1103,7 +1095,7 @@ aws-xray-sdk@^3.1.0:
     aws-xray-sdk-postgres "3.2.0"
     pkginfo "^0.4.0"
 
-aws4@^1.10.0, aws4@^1.8.0:
+aws4@^1.8.0:
   version "1.11.0"
   resolved "https://registry.yarnpkg.com/aws4/-/aws4-1.11.0.tgz#d61f46d83b2519250e2784daf5b09479a8b41c59"
   integrity sha512-xh1Rl34h6Fi1DC2WWKfxUTVqRsNnr6LsKz2+hfwDxQJWmrx8+c7ylaqBMcHfl1U1r2dsifOvKX3LQuLNZ+XSvA==

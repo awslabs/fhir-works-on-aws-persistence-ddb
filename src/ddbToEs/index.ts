@@ -4,6 +4,7 @@
  */
 
 import AWS from 'aws-sdk';
+import { Client } from '@elastic/elasticsearch';
 import DdbToEsHelper from './ddbToEsHelper';
 import PromiseParamAndId from './promiseParamAndId';
 
@@ -13,9 +14,9 @@ const REMOVE = 'REMOVE';
 // This lambda picks up changes from DDB by way of DDB stream, and sends those changes to ElasticSearch Service for indexing.
 // This allows the FHIR API Server to query ElasticSearch service for search requests
 
-export async function handleDdbToEsEvent(event: any) {
-    const ddbToEsHelper = new DdbToEsHelper();
+export async function handleDdbToEsEvent(event: any, ElasticSearch: Client) {
     try {
+        const ddbToEsHelper = new DdbToEsHelper(ElasticSearch);
         const promiseParamAndIds: PromiseParamAndId[] = [];
         for (let i = 0; i < event.Records.length; i += 1) {
             const record = event.Records[i];
@@ -25,7 +26,6 @@ export async function handleDdbToEsEvent(event: any) {
             const image = AWS.DynamoDB.Converter.unmarshall(ddbJsonImage);
             // Don't index binary files
             if (ddbToEsHelper.isBinaryResource(image)) {
-                console.log('This is a Binary resource. These are not searchable');
                 // eslint-disable-next-line no-continue
                 continue;
             }

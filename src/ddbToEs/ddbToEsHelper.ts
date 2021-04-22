@@ -4,39 +4,18 @@
  */
 
 import { Client } from '@elastic/elasticsearch';
-// @ts-ignore
-import { AmazonConnection, AmazonTransport } from 'aws-elasticsearch-connector';
 import allSettled from 'promise.allsettled';
-import AWS from '../AWS';
 import PromiseParamAndId, { PromiseType } from './promiseParamAndId';
 import { DOCUMENT_STATUS_FIELD } from '../dataServices/dynamoDbUtil';
 import DOCUMENT_STATUS from '../dataServices/documentStatus';
 
 const BINARY_RESOURCE = 'binary';
 
-const { IS_OFFLINE, ELASTICSEARCH_DOMAIN_ENDPOINT } = process.env;
-
 export default class DdbToEsHelper {
     private ElasticSearch: Client;
 
-    constructor() {
-        let ES_DOMAIN_ENDPOINT = ELASTICSEARCH_DOMAIN_ENDPOINT || 'https://fake-es-endpoint.com';
-        if (IS_OFFLINE === 'true') {
-            const { ACCESS_KEY, SECRET_KEY, AWS_REGION, OFFLINE_ELASTICSEARCH_DOMAIN_ENDPOINT } = process.env;
-
-            AWS.config.update({
-                region: AWS_REGION || 'us-west-2',
-                accessKeyId: ACCESS_KEY,
-                secretAccessKey: SECRET_KEY,
-            });
-            ES_DOMAIN_ENDPOINT = OFFLINE_ELASTICSEARCH_DOMAIN_ENDPOINT || 'https://fake-es-endpoint.com';
-        }
-
-        this.ElasticSearch = new Client({
-            node: ES_DOMAIN_ENDPOINT,
-            Connection: AmazonConnection,
-            Transport: AmazonTransport,
-        });
+    constructor(ElasticSearch: Client) {
+        this.ElasticSearch = ElasticSearch;
     }
 
     async createIndexIfNotExist(indexName: string) {
