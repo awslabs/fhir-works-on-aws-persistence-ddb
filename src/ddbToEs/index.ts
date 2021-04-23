@@ -47,7 +47,7 @@ export async function handleDdbToEsEvent(event: any) {
         await ddbToEsHelper.logAndExecutePromises(promiseParamAndIds);
     } catch (e) {
         console.error(
-            'Synchonization failed! The resources that could be effected are: ',
+            'Synchronization failed! The resources that could be effected are: ',
             event.Records.map(
                 (record: {
                     eventName: string;
