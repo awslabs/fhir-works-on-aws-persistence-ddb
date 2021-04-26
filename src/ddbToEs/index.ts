@@ -25,7 +25,6 @@ export async function handleDdbToEsEvent(event: any) {
             const image = AWS.DynamoDB.Converter.unmarshall(ddbJsonImage);
             // Don't index binary files
             if (ddbToEsHelper.isBinaryResource(image)) {
-                console.log('This is a Binary resource. These are not searchable');
                 // eslint-disable-next-line no-continue
                 continue;
             }
@@ -47,6 +46,20 @@ export async function handleDdbToEsEvent(event: any) {
 
         await ddbToEsHelper.logAndExecutePromises(promiseParamAndIds);
     } catch (e) {
-        console.log('Failed to update ES records', e);
+        console.error(
+            'Synchronization failed! The resources that could be effected are: ',
+            event.Records.map(
+                (record: {
+                    eventName: string;
+                    dynamodb: { OldImage: AWS.DynamoDB.AttributeMap; NewImage: AWS.DynamoDB.AttributeMap };
+                }) => {
+                    const image = record.eventName === REMOVE ? record.dynamodb.OldImage : record.dynamodb.NewImage;
+                    return `{id: ${image.id.S}, vid: ${image.vid.N}}`;
+                },
+            ),
+        );
+
+        console.error('Failed to update ES records', e);
+        throw e;
     }
 }
