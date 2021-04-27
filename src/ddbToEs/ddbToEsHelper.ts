@@ -51,7 +51,8 @@ export default class DdbToEsHelper {
                 await this.ElasticSearch.indices.create(params);
             }
         } catch (error) {
-            console.log('Failed to check if index exist or create index', error);
+            console.error(`Failed to check if index: ${indexName} exist or create index`);
+            throw error;
         }
     }
 
@@ -119,64 +120,58 @@ export default class DdbToEsHelper {
 
     // eslint-disable-next-line class-methods-use-this
     async logAndExecutePromises(promiseParamAndIds: PromiseParamAndId[]) {
-        const upsertAvailablePromiseParamAndIds = promiseParamAndIds.filter(paramAndId => {
-            return paramAndId.type === 'upsert-AVAILABLE';
-        });
-
-        const upsertDeletedPromiseParamAndIds = promiseParamAndIds.filter(paramAndId => {
-            return paramAndId.type === 'upsert-DELETED';
-        });
-
-        const deletePromiseParamAndIds = promiseParamAndIds.filter(paramAndId => {
-            return paramAndId.type === 'delete';
-        });
-
-        console.log(
-            `Operation: upsert-AVAILABLE on resource Ids `,
-            upsertAvailablePromiseParamAndIds.map(paramAndId => {
-                return paramAndId.id;
-            }),
-        );
-
         // We're using allSettled-shim because as of 7/21/2020 'serverless-plugin-typescript' does not support
         // Promise.allSettled.
         allSettled.shim();
 
-        // We need to execute creation of a resource before execute deleting of a resource,
-        // because a resource can be created and deleted, but not deleted then restored to AVAILABLE
-        // @ts-ignore
-        await Promise.allSettled(
-            upsertAvailablePromiseParamAndIds.map(paramAndId => {
-                return this.ElasticSearch.update(paramAndId.promiseParam);
-            }),
-        );
+        await this.executePromiseBlock('upsert-AVAILABLE', promiseParamAndIds);
+        await this.executePromiseBlock('upsert-DELETED', promiseParamAndIds);
+        await this.executePromiseBlock('delete', promiseParamAndIds);
+    }
+
+    // eslint-disable-next-line class-methods-use-this
+    private async executePromiseBlock(type: PromiseType, promiseParamAndIds: PromiseParamAndId[]) {
+        const filteredPromiseParamAndIds = promiseParamAndIds.filter(paramAndId => {
+            return paramAndId.type === type;
+        });
+
+        if (filteredPromiseParamAndIds.length === 0) {
+            return;
+        }
 
         console.log(
-            `Operation: upsert-DELETED on resource Ids `,
-            upsertDeletedPromiseParamAndIds.map(paramAndId => {
+            `Starting operation "${type}" on resource Ids: `,
+            filteredPromiseParamAndIds.map(paramAndId => {
                 return paramAndId.id;
             }),
         );
 
         // @ts-ignore
-        await Promise.allSettled(
-            upsertDeletedPromiseParamAndIds.map(paramAndId => {
-                return this.ElasticSearch.update(paramAndId.promiseParam);
+        const results = await Promise.allSettled(
+            filteredPromiseParamAndIds.map(async paramAndId => {
+                try {
+                    let response;
+                    if (type === 'upsert-AVAILABLE' || type === 'upsert-DELETED') {
+                        response = await this.ElasticSearch.update(paramAndId.promiseParam);
+                    } else if (type === 'delete') {
+                        response = await this.ElasticSearch.delete(paramAndId.promiseParam);
+                    } else {
+                        throw new Error(`unknown type: ${type}`);
+                    }
+                    return response;
+                } catch (e) {
+                    console.error(`${type} failed on id: ${paramAndId.id}, due to error:\n${e}`);
+                    throw e;
+                }
             }),
         );
 
-        console.log(
-            `Operation: delete on resource Ids `,
-            deletePromiseParamAndIds.map(paramAndId => {
-                return paramAndId.id;
-            }),
-        );
-
-        // @ts-ignore
-        await Promise.allSettled(
-            deletePromiseParamAndIds.map(paramAndId => {
-                return this.ElasticSearch.delete(paramAndId.promiseParam);
-            }),
-        );
+        // Throw rejected promises
+        const rejected = results
+            .filter((result: { status: string }) => result.status === 'rejected')
+            .map((result: { reason: string }) => result.reason);
+        if (rejected.length > 0) {
+            throw new Error(rejected);
+        }
     }
 }

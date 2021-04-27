@@ -47,6 +47,20 @@ export async function handleDdbToEsEvent(event: any, ElasticSearch: Client) {
 
         await ddbToEsHelper.logAndExecutePromises(promiseParamAndIds);
     } catch (e) {
-        console.log('Failed to update ES records', e);
+        console.error(
+            'Synchronization failed! The resources that could be effected are: ',
+            event.Records.map(
+                (record: {
+                    eventName: string;
+                    dynamodb: { OldImage: AWS.DynamoDB.AttributeMap; NewImage: AWS.DynamoDB.AttributeMap };
+                }) => {
+                    const image = record.eventName === REMOVE ? record.dynamodb.OldImage : record.dynamodb.NewImage;
+                    return `{id: ${image.id.S}, vid: ${image.vid.N}}`;
+                },
+            ),
+        );
+
+        console.error('Failed to update ES records', e);
+        throw e;
     }
 }
