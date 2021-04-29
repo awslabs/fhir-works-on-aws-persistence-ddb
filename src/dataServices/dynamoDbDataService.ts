@@ -98,11 +98,11 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
     }
 
     async createResource(request: CreateResourceRequest) {
-        const { resourceType, resource } = request;
-        return this.createResourceWithId(resourceType, resource, uuidv4());
+        const { resourceType, resource, ttl } = request;
+        return this.createResourceWithId(resourceType, resource, uuidv4(), ttl);
     }
 
-    private async createResourceWithId(resourceType: string, resource: any, resourceId: string) {
+    private async createResourceWithId(resourceType: string, resource: any, resourceId: string, ttl?: number) {
         const regex = new RegExp('^[a-zA-Z0-9-.]{1,64}$');
         if (!regex.test(resourceId)) {
             throw new InvalidResourceError(`Resource creation failed, id ${resourceId} is not valid`);
@@ -112,7 +112,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
         let resourceClone = clone(resource);
         resourceClone.resourceType = resourceType;
 
-        const param = DynamoDbParamBuilder.buildPutAvailableItemParam(resourceClone, resourceId, vid);
+        const param = DynamoDbParamBuilder.buildPutAvailableItemParam(resourceClone, resourceId, vid, undefined, ttl);
         try {
             await this.dynamoDb.putItem(param).promise();
         } catch (e) {

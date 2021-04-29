@@ -130,6 +130,33 @@ describe('CREATE', () => {
             new InvalidResourceError('Resource creation failed, id matches an existing resource'),
         );
     });
+    test('SUCCESS: Resource with archive ttl', async () =>{
+        // READ items (Success)
+        AWSMock.mock('DynamoDB', 'putItem', (params: PutItemInput, callback: Function) => {
+            callback(null, 'success');
+        });
+
+        const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
+
+        const ttl: number = Math.round((Date.now()/1000) + 50000);
+
+        // OPERATE
+        const serviceResponse = await dynamoDbDataService.createResource({ resource, resourceType, ttl });
+
+        // CHECK
+        const expectedResource: any = { ...resource };
+        expectedResource.meta = {
+            ...expectedResource.meta,
+            versionId: '1',
+            lastUpdated: expect.stringMatching(utcTimeRegExp),
+        };
+        expectedResource.id = expect.stringMatching(uuidRegExp);
+        expectedResource.ttl = ttl;
+
+        expect(serviceResponse.success).toEqual(true);
+        expect(serviceResponse.message).toEqual('Resource created');
+        expect(serviceResponse.resource).toStrictEqual(expectedResource);
+    });
 });
 
 describe('READ', () => {
@@ -476,6 +503,72 @@ describe('UPDATE', () => {
             expect(isInvalidResourceError(e)).toEqual(true);
             expect(e.message).toEqual(`Resource creation failed, id ${id} is not valid`);
         }
+    });
+
+    test('SUCCESS: ttl carried over to all versions', async () => {
+        // BUILD
+        const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
+        const resourcev1 = {
+            id,
+            vid: 1,
+            ttl: Math.round((Date.now()/1000)+50000),
+            resourceType: 'Patient',
+            name: [
+                {
+                    family: 'Jameson',
+                    given: ['Matt'],
+                },
+            ],
+        };
+
+        sinon
+            .stub(DynamoDbHelper.prototype, 'getMostRecentUserReadableResource')
+            .returns(Promise.resolve({ message: 'Resource found', resource: resourcev1 }));
+
+        const vid = 2;
+        const lastModified = '2020-06-18T20:20:12.763Z';
+        const batchReadWriteServiceResponse: BundleResponse = {
+            success: true,
+            message: '',
+            batchReadWriteResponses: [
+                {
+                    id,
+                    vid: vid.toString(),
+                    resourceType: 'Patient',
+                    operation: 'update',
+                    resource: {
+                        ...resourcev1,
+                        meta: { versionId: vid.toString(), lastUpdated: lastModified, security: { system: 'gondor' } },
+                    },
+                    lastModified,
+                },
+            ],
+        };
+
+        sinon
+            .stub(DynamoDbBundleService.prototype, 'transaction')
+            .returns(Promise.resolve(batchReadWriteServiceResponse));
+
+        const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
+
+        // OPERATE
+        const serviceResponse = await dynamoDbDataService.updateResource({
+            resourceType: 'Patient',
+            id,
+            resource: { ...resourcev1, meta: { security: { system: 'gondor' } } },
+        });
+
+        // CHECK
+        const expectedResource: any = { ...resourcev1 };
+        expectedResource.meta = {
+            versionId: vid.toString(),
+            lastUpdated: expect.stringMatching(utcTimeRegExp),
+            security: { system: 'gondor' },
+        };
+
+        expect(serviceResponse.success).toEqual(true);
+        expect(serviceResponse.message).toEqual('Resource updated');
+        expect(serviceResponse.resource).toStrictEqual(expectedResource);
     });
 });
 

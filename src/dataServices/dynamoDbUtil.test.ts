@@ -51,6 +51,7 @@ describe('cleanItem', () => {
 describe('prepItemForDdbInsert', () => {
     const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
     const vid = 1;
+    const ttl = Math.round((Date.now()/1000)+50000);
     const resource = {
         resourceType: 'Patient',
         id,
@@ -196,5 +197,18 @@ describe('prepItemForDdbInsert', () => {
         expectedResource[REFERENCES_FIELD] = [];
 
         checkExpectedItemMatchActualItem(actualItem, expectedResource, newVid);
+    });
+
+    test('ttl set', ()=>{
+        
+        // OPERATE
+        const actualItem = DynamoDbUtil.prepItemForDdbInsert(clone(resource), id, vid, DOCUMENT_STATUS.PENDING, ttl);
+
+        // CHECK
+        const expectedResource = clone(resource);
+        expectedResource.ttl = ttl;
+        expectedResource[REFERENCES_FIELD] = [];
+
+        checkExpectedItemMatchActualItem(actualItem, expectedResource, vid);
     });
 });

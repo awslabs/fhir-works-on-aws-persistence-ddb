@@ -152,6 +152,7 @@ describe('buildUpdateDocumentStatusParam', () => {
 describe('buildPutAvailableItemParam', () => {
     const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
     const vid = 1;
+    const ttl = Math.round((Date.now()/1000) + 50000);
     const item = {
         resourceType: 'Patient',
         id,
@@ -218,9 +219,9 @@ describe('buildPutAvailableItemParam', () => {
             },
             lockEndTs: {
                 N: expect.stringMatching(timeFromEpochInMsRegExp),
-            },
+            }
         },
-        ConditionExpression: 'attribute_not_exists(id)',
+        ConditionExpression: 'attribute_not_exists(id)'
     };
 
     test('Param has the fields documentStatus, lockEndTs, and references', () => {
@@ -234,6 +235,15 @@ describe('buildPutAvailableItemParam', () => {
         delete clonedExpectedParams.ConditionExpression;
 
         expect(actualParams).toEqual(clonedExpectedParams);
+    });
+
+    test('TTL set', ()=>{
+        const actualParams = DynamoDbParamBuilder.buildPutAvailableItemParam(item, id, vid, undefined, ttl);
+        const ttlExpectedParams = cloneDeep(expectedParams);
+        ttlExpectedParams.Item.ttl = {
+            N: ttl.toString()
+        };
+        expect(actualParams).toEqual(ttlExpectedParams);
     });
 });
 

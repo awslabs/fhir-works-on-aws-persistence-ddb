@@ -118,10 +118,17 @@ export default class DynamoDbParamBuilder {
      * Build DDB PUT param to insert a new resource
      * @param item - The object to be created and stored in DDB
      * @param allowOverwriteId - Allow overwriting a resource with the same id
+     * @param [ttl=number] - DynamoDB TTL value for system deletes which get archived
      * @return DDB params for PUT operation
      */
-    static buildPutAvailableItemParam(item: any, id: string, vid: number, allowOverwriteId: boolean = false) {
-        const newItem = DynamoDbUtil.prepItemForDdbInsert(item, id, vid, DOCUMENT_STATUS.AVAILABLE);
+    static buildPutAvailableItemParam(
+        item: any,
+        id: string,
+        vid: number,
+        allowOverwriteId: boolean = false,
+        ttl?: number,
+    ) {
+        const newItem = DynamoDbUtil.prepItemForDdbInsert(item, id, vid, DOCUMENT_STATUS.AVAILABLE, ttl);
         const param: any = {
             TableName: RESOURCE_TABLE,
             Item: DynamoDBConverter.marshall(newItem),

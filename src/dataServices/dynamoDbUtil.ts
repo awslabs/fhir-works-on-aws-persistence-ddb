@@ -5,6 +5,7 @@
 
 import { clone, generateMeta } from 'fhir-works-on-aws-interface';
 import flatten from 'flat';
+import _ from 'lodash';
 import { SEPARATOR } from '../constants';
 import DOCUMENT_STATUS from './documentStatus';
 
@@ -29,10 +30,13 @@ export class DynamoDbUtil {
         return cleanedItem;
     }
 
-    static prepItemForDdbInsert(resource: any, id: string, vid: number, documentStatus: DOCUMENT_STATUS) {
+    static prepItemForDdbInsert(resource: any, id: string, vid: number, documentStatus: DOCUMENT_STATUS, ttl?: number) {
         const item = clone(resource);
         item.id = id;
         item.vid = vid;
+        if (!_.isUndefined(ttl)) {
+            item.ttl = ttl;
+        }
 
         // versionId and lastUpdated for meta object should be system generated
         const { versionId, lastUpdated } = generateMeta(vid.toString());
