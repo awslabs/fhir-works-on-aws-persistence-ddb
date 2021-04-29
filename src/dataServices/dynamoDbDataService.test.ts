@@ -130,7 +130,7 @@ describe('CREATE', () => {
             new InvalidResourceError('Resource creation failed, id matches an existing resource'),
         );
     });
-    test('SUCCESS: Resource with archive ttl', async () =>{
+    test('SUCCESS: Resource with archive ttl', async () => {
         // READ items (Success)
         AWSMock.mock('DynamoDB', 'putItem', (params: PutItemInput, callback: Function) => {
             callback(null, 'success');
@@ -138,7 +138,7 @@ describe('CREATE', () => {
 
         const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
 
-        const ttl: number = Math.round((Date.now()/1000) + 50000);
+        const ttl: number = Math.round(Date.now() / 1000 + 50000);
 
         // OPERATE
         const serviceResponse = await dynamoDbDataService.createResource({ resource, resourceType, ttl });
@@ -511,7 +511,7 @@ describe('UPDATE', () => {
         const resourcev1 = {
             id,
             vid: 1,
-            ttl: Math.round((Date.now()/1000)+50000),
+            ttl: Math.round(Date.now() / 1000 + 50000),
             resourceType: 'Patient',
             name: [
                 {
