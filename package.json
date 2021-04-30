@@ -25,7 +25,8 @@
     "release": "yarn run build && yarn run lint && yarn run test",
     "clean": "rm -rf build/* node_modules/* dist/* .serverless/* .nyc_output/* lib/*",
     "local": "node .",
-    "prepublish": "tsc"
+    "prepublish": "tsc",
+    "postinstall": "tsc"
   },
   "dependencies": {
     "@elastic/elasticsearch": "^7.4",
@@ -33,7 +34,7 @@
     "aws-elasticsearch-connector": "^8.2.0",
     "aws-sdk": "^2.610.0",
     "aws-xray-sdk": "^3.1.0",
-    "fhir-works-on-aws-interface": "^8.1.1",
+    "fhir-works-on-aws-interface": "github:Zambonilli/fhir-works-on-aws-interface.git#mainline",
     "flat": "^5.0.2",
     "lodash": "^4.17.20",
     "mime-types": "^2.1.26",
