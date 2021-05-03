@@ -2156,11 +2156,10 @@ fb-watchman@^2.0.0:
   dependencies:
     bser "2.1.1"
 
-"fhir-works-on-aws-interface@github:Zambonilli/fhir-works-on-aws-interface.git#mainline":
+fhir-works-on-aws-interface@8.1.1:
   version "8.1.1"
-  resolved "https://codeload.github.com/Zambonilli/fhir-works-on-aws-interface/tar.gz/2679dfaddcb5b50f5cafb1afa0d9cd8856f8380d"
-  dependencies:
-    typescript "^4.1.3"
+  resolved "https://registry.yarnpkg.com/fhir-works-on-aws-interface/-/fhir-works-on-aws-interface-8.1.1.tgz#b4fdaebee54c8c07a508c54828ab61f77d85c3e1"
+  integrity sha512-cKDnhtumC5Eh0oI0gcQfZ5kVrESX4iBRLw3CB7j/zW2EfVkei2r5qZgNGursJAQ75+EW8XL0yHZo71EvGpbTJw==
 
 figures@^3.0.0:
   version "3.2.0"
