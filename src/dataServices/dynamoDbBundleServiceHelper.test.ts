@@ -27,6 +27,26 @@ describe('generateStagingRequests', () => {
         expect(actualResult).toMatchObject(expectedResult);
     });
 
+    test.only('CREATE ttlInSeconds set', () => {
+        const createRequest = GenerateStagingRequestsFactory.getCreate({
+            ttlInSeconds: Math.round(Date.now() / 1000 + 50000),
+        });
+        const actualResult = DynamoDbBundleServiceHelper.generateStagingRequests(
+            [createRequest.request],
+            createRequest.idToVersionId,
+        );
+        const expectedResult: any = {
+            deleteRequests: [],
+            createRequests: [createRequest.expectedRequest],
+            updateRequests: [],
+            readRequests: [],
+            newLocks: [createRequest.expectedLock],
+            newStagingResponses: [createRequest.expectedStagingResponse],
+        };
+
+        expect(actualResult).toMatchObject(expectedResult);
+    });
+
     test('READ', () => {
         const actualResult = DynamoDbBundleServiceHelper.generateStagingRequests(
             [GenerateStagingRequestsFactory.getRead().request],
@@ -57,6 +77,27 @@ describe('generateStagingRequests', () => {
             readRequests: [],
             newLocks: [GenerateStagingRequestsFactory.getUpdate().expectedLock],
             newStagingResponses: [GenerateStagingRequestsFactory.getUpdate().expectedStagingResponse],
+        };
+
+        expect(actualResult).toMatchObject(expectedResult);
+    });
+
+    test('UPDATE ttlInSeconds set', () => {
+        const updateRequest = GenerateStagingRequestsFactory.getUpdate({
+            ttlInSeconds: Math.round(Date.now() / 1000 + 50000),
+        });
+        const actualResult = DynamoDbBundleServiceHelper.generateStagingRequests(
+            [updateRequest.request],
+            updateRequest.idToVersionId,
+        );
+
+        const expectedResult: any = {
+            deleteRequests: [],
+            createRequests: [],
+            updateRequests: [updateRequest.expectedRequest],
+            readRequests: [],
+            newLocks: [updateRequest.expectedLock],
+            newStagingResponses: [updateRequest.expectedStagingResponse],
         };
 
         expect(actualResult).toMatchObject(expectedResult);

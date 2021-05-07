@@ -30,12 +30,18 @@ export class DynamoDbUtil {
         return cleanedItem;
     }
 
-    static prepItemForDdbInsert(resource: any, id: string, vid: number, documentStatus: DOCUMENT_STATUS, ttl?: number) {
+    static prepItemForDdbInsert(
+        resource: any,
+        id: string,
+        vid: number,
+        documentStatus: DOCUMENT_STATUS,
+        ttlInSeconds?: number,
+    ) {
         const item = clone(resource);
         item.id = id;
         item.vid = vid;
-        if (!_.isUndefined(ttl)) {
-            item.ttl = ttl;
+        if (!_.isUndefined(ttlInSeconds)) {
+            item.ttlInSeconds = ttlInSeconds;
         }
 
         // versionId and lastUpdated for meta object should be system generated

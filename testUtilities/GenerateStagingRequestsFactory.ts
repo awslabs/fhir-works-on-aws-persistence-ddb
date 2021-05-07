@@ -4,6 +4,7 @@
  */
 
 /* eslint-disable class-methods-use-this */
+import _ from 'lodash';
 import { BatchReadWriteRequest, BatchReadWriteResponse } from 'fhir-works-on-aws-interface';
 import { DynamoDBConverter } from '../src/dataServices/dynamoDb';
 import { DOCUMENT_STATUS_FIELD } from '../src/dataServices/dynamoDbUtil';
@@ -21,7 +22,7 @@ interface RequestResult {
 }
 
 export default class GenerateStagingRequestsFactory {
-    static getCreate(): RequestResult {
+    static getCreate(sourceRequest?: any): RequestResult {
         const createResource = {
             resourceType: 'Patient',
             name: [
@@ -32,14 +33,21 @@ export default class GenerateStagingRequestsFactory {
             ],
             gender: 'male',
         };
-        const request = {
+        let request = {
             operation: 'create',
             resourceType: 'Patient',
             id: '',
-            resource: createResource,
+            resource: _.cloneDeep(createResource),
             fullUrl: '',
         };
 
+        request = _.defaults(request, sourceRequest);
+
+        // @ts-ignore
+        if (!_.isUndefined(request.ttlInSeconds)) {
+            // @ts-ignore
+            createResource.ttlInSeconds = request.ttlInSeconds;
+        }
         const expectedCreateItem: any = { ...createResource };
         expectedCreateItem[DOCUMENT_STATUS_FIELD] = DOCUMENT_STATUS.PENDING;
 
@@ -126,7 +134,7 @@ export default class GenerateStagingRequestsFactory {
         };
     }
 
-    static getUpdate(): RequestResult {
+    static getUpdate(sourceRequest?: any): RequestResult {
         const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
         const vid = 1;
         const nextVid = 2;
@@ -143,13 +151,21 @@ export default class GenerateStagingRequestsFactory {
             gender: 'male',
             meta: existingMeta,
         };
-        const request: BatchReadWriteRequest = {
+        let request: BatchReadWriteRequest = {
             operation: 'update',
             resourceType: 'Patient',
             id,
-            resource,
+            resource: _.cloneDeep(resource),
             fullUrl: `urn:uuid:${id}`,
         };
+
+        request = _.defaults(request, sourceRequest);
+
+        // @ts-ignore
+        if (!_.isUndefined(request.ttlInSeconds)) {
+            // @ts-ignore
+            resource.ttlInSeconds = request.ttlInSeconds;
+        }
 
         const expectedUpdateItem: any = { ...resource, meta: { ...existingMeta, versionId: nextVid.toString() } };
         expectedUpdateItem[DOCUMENT_STATUS_FIELD] = DOCUMENT_STATUS.PENDING;

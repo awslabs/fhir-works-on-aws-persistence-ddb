@@ -4,6 +4,7 @@
  */
 
 import uuidv4 from 'uuid/v4';
+import _ from 'lodash';
 import {
     BatchReadWriteRequest,
     BatchReadWriteResponse,
@@ -42,7 +43,13 @@ export default class DynamoDbBundleServiceHelper {
                         id = request.id;
                     }
                     const vid = 1;
-                    const Item = DynamoDbUtil.prepItemForDdbInsert(request.resource, id, vid, DOCUMENT_STATUS.PENDING);
+                    const Item = DynamoDbUtil.prepItemForDdbInsert(
+                        request.resource,
+                        id,
+                        vid,
+                        DOCUMENT_STATUS.PENDING,
+                        request.ttlInSeconds,
+                    );
 
                     createRequests.push({
                         Put: {
@@ -50,8 +57,13 @@ export default class DynamoDbBundleServiceHelper {
                             Item: DynamoDBConverter.marshall(Item),
                         },
                     });
+
+                    const stagingResource = _.cloneDeep(request.resource);
+                    if (!_.isUndefined(request.ttlInSeconds)) {
+                        stagingResource.ttlInSeconds = request.ttlInSeconds;
+                    }
                     const { stagingResponse, itemLocked } = this.addStagingResponseAndItemsLocked(request.operation, {
-                        ...request.resource,
+                        ...stagingResource,
                         meta: { ...Item.meta },
                         id,
                     });
@@ -64,7 +76,13 @@ export default class DynamoDbBundleServiceHelper {
                     // When updating a resource, create a new Document for that resource
                     const { id } = request.resource;
                     const vid = (idToVersionId[id] || 0) + 1;
-                    const Item = DynamoDbUtil.prepItemForDdbInsert(request.resource, id, vid, DOCUMENT_STATUS.PENDING);
+                    const Item = DynamoDbUtil.prepItemForDdbInsert(
+                        request.resource,
+                        id,
+                        vid,
+                        DOCUMENT_STATUS.PENDING,
+                        request.ttlInSeconds,
+                    );
 
                     updateRequests.push({
                         Put: {
@@ -73,8 +91,13 @@ export default class DynamoDbBundleServiceHelper {
                         },
                     });
 
+                    const stagingResource = _.cloneDeep(request.resource);
+                    if (!_.isUndefined(request.ttlInSeconds)) {
+                        stagingResource.ttlInSeconds = request.ttlInSeconds;
+                    }
+
                     const { stagingResponse, itemLocked } = this.addStagingResponseAndItemsLocked(request.operation, {
-                        ...request.resource,
+                        ...stagingResource,
                         meta: { ...Item.meta },
                     });
                     newBundleEntryResponses = newBundleEntryResponses.concat(stagingResponse);

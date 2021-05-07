@@ -130,7 +130,7 @@ describe('CREATE', () => {
             new InvalidResourceError('Resource creation failed, id matches an existing resource'),
         );
     });
-    test('SUCCESS: Resource with archive ttl', async () => {
+    test('SUCCESS: Resource with archive ttlInSeconds', async () => {
         // READ items (Success)
         AWSMock.mock('DynamoDB', 'putItem', (params: PutItemInput, callback: Function) => {
             callback(null, 'success');
@@ -138,10 +138,10 @@ describe('CREATE', () => {
 
         const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
 
-        const ttl: number = Math.round(Date.now() / 1000 + 50000);
+        const ttlInSeconds: number = Math.round(Date.now() / 1000 + 50000);
 
         // OPERATE
-        const serviceResponse = await dynamoDbDataService.createResource({ resource, resourceType, ttl });
+        const serviceResponse = await dynamoDbDataService.createResource({ resource, resourceType, ttlInSeconds });
 
         // CHECK
         const expectedResource: any = { ...resource };
@@ -151,7 +151,7 @@ describe('CREATE', () => {
             lastUpdated: expect.stringMatching(utcTimeRegExp),
         };
         expectedResource.id = expect.stringMatching(uuidRegExp);
-        expectedResource.ttl = ttl;
+        expectedResource.ttlInSeconds = ttlInSeconds;
 
         expect(serviceResponse.success).toEqual(true);
         expect(serviceResponse.message).toEqual('Resource created');
@@ -505,13 +505,14 @@ describe('UPDATE', () => {
         }
     });
 
-    test('SUCCESS: ttl carried over to all versions', async () => {
+    test('SUCCESS: pass the correct ttlInSeconds param to BundleService.transaction', async () => {
         // BUILD
+        const ttlInSeconds = Math.round(Date.now() / 1000 + 50000);
         const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
         const resourcev1 = {
             id,
             vid: 1,
-            ttl: Math.round(Date.now() / 1000 + 50000),
+            ttlInSeconds,
             resourceType: 'Patient',
             name: [
                 {
@@ -545,7 +546,7 @@ describe('UPDATE', () => {
             ],
         };
 
-        sinon
+        const transactionStub = sinon
             .stub(DynamoDbBundleService.prototype, 'transaction')
             .returns(Promise.resolve(batchReadWriteServiceResponse));
 
@@ -556,6 +557,7 @@ describe('UPDATE', () => {
             resourceType: 'Patient',
             id,
             resource: { ...resourcev1, meta: { security: { system: 'gondor' } } },
+            ttlInSeconds,
         });
 
         // CHECK
@@ -569,6 +571,8 @@ describe('UPDATE', () => {
         expect(serviceResponse.success).toEqual(true);
         expect(serviceResponse.message).toEqual('Resource updated');
         expect(serviceResponse.resource).toStrictEqual(expectedResource);
+        expect(transactionStub.called).toEqual(true);
+        expect(transactionStub.lastCall.lastArg.requests[0].ttlInSeconds).toEqual(ttlInSeconds);
     });
 });
 

@@ -98,11 +98,11 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
     }
 
     async createResource(request: CreateResourceRequest) {
-        const { resourceType, resource, ttl } = request;
-        return this.createResourceWithId(resourceType, resource, uuidv4(), ttl);
+        const { resourceType, resource, ttlInSeconds } = request;
+        return this.createResourceWithId(resourceType, resource, uuidv4(), ttlInSeconds);
     }
 
-    private async createResourceWithId(resourceType: string, resource: any, resourceId: string, ttl?: number) {
+    private async createResourceWithId(resourceType: string, resource: any, resourceId: string, ttlInSeconds?: number) {
         const regex = new RegExp('^[a-zA-Z0-9-.]{1,64}$');
         if (!regex.test(resourceId)) {
             throw new InvalidResourceError(`Resource creation failed, id ${resourceId} is not valid`);
@@ -112,7 +112,13 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
         let resourceClone = clone(resource);
         resourceClone.resourceType = resourceType;
 
-        const param = DynamoDbParamBuilder.buildPutAvailableItemParam(resourceClone, resourceId, vid, undefined, ttl);
+        const param = DynamoDbParamBuilder.buildPutAvailableItemParam(
+            resourceClone,
+            resourceId,
+            vid,
+            undefined,
+            ttlInSeconds,
+        );
         try {
             await this.dynamoDb.putItem(param).promise();
         } catch (e) {
@@ -156,7 +162,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
     }
 
     async updateResource(request: UpdateResourceRequest) {
-        const { resource, resourceType, id } = request;
+        const { resource, resourceType, id, ttlInSeconds } = request;
         try {
             // Will throw ResourceNotFoundError if resource can't be found
             await this.readResource({ resourceType, id });
@@ -167,10 +173,12 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
             throw e;
         }
         const resourceClone = clone(resource);
+
         const batchRequest: BatchReadWriteRequest = {
             operation: 'update',
             resourceType,
             id,
+            ttlInSeconds,
             resource: resourceClone,
         };
 
