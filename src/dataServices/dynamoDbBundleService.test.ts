@@ -273,6 +273,7 @@ describe('atomicallyReadWriteResources', () => {
                 transactWriteItemSpy(params);
                 callback(null, {});
             });
+            const ttlInSeconds = Math.floor(Date.now() / 1000 + 50000);
             const resourceType = 'Patient';
             const oldVid = 1;
             const newVid = oldVid + 1;
@@ -312,6 +313,7 @@ describe('atomicallyReadWriteResources', () => {
                 resourceType,
                 id,
                 resource: newResource,
+                ttlInSeconds,
             };
 
             // OPERATE
@@ -320,9 +322,11 @@ describe('atomicallyReadWriteResources', () => {
                 startTime: new Date(),
             });
 
+            newResource.ttlInSeconds = ttlInSeconds;
+
             // CHECK
-            // transactWriteItem requests is called thrice
-            expect(transactWriteItemSpy.calledThrice).toBeTruthy();
+            // transactWriteItem requests is called 4x
+            expect(transactWriteItemSpy.callCount).toEqual(4);
 
             // 0. change Patient record's documentStatus to be 'LOCKED'
             expect(transactWriteItemSpy.getCall(0).args[0]).toStrictEqual({
@@ -377,8 +381,26 @@ describe('atomicallyReadWriteResources', () => {
                 ],
             });
 
-            // 2. change Patient record's documentStatus to be 'AVAILABLE'
+            // 2. Update ttlInSeconds for previous version
             expect(transactWriteItemSpy.getCall(2).args[0]).toStrictEqual({
+                TransactItems: [
+                    {
+                        Update: {
+                            TableName: '',
+                            Key: { id: { S: id }, vid: { N: oldVid.toString() } },
+                            UpdateExpression: 'set ttlInSeconds = :ttlInSeconds',
+                            ExpressionAttributeValues: {
+                                ':ttlInSeconds': { N: ttlInSeconds.toString() },
+                                ':resourceType': { S: 'Patient' },
+                            },
+                            ConditionExpression: 'resourceType = :resourceType',
+                        },
+                    },
+                ],
+            });
+
+            // 3. change Patient record's documentStatus to be 'AVAILABLE'
+            expect(transactWriteItemSpy.getCall(3).args[0]).toStrictEqual({
                 TransactItems: [
                     {
                         Update: {

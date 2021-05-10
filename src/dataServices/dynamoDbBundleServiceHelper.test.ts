@@ -27,7 +27,7 @@ describe('generateStagingRequests', () => {
         expect(actualResult).toMatchObject(expectedResult);
     });
 
-    test.only('CREATE ttlInSeconds set', () => {
+    test('CREATE ttlInSeconds set', () => {
         const createRequest = GenerateStagingRequestsFactory.getCreate({
             ttlInSeconds: Math.round(Date.now() / 1000 + 50000),
         });

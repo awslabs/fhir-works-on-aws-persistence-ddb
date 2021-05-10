@@ -426,23 +426,28 @@ export class DynamoDbBundleService implements Bundle {
             // we need to cascade any updates TTLInSeconds to previous resource instance versions
             // otherwise, we can end up with a single resource instance missing versions b/c they've been archived
             const ttlInSecondsUpdates = _.filter(updateRequests, updateRequest => {
-                return updateRequest.Put.Item.vid !== 1 && _.has(updateRequest.Put.Item, 'ttlInSeconds');
+                return (
+                    parseInt(updateRequest.Put.Item.vid.N, 10) !== 1 && _.has(updateRequest.Put.Item, 'ttlInSeconds')
+                );
             });
             if (ttlInSecondsUpdates.length > 0) {
-                const ttlInSecondsTxs: any = _.map(ttlInSecondsUpdates, updateRequest => {
-                    return _.map(_.range(1, updateRequest.vid - 1), vid => {
-                        return DynamoDbParamBuilder.buildUpdateTTLInSecondsParam(
-                            updateRequest.Put.Item.id,
-                            vid,
-                            updateRequest.Put.Item.ResourceType,
-                            updateRequest.Put.Item.ttlInSeconds,
-                        );
-                    });
-                });
+                const ttlInSecondsTxItems: any[] = _.flatten(
+                    _.map(ttlInSecondsUpdates, updateRequest => {
+                        const lastVid = parseInt(updateRequest.Put.Item.vid.N, 10);
+                        return _.map(_.range(1, lastVid), vid => {
+                            return DynamoDbParamBuilder.buildUpdateTTLInSecondsParam(
+                                updateRequest.Put.Item.id.S,
+                                vid,
+                                updateRequest.Put.Item.resourceType.S,
+                                parseInt(updateRequest.Put.Item.ttlInSeconds.N, 10),
+                            );
+                        });
+                    }),
+                );
 
                 await this.dynamoDb
                     .transactWriteItems({
-                        TransactItems: ttlInSecondsTxs,
+                        TransactItems: ttlInSecondsTxItems,
                     })
                     .promise();
             }
