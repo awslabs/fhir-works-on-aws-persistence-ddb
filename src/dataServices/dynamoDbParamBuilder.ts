@@ -192,4 +192,24 @@ export default class DynamoDbParamBuilder {
 
         return params;
     }
+
+    static buildUpdateTTLInSecondsParam(id: string, vid: number, resourceType: string, ttlInSeconds: number) {
+        const params: any = {
+            Update: {
+                TableName: RESOURCE_TABLE,
+                Key: DynamoDBConverter.marshall({
+                    id,
+                    vid,
+                }),
+                UpdateExpression: `set ttlInSeconds = :ttlInSeconds`,
+                ExpressionAttributeValues: DynamoDBConverter.marshall({
+                    ':ttlInSeconds': ttlInSeconds,
+                    ':resourceType': resourceType,
+                }),
+                ConditionExpression: `resourceType = :resourceType`,
+            },
+        };
+
+        return params;
+    }
 }

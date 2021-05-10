@@ -4,6 +4,7 @@
  */
 
 /* eslint-disable class-methods-use-this */
+import _ from 'lodash';
 import DynamoDB from 'aws-sdk/clients/dynamodb';
 import {
     BatchRequest,
@@ -420,6 +421,30 @@ export class DynamoDbBundleService implements Bundle {
                     batchReadWriteResponses,
                     readResult,
                 );
+            }
+
+            // we need to cascade any updates TTLInSeconds to previous resource instance versions
+            // otherwise, we can end up with a single resource instance missing versions b/c they've been archived
+            const ttlInSecondsUpdates = _.filter(updateRequests, updateRequest => {
+                return updateRequest.Put.Item.vid !== 1 && _.has(updateRequest.Put.Item, 'ttlInSeconds');
+            });
+            if (ttlInSecondsUpdates.length > 0) {
+                const ttlInSecondsTxs: any = _.map(ttlInSecondsUpdates, updateRequest => {
+                    return _.map(_.range(1, updateRequest.vid - 1), vid => {
+                        return DynamoDbParamBuilder.buildUpdateTTLInSecondsParam(
+                            updateRequest.Put.Item.id,
+                            vid,
+                            updateRequest.Put.Item.ResourceType,
+                            updateRequest.Put.Item.ttlInSeconds,
+                        );
+                    });
+                });
+
+                await this.dynamoDb
+                    .transactWriteItems({
+                        TransactItems: ttlInSecondsTxs,
+                    })
+                    .promise();
             }
 
             console.log('Successfully staged items');
