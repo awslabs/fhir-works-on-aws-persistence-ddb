@@ -11,7 +11,7 @@ import {
     TypeOperation,
     SystemOperation,
 } from 'fhir-works-on-aws-interface';
-import { DynamoDbUtil } from './dynamoDbUtil';
+import { DynamoDbUtil, TTL_IN_SECONDS } from './dynamoDbUtil';
 import DOCUMENT_STATUS from './documentStatus';
 import { DynamoDBConverter, RESOURCE_TABLE } from './dynamoDb';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
@@ -60,7 +60,7 @@ export default class DynamoDbBundleServiceHelper {
 
                     const stagingResource = _.cloneDeep(request.resource);
                     if (!_.isUndefined(request.ttlInSeconds)) {
-                        stagingResource.ttlInSeconds = request.ttlInSeconds;
+                        stagingResource[TTL_IN_SECONDS] = request.ttlInSeconds;
                     }
                     const { stagingResponse, itemLocked } = this.addStagingResponseAndItemsLocked(request.operation, {
                         ...stagingResource,
@@ -93,7 +93,7 @@ export default class DynamoDbBundleServiceHelper {
 
                     const stagingResource = _.cloneDeep(request.resource);
                     if (!_.isUndefined(request.ttlInSeconds)) {
-                        stagingResource.ttlInSeconds = request.ttlInSeconds;
+                        stagingResource[TTL_IN_SECONDS] = request.ttlInSeconds;
                     }
 
                     const { stagingResponse, itemLocked } = this.addStagingResponseAndItemsLocked(request.operation, {

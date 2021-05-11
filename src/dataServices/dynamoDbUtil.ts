@@ -13,6 +13,7 @@ export const DOCUMENT_STATUS_FIELD = 'documentStatus';
 export const LOCK_END_TS_FIELD = 'lockEndTs';
 export const VID_FIELD = 'vid';
 export const REFERENCES_FIELD = '_references';
+export const TTL_IN_SECONDS = 'ttlInSeconds';
 
 export class DynamoDbUtil {
     static cleanItem(item: any) {
@@ -41,7 +42,7 @@ export class DynamoDbUtil {
         item.id = id;
         item.vid = vid;
         if (!_.isUndefined(ttlInSeconds)) {
-            item.ttlInSeconds = ttlInSeconds;
+            item[TTL_IN_SECONDS] = ttlInSeconds;
         }
 
         // versionId and lastUpdated for meta object should be system generated
