@@ -21,6 +21,9 @@ import DynamoDbBundleServiceHelper, { ItemRequest } from './dynamoDbBundleServic
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 
 import DynamoDbHelper from './dynamoDbHelper';
+import getComponentLogger from '../loggerBuilder';
+
+const logger = getComponentLogger();
 
 export class DynamoDbBundleService implements Bundle {
     private readonly MAX_TRANSACTION_SIZE: number = 25;
@@ -67,7 +70,7 @@ export class DynamoDbBundleService implements Bundle {
         if (elapsedTimeInMs > this.maxExecutionTimeMs || !successfulLock) {
             await this.unlockItems(lockedItems, true);
             if (elapsedTimeInMs > this.maxExecutionTimeMs) {
-                console.log(
+                logger.log(
                     'Locks were rolled back because elapsed time is longer than max code execution time. Elapsed time',
                     elapsedTimeInMs,
                 );
@@ -78,7 +81,7 @@ export class DynamoDbBundleService implements Bundle {
                     errorType: 'USER_ERROR',
                 };
             }
-            console.log('Locks were rolled back because failed to lock resources');
+            logger.log('Locks were rolled back because failed to lock resources');
             const { errorType, errorMessage } = lockItemsResponse;
             return {
                 success: false,
@@ -100,7 +103,7 @@ export class DynamoDbBundleService implements Bundle {
             await this.unlockItems(lockedItems, true);
 
             if (elapsedTimeInMs > this.maxExecutionTimeMs) {
-                console.log(
+                logger.log(
                     'Rolled changes back because elapsed time is longer than max code execution time. Elapsed time',
                     elapsedTimeInMs,
                 );
@@ -111,7 +114,7 @@ export class DynamoDbBundleService implements Bundle {
                     errorType: 'USER_ERROR',
                 };
             }
-            console.log('Rolled changes back because staging of items failed');
+            logger.log('Rolled changes back because staging of items failed');
             return {
                 success: false,
                 message: 'Failed to stage resources for transaction',
@@ -154,7 +157,7 @@ export class DynamoDbBundleService implements Bundle {
 
         if (itemsToLock.length > DynamoDbBundleService.dynamoDbMaxBatchSize) {
             const message = `Cannot lock more than ${DynamoDbBundleService.dynamoDbMaxBatchSize} items`;
-            console.error(message);
+            logger.error(message);
             return Promise.resolve({
                 successfulLock: false,
                 errorType: 'SYSTEM_ERROR',
@@ -163,7 +166,7 @@ export class DynamoDbBundleService implements Bundle {
             });
         }
 
-        console.log('Locking begins');
+        logger.log('Locking begins');
         const lockedItems: ItemRequest[] = [];
 
         // We need to read the items so we can find the versionId of each item
@@ -243,13 +246,13 @@ export class DynamoDbBundleService implements Bundle {
                 await this.dynamoDb.transactWriteItems(params).promise();
                 itemsLockedSuccessfully = itemsLockedSuccessfully.concat(lockedItems);
             }
-            console.log('Finished locking');
+            logger.log('Finished locking');
             return Promise.resolve({
                 successfulLock: true,
                 lockedItems: itemsLockedSuccessfully,
             });
         } catch (e) {
-            console.error('Failed to lock', e);
+            logger.error('Failed to lock', e);
             return Promise.resolve({
                 successfulLock: false,
                 errorType: 'SYSTEM_ERROR',
@@ -275,7 +278,7 @@ export class DynamoDbBundleService implements Bundle {
         if (lockedItems.length === 0) {
             return { successfulUnlock: true, locksFailedToRelease: [] };
         }
-        console.log('Unlocking begins');
+        logger.log('Unlocking begins');
 
         const updateRequests: any[] = lockedItems.map(lockedItem => {
             let newStatus = DOCUMENT_STATUS.AVAILABLE;
@@ -310,7 +313,7 @@ export class DynamoDbBundleService implements Bundle {
                 // eslint-disable-next-line no-await-in-loop
                 await this.dynamoDb.transactWriteItems(params[i]).promise();
             } catch (e) {
-                console.error('Failed to unlock items', e);
+                logger.error('Failed to unlock items', e);
                 let locksFailedToRelease: ItemRequest[] = [];
                 for (let j = i; j < lockedItemChunks.length; j += 1) {
                     locksFailedToRelease = locksFailedToRelease.concat(lockedItemChunks[j]);
@@ -318,7 +321,7 @@ export class DynamoDbBundleService implements Bundle {
                 return Promise.resolve({ successfulUnlock: false, locksFailedToRelease });
             }
         }
-        console.log('Finished unlocking');
+        logger.log('Finished unlocking');
         return Promise.resolve({ successfulUnlock: true, locksFailedToRelease: [] });
     }
 
@@ -326,7 +329,7 @@ export class DynamoDbBundleService implements Bundle {
         batchReadWriteEntryResponses: BatchReadWriteResponse[],
         lockedItems: ItemRequest[],
     ): Promise<ItemRequest[]> {
-        console.log('Starting unstage items');
+        logger.log('Starting unstage items');
 
         const { transactionRequests, itemsToRemoveFromLock } = DynamoDbBundleServiceHelper.generateRollbackRequests(
             batchReadWriteEntryResponses,
@@ -341,7 +344,7 @@ export class DynamoDbBundleService implements Bundle {
             await this.dynamoDb.transactWriteItems(params).promise();
             return newLockedItems;
         } catch (e) {
-            console.error('Failed to unstage items', e);
+            logger.error('Failed to unstage items', e);
             return newLockedItems;
         }
     }
@@ -370,7 +373,7 @@ export class DynamoDbBundleService implements Bundle {
     }
 
     private async stageItems(requests: BatchReadWriteRequest[], lockedItems: ItemRequest[]) {
-        console.log('Start Staging of Items');
+        logger.log('Start Staging of Items');
 
         const idToVersionId: Record<string, number> = {};
         lockedItems.forEach((idItemLocked: ItemRequest) => {
@@ -422,10 +425,10 @@ export class DynamoDbBundleService implements Bundle {
                 );
             }
 
-            console.log('Successfully staged items');
+            logger.log('Successfully staged items');
             return Promise.resolve({ success: true, batchReadWriteResponses, lockedItems: allLockedItems });
         } catch (e) {
-            console.error('Failed to stage items', e);
+            logger.error('Failed to stage items', e);
             return Promise.resolve({ success: false, batchReadWriteResponses, lockedItems: allLockedItems });
         }
     }

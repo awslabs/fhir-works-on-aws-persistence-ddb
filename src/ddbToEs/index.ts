@@ -6,8 +6,10 @@
 import AWS from 'aws-sdk';
 import DdbToEsHelper from './ddbToEsHelper';
 import PromiseParamAndId from './promiseParamAndId';
+import getComponentLogger from '../loggerBuilder';
 
 const REMOVE = 'REMOVE';
+const logger = getComponentLogger();
 
 // This is a separate lambda function from the main FHIR API server lambda.
 // This lambda picks up changes from DDB by way of DDB stream, and sends those changes to ElasticSearch Service for indexing.
@@ -19,7 +21,7 @@ export async function handleDdbToEsEvent(event: any) {
         const promiseParamAndIds: PromiseParamAndId[] = [];
         for (let i = 0; i < event.Records.length; i += 1) {
             const record = event.Records[i];
-            console.log('EventName: ', record.eventName);
+            logger.log('EventName: ', record.eventName);
 
             const ddbJsonImage = record.eventName === REMOVE ? record.dynamodb.OldImage : record.dynamodb.NewImage;
             const image = AWS.DynamoDB.Converter.unmarshall(ddbJsonImage);
@@ -46,7 +48,7 @@ export async function handleDdbToEsEvent(event: any) {
 
         await ddbToEsHelper.logAndExecutePromises(promiseParamAndIds);
     } catch (e) {
-        console.error(
+        logger.error(
             'Synchronization failed! The resources that could be effected are: ',
             event.Records.map(
                 (record: {
@@ -59,7 +61,7 @@ export async function handleDdbToEsEvent(event: any) {
             ),
         );
 
-        console.error('Failed to update ES records', e);
+        logger.error('Failed to update ES records', e);
         throw e;
     }
 }

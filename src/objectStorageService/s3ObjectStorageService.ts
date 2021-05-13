@@ -7,6 +7,9 @@ import { GenericResponse } from 'fhir-works-on-aws-interface';
 import { S3, FHIR_BINARY_BUCKET } from './s3';
 import ObjectStorageInterface from './objectStorageInterface';
 import ObjectNotFoundError from './ObjectNotFoundError';
+import getComponentLogger from '../loggerBuilder';
+
+const logger = getComponentLogger();
 
 const S3ObjectStorageService: ObjectStorageInterface = class {
     static S3_KMS_KEY = process.env.S3_KMS_KEY || '';
@@ -35,7 +38,7 @@ const S3ObjectStorageService: ObjectStorageInterface = class {
             return { message: Key };
         } catch (e) {
             const message = 'Failed uploading binary data to S3';
-            console.error(message, e);
+            logger.error(message, e);
             throw e;
         }
     }
@@ -55,7 +58,7 @@ const S3ObjectStorageService: ObjectStorageInterface = class {
             throw new Error('S3 object body is empty');
         } catch (e) {
             const message = "Can't read object";
-            console.error(message, e);
+            logger.error(message, e);
             throw e;
         }
     }
@@ -65,7 +68,7 @@ const S3ObjectStorageService: ObjectStorageInterface = class {
             Bucket: FHIR_BINARY_BUCKET,
             Key: fileName,
         };
-        console.log('Delete Params', params);
+        logger.log('Delete Params', params);
         await S3.deleteObject(params).promise();
         return { message: '' };
     }
@@ -89,7 +92,7 @@ const S3ObjectStorageService: ObjectStorageInterface = class {
                 Key: fileName,
             }).promise();
         } catch (e) {
-            console.error(`File does not exist. FileName: ${fileName}`);
+            logger.error(`File does not exist. FileName: ${fileName}`);
             throw new ObjectNotFoundError(fileName);
         }
 
@@ -101,7 +104,7 @@ const S3ObjectStorageService: ObjectStorageInterface = class {
             });
             return { message: url };
         } catch (e) {
-            console.error('Failed creating presigned S3 GET URL', e);
+            logger.error('Failed creating presigned S3 GET URL', e);
             throw e;
         }
     }
@@ -128,7 +131,7 @@ const S3ObjectStorageService: ObjectStorageInterface = class {
                     Objects: keysToDelete,
                 },
             };
-            console.log('Delete Params', params);
+            logger.log('Delete Params', params);
             promises.push(S3.deleteObjects(params).promise());
         } while (token);
 
@@ -136,7 +139,7 @@ const S3ObjectStorageService: ObjectStorageInterface = class {
             await Promise.all(promises);
         } catch (e) {
             const message = 'Deletion has failed, please retry';
-            console.error(message, e);
+            logger.error(message, e);
             throw e;
         }
         return { message: '' };
