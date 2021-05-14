@@ -4,6 +4,7 @@
  */
 
 import { clone } from 'fhir-works-on-aws-interface';
+import sinon from 'sinon';
 import { DOCUMENT_STATUS_FIELD, DynamoDbUtil, LOCK_END_TS_FIELD, REFERENCES_FIELD, VID_FIELD } from './dynamoDbUtil';
 import DOCUMENT_STATUS from './documentStatus';
 import { utcTimeRegExp } from '../../testUtilities/regExpressions';
@@ -49,9 +50,9 @@ describe('cleanItem', () => {
 });
 
 describe('prepItemForDdbInsert', () => {
+    const sandbox = sinon.createSandbox();
     const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
     const vid = 1;
-    const ttlInSeconds = Math.round(Date.now() / 1000 + 50000);
     const resource = {
         resourceType: 'Patient',
         id,
@@ -80,6 +81,14 @@ describe('prepItemForDdbInsert', () => {
         expectedItem.lockEndTs = expect.any(Number);
         expect(actualItem).toEqual(expectedItem);
     };
+
+    beforeEach(() => {
+        sandbox.useFakeTimers();
+    });
+
+    afterEach(() => {
+        sandbox.restore();
+    });
 
     test('Return item correctly when resource to be prepped contains references', () => {
         const organization = 'Organization/1';
@@ -201,17 +210,11 @@ describe('prepItemForDdbInsert', () => {
 
     test('ttlInSeconds set', () => {
         // OPERATE
-        const actualItem = DynamoDbUtil.prepItemForDdbInsert(
-            clone(resource),
-            id,
-            vid,
-            DOCUMENT_STATUS.PENDING,
-            ttlInSeconds,
-        );
+        const actualItem = DynamoDbUtil.prepItemForDdbInsert(clone(resource), id, vid, DOCUMENT_STATUS.PENDING, 60);
 
         // CHECK
         const expectedResource = clone(resource);
-        expectedResource.ttlInSeconds = ttlInSeconds;
+        expectedResource.ttlInSeconds = 60;
         expectedResource[REFERENCES_FIELD] = [];
 
         checkExpectedItemMatchActualItem(actualItem, expectedResource, vid);

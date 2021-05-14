@@ -23,6 +23,7 @@ export class DynamoDbUtil {
         delete cleanedItem[LOCK_END_TS_FIELD];
         delete cleanedItem[VID_FIELD];
         delete cleanedItem[REFERENCES_FIELD];
+        delete cleanedItem[TTL_IN_SECONDS];
 
         // Return id instead of full id (this is only a concern in results from ES)
         const id = item.id.split(SEPARATOR)[0];
@@ -42,7 +43,8 @@ export class DynamoDbUtil {
         item.id = id;
         item.vid = vid;
         if (!_.isUndefined(ttlInSeconds)) {
-            item[TTL_IN_SECONDS] = ttlInSeconds;
+            const unixNow: number = Math.floor(Date.now() / 1000);
+            item[TTL_IN_SECONDS] = unixNow + ttlInSeconds;
         }
 
         // versionId and lastUpdated for meta object should be system generated

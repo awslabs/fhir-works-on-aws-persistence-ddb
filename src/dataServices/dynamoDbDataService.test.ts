@@ -132,16 +132,18 @@ describe('CREATE', () => {
     });
     test('SUCCESS: Resource with archive ttlInSeconds', async () => {
         // READ items (Success)
-        AWSMock.mock('DynamoDB', 'putItem', (params: PutItemInput, callback: Function) => {
-            callback(null, 'success');
-        });
+        sinon.useFakeTimers();
+        const putItemStub = sinon.stub().yields(null, 'success');
+        AWSMock.mock('DynamoDB', 'putItem', putItemStub);
 
-        const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
-
-        const ttlInSeconds: number = Math.round(Date.now() / 1000 + 50000);
+        const dynamoDbDataService = new DynamoDbDataService(
+            new AWS.DynamoDB(),
+            false,
+            new Map<string, number>([[resourceType, 60]]),
+        );
 
         // OPERATE
-        const serviceResponse = await dynamoDbDataService.createResource({ resource, resourceType, ttlInSeconds });
+        const serviceResponse = await dynamoDbDataService.createResource({ resource, resourceType });
 
         // CHECK
         const expectedResource: any = { ...resource };
@@ -151,11 +153,13 @@ describe('CREATE', () => {
             lastUpdated: expect.stringMatching(utcTimeRegExp),
         };
         expectedResource.id = expect.stringMatching(uuidRegExp);
-        expectedResource.ttlInSeconds = ttlInSeconds;
 
         expect(serviceResponse.success).toEqual(true);
         expect(serviceResponse.message).toEqual('Resource created');
         expect(serviceResponse.resource).toStrictEqual(expectedResource);
+
+        expect(putItemStub.called).toBeTruthy();
+        expect(putItemStub.firstCall.firstArg.Item.ttlInSeconds.N).toEqual('60');
     });
 });
 
@@ -503,76 +507,6 @@ describe('UPDATE', () => {
             expect(isInvalidResourceError(e)).toEqual(true);
             expect(e.message).toEqual(`Resource creation failed, id ${id} is not valid`);
         }
-    });
-
-    test('SUCCESS: pass the correct ttlInSeconds param to BundleService.transaction', async () => {
-        // BUILD
-        const ttlInSeconds = Math.round(Date.now() / 1000 + 50000);
-        const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
-        const resourcev1 = {
-            id,
-            vid: 1,
-            ttlInSeconds,
-            resourceType: 'Patient',
-            name: [
-                {
-                    family: 'Jameson',
-                    given: ['Matt'],
-                },
-            ],
-        };
-
-        sinon
-            .stub(DynamoDbHelper.prototype, 'getMostRecentUserReadableResource')
-            .returns(Promise.resolve({ message: 'Resource found', resource: resourcev1 }));
-
-        const vid = 2;
-        const lastModified = '2020-06-18T20:20:12.763Z';
-        const batchReadWriteServiceResponse: BundleResponse = {
-            success: true,
-            message: '',
-            batchReadWriteResponses: [
-                {
-                    id,
-                    vid: vid.toString(),
-                    resourceType: 'Patient',
-                    operation: 'update',
-                    resource: {
-                        ...resourcev1,
-                        meta: { versionId: vid.toString(), lastUpdated: lastModified, security: { system: 'gondor' } },
-                    },
-                    lastModified,
-                },
-            ],
-        };
-
-        const transactionStub = sinon
-            .stub(DynamoDbBundleService.prototype, 'transaction')
-            .returns(Promise.resolve(batchReadWriteServiceResponse));
-
-        const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
-
-        // OPERATE
-        const serviceResponse = await dynamoDbDataService.updateResource({
-            resourceType: 'Patient',
-            id,
-            resource: { ...resourcev1, meta: { security: { system: 'gondor' } } },
-            ttlInSeconds,
-        });
-
-        // CHECK
-        const expectedResource: any = { ...resourcev1 };
-        expectedResource.meta = {
-            versionId: vid.toString(),
-            lastUpdated: expect.stringMatching(utcTimeRegExp),
-            security: { system: 'gondor' },
-        };
-
-        expect(serviceResponse.success).toEqual(true);
-        expect(serviceResponse.message).toEqual('Resource updated');
-        expect(serviceResponse.resource).toStrictEqual(expectedResource);
-        expect(transactionStub.called).toEqual(true);
-        expect(transactionStub.lastCall.lastArg.requests[0].ttlInSeconds).toEqual(ttlInSeconds);
     });
 });
 

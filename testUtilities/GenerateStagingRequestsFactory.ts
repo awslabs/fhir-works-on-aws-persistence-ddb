@@ -22,7 +22,7 @@ interface RequestResult {
 }
 
 export default class GenerateStagingRequestsFactory {
-    static getCreate(sourceRequest?: any): RequestResult {
+    static getCreate(ttlsInSeconds: Map<string, number> = new Map<string, number>()): RequestResult {
         const createResource = {
             resourceType: 'Patient',
             name: [
@@ -33,7 +33,7 @@ export default class GenerateStagingRequestsFactory {
             ],
             gender: 'male',
         };
-        let request = {
+        const request = {
             operation: 'create',
             resourceType: 'Patient',
             id: '',
@@ -41,15 +41,22 @@ export default class GenerateStagingRequestsFactory {
             fullUrl: '',
         };
 
-        request = _.defaults(request, sourceRequest);
-
-        // @ts-ignore
-        if (!_.isUndefined(request.ttlInSeconds)) {
+        if (ttlsInSeconds.has(createResource.resourceType)) {
             // @ts-ignore
-            createResource.ttlInSeconds = request.ttlInSeconds;
+            createResource.ttlInSeconds = Math.floor(
+                // @ts-ignore
+                Date.now() / 1000 + ttlsInSeconds.get(createResource.resourceType),
+            );
         }
         const expectedCreateItem: any = { ...createResource };
         expectedCreateItem[DOCUMENT_STATUS_FIELD] = DOCUMENT_STATUS.PENDING;
+
+        if (ttlsInSeconds.has(createResource.resourceType)) {
+            expectedCreateItem.ttlInSeconds = Math.floor(
+                // @ts-ignore
+                Date.now() / 1000 + ttlsInSeconds.get(createResource.resourceType),
+            );
+        }
 
         const expectedRequest = {
             Put: {
@@ -77,6 +84,13 @@ export default class GenerateStagingRequestsFactory {
             },
             lastModified: expect.stringMatching(utcTimeRegExp),
         };
+
+        // @ts-ignore
+        if (!_.isUndefined(request.ttlInSeconds)) {
+            // @ts-ignore
+            expectedStagingResponse.resource.ttlInSeconds = Math.floor(Date.now() / 1000 + request.ttlInSeconds);
+        }
+
         return {
             request,
             expectedRequest,
@@ -134,7 +148,7 @@ export default class GenerateStagingRequestsFactory {
         };
     }
 
-    static getUpdate(sourceRequest?: any): RequestResult {
+    static getUpdate(ttlsInSeconds: Map<string, number> = new Map<string, number>()): RequestResult {
         const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
         const vid = 1;
         const nextVid = 2;
@@ -151,7 +165,7 @@ export default class GenerateStagingRequestsFactory {
             gender: 'male',
             meta: existingMeta,
         };
-        let request: BatchReadWriteRequest = {
+        const request: BatchReadWriteRequest = {
             operation: 'update',
             resourceType: 'Patient',
             id,
@@ -159,18 +173,16 @@ export default class GenerateStagingRequestsFactory {
             fullUrl: `urn:uuid:${id}`,
         };
 
-        request = _.defaults(request, sourceRequest);
-
-        // @ts-ignore
-        if (!_.isUndefined(request.ttlInSeconds)) {
-            // @ts-ignore
-            resource.ttlInSeconds = request.ttlInSeconds;
-        }
-
         const expectedUpdateItem: any = { ...resource, meta: { ...existingMeta, versionId: nextVid.toString() } };
         expectedUpdateItem[DOCUMENT_STATUS_FIELD] = DOCUMENT_STATUS.PENDING;
         expectedUpdateItem.id = id;
         expectedUpdateItem.vid = nextVid;
+
+        // @ts-ignore
+        if (ttlsInSeconds.has(resource.resourceType)) {
+            // @ts-ignore
+            expectedUpdateItem.ttlInSeconds = Math.floor(Date.now() / 1000 + ttlsInSeconds.get(resource.resourceType));
+        }
 
         const expectedRequest = {
             Put: {

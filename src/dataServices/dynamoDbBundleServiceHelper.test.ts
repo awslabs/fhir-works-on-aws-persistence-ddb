@@ -4,16 +4,28 @@
  */
 
 import { BatchReadWriteRequest, BatchReadWriteResponse } from 'fhir-works-on-aws-interface';
+import sinon from 'sinon';
 import DynamoDbBundleServiceHelper from './dynamoDbBundleServiceHelper';
 import { DynamoDBConverter } from './dynamoDb';
 import GenerateStagingRequestsFactory from '../../testUtilities/GenerateStagingRequestsFactory';
 import GenerateRollbackRequestsFactory from '../../testUtilities/GenerateRollbackRequestsFactory';
 
 describe('generateStagingRequests', () => {
+    const sandbox = sinon.createSandbox();
+
+    beforeEach(() => {
+        sandbox.useFakeTimers(Date.now());
+    });
+
+    afterEach(() => {
+        sandbox.restore();
+    });
+
     test('CREATE', () => {
         const actualResult = DynamoDbBundleServiceHelper.generateStagingRequests(
             [GenerateStagingRequestsFactory.getCreate().request],
             GenerateStagingRequestsFactory.getCreate().idToVersionId,
+            new Map<string, number>(),
         );
         const expectedResult: any = {
             deleteRequests: [],
@@ -27,14 +39,14 @@ describe('generateStagingRequests', () => {
         expect(actualResult).toMatchObject(expectedResult);
     });
 
-    test('CREATE ttlInSeconds set', () => {
-        const createRequest = GenerateStagingRequestsFactory.getCreate({
-            ttlInSeconds: Math.round(Date.now() / 1000 + 50000),
-        });
+    test.only('CREATE ttlInSeconds set', () => {
+        const createRequest = GenerateStagingRequestsFactory.getCreate();
         const actualResult = DynamoDbBundleServiceHelper.generateStagingRequests(
             [createRequest.request],
             createRequest.idToVersionId,
+            new Map<string, number>([[createRequest.request.resourceType, 60]]),
         );
+
         const expectedResult: any = {
             deleteRequests: [],
             createRequests: [createRequest.expectedRequest],
@@ -51,6 +63,7 @@ describe('generateStagingRequests', () => {
         const actualResult = DynamoDbBundleServiceHelper.generateStagingRequests(
             [GenerateStagingRequestsFactory.getRead().request],
             GenerateStagingRequestsFactory.getRead().idToVersionId,
+            new Map<string, number>(),
         );
         const expectedResult: any = {
             deleteRequests: [],
@@ -68,6 +81,7 @@ describe('generateStagingRequests', () => {
         const actualResult = DynamoDbBundleServiceHelper.generateStagingRequests(
             [GenerateStagingRequestsFactory.getUpdate().request],
             GenerateStagingRequestsFactory.getUpdate().idToVersionId,
+            new Map<string, number>(),
         );
 
         const expectedResult: any = {
@@ -83,12 +97,11 @@ describe('generateStagingRequests', () => {
     });
 
     test('UPDATE ttlInSeconds set', () => {
-        const updateRequest = GenerateStagingRequestsFactory.getUpdate({
-            ttlInSeconds: Math.round(Date.now() / 1000 + 50000),
-        });
+        const updateRequest = GenerateStagingRequestsFactory.getUpdate();
         const actualResult = DynamoDbBundleServiceHelper.generateStagingRequests(
             [updateRequest.request],
             updateRequest.idToVersionId,
+            new Map<string, number>([[updateRequest.request.resourceType, 60]]),
         );
 
         const expectedResult: any = {
@@ -107,6 +120,7 @@ describe('generateStagingRequests', () => {
         const actualResult = DynamoDbBundleServiceHelper.generateStagingRequests(
             [GenerateStagingRequestsFactory.getDelete().request],
             GenerateStagingRequestsFactory.getDelete().idToVersionId,
+            new Map<string, number>(),
         );
         const expectedResult: any = {
             deleteRequests: [GenerateStagingRequestsFactory.getDelete().expectedRequest],
@@ -134,7 +148,11 @@ describe('generateStagingRequests', () => {
             GenerateStagingRequestsFactory.getUpdate().request,
             GenerateStagingRequestsFactory.getDelete().request,
         ];
-        const actualResult = DynamoDbBundleServiceHelper.generateStagingRequests(requests, idToVersionId);
+        const actualResult = DynamoDbBundleServiceHelper.generateStagingRequests(
+            requests,
+            idToVersionId,
+            new Map<string, number>(),
+        );
 
         const expectedResult = {
             createRequests: [GenerateStagingRequestsFactory.getCreate().expectedRequest],

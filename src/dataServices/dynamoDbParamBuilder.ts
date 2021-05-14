@@ -126,9 +126,9 @@ export default class DynamoDbParamBuilder {
         id: string,
         vid: number,
         allowOverwriteId: boolean = false,
-        ttl?: number,
+        ttlInSeconds?: number,
     ) {
-        const newItem = DynamoDbUtil.prepItemForDdbInsert(item, id, vid, DOCUMENT_STATUS.AVAILABLE, ttl);
+        const newItem = DynamoDbUtil.prepItemForDdbInsert(item, id, vid, DOCUMENT_STATUS.AVAILABLE, ttlInSeconds);
         const param: any = {
             TableName: RESOURCE_TABLE,
             Item: DynamoDBConverter.marshall(newItem),

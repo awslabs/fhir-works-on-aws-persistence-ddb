@@ -68,9 +68,12 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
 
     private readonly dynamoDb: DynamoDB;
 
-    constructor(dynamoDb: DynamoDB, supportUpdateCreate: boolean = false) {
+    private ttlsInSeconds: Map<string, number>;
+
+    constructor(dynamoDb: DynamoDB, supportUpdateCreate: boolean = false, ttlsInSeconds?: Map<string, number>) {
+        this.ttlsInSeconds = ttlsInSeconds || new Map<string, number>();
         this.dynamoDbHelper = new DynamoDbHelper(dynamoDb);
-        this.transactionService = new DynamoDbBundleService(dynamoDb);
+        this.transactionService = new DynamoDbBundleService(dynamoDb, undefined, ttlsInSeconds);
         this.dynamoDb = dynamoDb;
         this.updateCreateSupported = supportUpdateCreate;
     }
@@ -98,11 +101,11 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
     }
 
     async createResource(request: CreateResourceRequest) {
-        const { resourceType, resource, ttlInSeconds } = request;
-        return this.createResourceWithId(resourceType, resource, uuidv4(), ttlInSeconds);
+        const { resourceType, resource } = request;
+        return this.createResourceWithId(resourceType, resource, uuidv4());
     }
 
-    private async createResourceWithId(resourceType: string, resource: any, resourceId: string, ttlInSeconds?: number) {
+    private async createResourceWithId(resourceType: string, resource: any, resourceId: string) {
         const regex = new RegExp('^[a-zA-Z0-9-.]{1,64}$');
         if (!regex.test(resourceId)) {
             throw new InvalidResourceError(`Resource creation failed, id ${resourceId} is not valid`);
@@ -117,7 +120,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
             resourceId,
             vid,
             undefined,
-            ttlInSeconds,
+            this.ttlsInSeconds.get(resourceType),
         );
         try {
             await this.dynamoDb.putItem(param).promise();
@@ -162,7 +165,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
     }
 
     async updateResource(request: UpdateResourceRequest) {
-        const { resource, resourceType, id, ttlInSeconds } = request;
+        const { resource, resourceType, id } = request;
         try {
             // Will throw ResourceNotFoundError if resource can't be found
             await this.readResource({ resourceType, id });
@@ -178,7 +181,6 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
             operation: 'update',
             resourceType,
             id,
-            ttlInSeconds,
             resource: resourceClone,
         };
 

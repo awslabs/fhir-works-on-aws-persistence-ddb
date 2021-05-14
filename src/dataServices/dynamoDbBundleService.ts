@@ -37,11 +37,14 @@ export class DynamoDbBundleService implements Bundle {
 
     private static readonly dynamoDbMaxBatchSize = 25;
 
+    private ttlsInSeconds: Map<string, number>;
+
     // Allow Mocking DDB
-    constructor(dynamoDb: DynamoDB, maxExecutionTimeMs?: number) {
+    constructor(dynamoDb: DynamoDB, maxExecutionTimeMs?: number, ttlsInSeconds?: Map<string, number>) {
         this.dynamoDbHelper = new DynamoDbHelper(dynamoDb);
         this.dynamoDb = dynamoDb;
         this.maxExecutionTimeMs = maxExecutionTimeMs || 26 * 1000;
+        this.ttlsInSeconds = ttlsInSeconds || new Map<string, number>();
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -385,7 +388,7 @@ export class DynamoDbBundleService implements Bundle {
             readRequests,
             newLocks,
             newStagingResponses,
-        } = DynamoDbBundleServiceHelper.generateStagingRequests(requests, idToVersionId);
+        } = DynamoDbBundleServiceHelper.generateStagingRequests(requests, idToVersionId, this.ttlsInSeconds);
 
         // Order that Bundle specifies
         // https://www.hl7.org/fhir/http.html#trules

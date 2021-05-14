@@ -269,11 +269,12 @@ describe('atomicallyReadWriteResources', () => {
         async function runUpdateTest(shouldReqHasReferences: boolean) {
             // BUILD
             const transactWriteItemSpy = sinon.spy();
+            sinon.useFakeTimers(Date.now());
+
             AWSMock.mock('DynamoDB', 'transactWriteItems', (params: TransactWriteItemsInput, callback: Function) => {
                 transactWriteItemSpy(params);
                 callback(null, {});
             });
-            const ttlInSeconds = Math.floor(Date.now() / 1000 + 50000);
             const resourceType = 'Patient';
             const oldVid = 1;
             const newVid = oldVid + 1;
@@ -306,14 +307,17 @@ describe('atomicallyReadWriteResources', () => {
                 .returns(Promise.resolve({ message: 'Resource found', resource: oldResource }));
 
             const dynamoDb = new AWS.DynamoDB();
-            const transactionService = new DynamoDbBundleService(dynamoDb);
+            const transactionService = new DynamoDbBundleService(
+                dynamoDb,
+                undefined,
+                new Map<string, number>([[resourceType, 60]]),
+            );
 
             const updateRequest: BatchReadWriteRequest = {
                 operation: 'update',
                 resourceType,
                 id,
                 resource: newResource,
-                ttlInSeconds,
             };
 
             // OPERATE
@@ -322,7 +326,7 @@ describe('atomicallyReadWriteResources', () => {
                 startTime: new Date(),
             });
 
-            newResource.ttlInSeconds = ttlInSeconds;
+            newResource.ttlInSeconds = Math.floor(Date.now() / 1000 + 60);
 
             // CHECK
             // transactWriteItem requests is called 4x
@@ -390,7 +394,7 @@ describe('atomicallyReadWriteResources', () => {
                             Key: { id: { S: id }, vid: { N: oldVid.toString() } },
                             UpdateExpression: 'set ttlInSeconds = :ttlInSeconds',
                             ExpressionAttributeValues: {
-                                ':ttlInSeconds': { N: ttlInSeconds.toString() },
+                                ':ttlInSeconds': { N: Math.floor(Date.now() / 1000 + 60).toString() },
                                 ':resourceType': { S: 'Patient' },
                             },
                             ConditionExpression: 'resourceType = :resourceType',

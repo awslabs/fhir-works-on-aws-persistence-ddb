@@ -25,7 +25,11 @@ export interface ItemRequest {
 }
 
 export default class DynamoDbBundleServiceHelper {
-    static generateStagingRequests(requests: BatchReadWriteRequest[], idToVersionId: Record<string, number>) {
+    static generateStagingRequests(
+        requests: BatchReadWriteRequest[],
+        idToVersionId: Record<string, number>,
+        ttlsInSeconds: Map<string, number>,
+    ) {
         const deleteRequests: any = [];
         const createRequests: any = [];
         const updateRequests: any = [];
@@ -48,7 +52,7 @@ export default class DynamoDbBundleServiceHelper {
                         id,
                         vid,
                         DOCUMENT_STATUS.PENDING,
-                        request.ttlInSeconds,
+                        ttlsInSeconds.get(request.resourceType),
                     );
 
                     createRequests.push({
@@ -59,8 +63,8 @@ export default class DynamoDbBundleServiceHelper {
                     });
 
                     const stagingResource = _.cloneDeep(request.resource);
-                    if (!_.isUndefined(request.ttlInSeconds)) {
-                        stagingResource[TTL_IN_SECONDS] = request.ttlInSeconds;
+                    if (_.has(Item, 'ttlInSeconds')) {
+                        stagingResource[TTL_IN_SECONDS] = Item.ttlInSeconds;
                     }
                     const { stagingResponse, itemLocked } = this.addStagingResponseAndItemsLocked(request.operation, {
                         ...stagingResource,
@@ -81,7 +85,7 @@ export default class DynamoDbBundleServiceHelper {
                         id,
                         vid,
                         DOCUMENT_STATUS.PENDING,
-                        request.ttlInSeconds,
+                        ttlsInSeconds.get(request.resourceType),
                     );
 
                     updateRequests.push({
@@ -92,8 +96,8 @@ export default class DynamoDbBundleServiceHelper {
                     });
 
                     const stagingResource = _.cloneDeep(request.resource);
-                    if (!_.isUndefined(request.ttlInSeconds)) {
-                        stagingResource[TTL_IN_SECONDS] = request.ttlInSeconds;
+                    if (_.has(Item, 'ttlInSeconds')) {
+                        stagingResource[TTL_IN_SECONDS] = Item.ttlInSeconds;
                     }
 
                     const { stagingResponse, itemLocked } = this.addStagingResponseAndItemsLocked(request.operation, {

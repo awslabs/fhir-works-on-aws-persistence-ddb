@@ -4,6 +4,7 @@
  */
 
 import { cloneDeep } from 'lodash';
+import sinon from 'sinon';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 import DOCUMENT_STATUS from './documentStatus';
 import { timeFromEpochInMsRegExp, utcTimeRegExp } from '../../testUtilities/regExpressions';
@@ -150,9 +151,9 @@ describe('buildUpdateDocumentStatusParam', () => {
 });
 
 describe('buildPutAvailableItemParam', () => {
+    const sandbox = sinon.createSandbox();
     const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
     const vid = 1;
-    const ttlInSeconds = Math.round(Date.now() / 1000 + 50000);
     const item = {
         resourceType: 'Patient',
         id,
@@ -224,6 +225,14 @@ describe('buildPutAvailableItemParam', () => {
         ConditionExpression: 'attribute_not_exists(id)',
     };
 
+    beforeEach(() => {
+        sandbox.useFakeTimers(Date.now());
+    });
+
+    afterEach(() => {
+        sandbox.restore();
+    });
+
     test('Param has the fields documentStatus, lockEndTs, and references', () => {
         const actualParams = DynamoDbParamBuilder.buildPutAvailableItemParam(item, id, vid);
         expect(actualParams).toEqual(expectedParams);
@@ -238,10 +247,10 @@ describe('buildPutAvailableItemParam', () => {
     });
 
     test('ttlInSeconds set', () => {
-        const actualParams = DynamoDbParamBuilder.buildPutAvailableItemParam(item, id, vid, undefined, ttlInSeconds);
+        const actualParams = DynamoDbParamBuilder.buildPutAvailableItemParam(item, id, vid, undefined, 60);
         const ttlExpectedParams = cloneDeep(expectedParams);
         ttlExpectedParams.Item.ttlInSeconds = {
-            N: ttlInSeconds.toString(),
+            N: Math.floor(Date.now() / 1000 + 60).toString(),
         };
         expect(actualParams).toEqual(ttlExpectedParams);
     });
