@@ -1,7 +1,7 @@
 import { makeLogger } from 'fhir-works-on-aws-interface';
 
 const componentLogger = makeLogger({
-    component: 'routing',
+    component: 'persistence',
 });
 
 export default function getComponentLogger(): any {
