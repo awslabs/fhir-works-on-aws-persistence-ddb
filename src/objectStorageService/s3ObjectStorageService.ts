@@ -68,7 +68,7 @@ const S3ObjectStorageService: ObjectStorageInterface = class {
             Bucket: FHIR_BINARY_BUCKET,
             Key: fileName,
         };
-        logger.log('Delete Params', params);
+        logger.info('Delete Params', params);
         await S3.deleteObject(params).promise();
         return { message: '' };
     }
@@ -131,7 +131,7 @@ const S3ObjectStorageService: ObjectStorageInterface = class {
                     Objects: keysToDelete,
                 },
             };
-            logger.log('Delete Params', params);
+            logger.info('Delete Params', params);
             promises.push(S3.deleteObjects(params).promise());
         } while (token);
 

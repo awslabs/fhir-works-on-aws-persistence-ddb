@@ -163,7 +163,7 @@ export default class DdbToEsHelper {
             return;
         }
 
-        logger.log(
+        logger.info(
             `Starting operation "${type}" on resource Ids: `,
             filteredPromiseParamAndIds.map(paramAndId => {
                 return paramAndId.id;

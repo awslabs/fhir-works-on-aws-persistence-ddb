@@ -21,7 +21,7 @@ export async function handleDdbToEsEvent(event: any) {
         const promiseParamAndIds: PromiseParamAndId[] = [];
         for (let i = 0; i < event.Records.length; i += 1) {
             const record = event.Records[i];
-            logger.log('EventName: ', record.eventName);
+            logger.info('EventName: ', record.eventName);
 
             const ddbJsonImage = record.eventName === REMOVE ? record.dynamodb.OldImage : record.dynamodb.NewImage;
             const image = AWS.DynamoDB.Converter.unmarshall(ddbJsonImage);
