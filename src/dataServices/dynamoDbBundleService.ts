@@ -451,11 +451,16 @@ export class DynamoDbBundleService implements Bundle {
                     }),
                 );
 
-                await this.dynamoDb
-                    .transactWriteItems({
-                        TransactItems: ttlInSecondsTxItems,
-                    })
-                    .promise();
+                const ttlChunks = _.chunk(ttlInSecondsTxItems, 25);
+                const ttlPromises = _.map(ttlChunks, ttlChunk => {
+                    return this.dynamoDb
+                        .transactWriteItems({
+                            TransactItems: ttlChunk,
+                        })
+                        .promise();
+                });
+
+                await Promise.all(ttlPromises);
             }
 
             logger.info('Successfully staged items');
