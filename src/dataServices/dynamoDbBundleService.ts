@@ -20,6 +20,7 @@ import {
 import DOCUMENT_STATUS from './documentStatus';
 import DynamoDbBundleServiceHelper, { ItemRequest } from './dynamoDbBundleServiceHelper';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
+import { TTL_IN_SECONDS } from './dynamoDbUtil';
 
 import DynamoDbHelper from './dynamoDbHelper';
 import getComponentLogger from '../loggerBuilder';
@@ -433,7 +434,7 @@ export class DynamoDbBundleService implements Bundle {
             // otherwise, we can end up with a single resource instance missing versions b/c they've been archived
             const ttlInSecondsUpdates = _.filter(updateRequests, updateRequest => {
                 return (
-                    parseInt(updateRequest.Put.Item.vid.N, 10) !== 1 && _.has(updateRequest.Put.Item, 'ttlInSeconds')
+                    parseInt(updateRequest.Put.Item.vid.N, 10) !== 1 && _.has(updateRequest.Put.Item, TTL_IN_SECONDS)
                 );
             });
             if (ttlInSecondsUpdates.length > 0) {

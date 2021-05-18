@@ -63,7 +63,7 @@ export default class DynamoDbBundleServiceHelper {
                     });
 
                     const stagingResource = _.cloneDeep(request.resource);
-                    if (_.has(Item, 'ttlInSeconds')) {
+                    if (_.has(Item, TTL_IN_SECONDS)) {
                         stagingResource[TTL_IN_SECONDS] = Item.ttlInSeconds;
                     }
                     const { stagingResponse, itemLocked } = this.addStagingResponseAndItemsLocked(request.operation, {
@@ -96,7 +96,7 @@ export default class DynamoDbBundleServiceHelper {
                     });
 
                     const stagingResource = _.cloneDeep(request.resource);
-                    if (_.has(Item, 'ttlInSeconds')) {
+                    if (_.has(Item, TTL_IN_SECONDS)) {
                         stagingResource[TTL_IN_SECONDS] = Item.ttlInSeconds;
                     }
 
