@@ -28,7 +28,7 @@ export default class DynamoDbBundleServiceHelper {
     static generateStagingRequests(
         requests: BatchReadWriteRequest[],
         idToVersionId: Record<string, number>,
-        ttlsInSeconds: Map<string, number>,
+        ttlsInSeconds: Map<string, number> = new Map<string, number>(),
     ) {
         const deleteRequests: any = [];
         const createRequests: any = [];
