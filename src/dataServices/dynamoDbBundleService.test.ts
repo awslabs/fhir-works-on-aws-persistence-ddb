@@ -266,7 +266,7 @@ describe('atomicallyReadWriteResources', () => {
             await runCreateTest(true);
         });
 
-        async function runUpdateTest(shouldReqHasReferences: boolean) {
+        async function runUpdateTest(shouldReqHasReferences: boolean, shouldReqHaveTTLInSeconds: boolean) {
             // BUILD
             const transactWriteItemSpy = sinon.spy();
             sinon.useFakeTimers(Date.now());
@@ -307,11 +307,11 @@ describe('atomicallyReadWriteResources', () => {
                 .returns(Promise.resolve({ message: 'Resource found', resource: oldResource }));
 
             const dynamoDb = new AWS.DynamoDB();
-            const transactionService = new DynamoDbBundleService(
-                dynamoDb,
-                undefined,
-                new Map<string, number>([[resourceType, 60]]),
-            );
+            const ttlsInSeconds = new Map<string, number>();
+            if (shouldReqHaveTTLInSeconds) {
+                ttlsInSeconds.set(resourceType, 60);
+            }
+            const transactionService = new DynamoDbBundleService(dynamoDb, undefined, ttlsInSeconds);
 
             const updateRequest: BatchReadWriteRequest = {
                 operation: 'update',
@@ -326,11 +326,17 @@ describe('atomicallyReadWriteResources', () => {
                 startTime: new Date(),
             });
 
-            newResource.ttlInSeconds = Math.floor(Date.now() / 1000 + 60);
+            if (shouldReqHaveTTLInSeconds) {
+                newResource.ttlInSeconds = Math.floor(Date.now() / 1000 + 60);
+            }
 
             // CHECK
             // transactWriteItem requests is called 4x
-            expect(transactWriteItemSpy.callCount).toEqual(4);
+            let expectedCallCount = 3;
+            if (shouldReqHaveTTLInSeconds) {
+                expectedCallCount += 1;
+            }
+            expect(transactWriteItemSpy.callCount).toEqual(expectedCallCount);
 
             // 0. change Patient record's documentStatus to be 'LOCKED'
             expect(transactWriteItemSpy.getCall(0).args[0]).toStrictEqual({
@@ -373,8 +379,10 @@ describe('atomicallyReadWriteResources', () => {
             insertedResource.meta!.M!.lastUpdated.S = expect.stringMatching(utcTimeRegExp);
             insertedResource.meta!.M!.versionId.S = newVid.toString();
 
+            let callCount = 1;
+
             // 1. create new Patient record with documentStatus of 'PENDING'
-            expect(transactWriteItemSpy.getCall(1).args[0]).toStrictEqual({
+            expect(transactWriteItemSpy.getCall(callCount).args[0]).toStrictEqual({
                 TransactItems: [
                     {
                         Put: {
@@ -386,25 +394,29 @@ describe('atomicallyReadWriteResources', () => {
             });
 
             // 2. Update ttlInSeconds for previous version
-            expect(transactWriteItemSpy.getCall(2).args[0]).toStrictEqual({
-                TransactItems: [
-                    {
-                        Update: {
-                            TableName: '',
-                            Key: { id: { S: id }, vid: { N: oldVid.toString() } },
-                            UpdateExpression: 'set ttlInSeconds = :ttlInSeconds',
-                            ExpressionAttributeValues: {
-                                ':ttlInSeconds': { N: Math.floor(Date.now() / 1000 + 60).toString() },
-                                ':resourceType': { S: 'Patient' },
+            if (shouldReqHaveTTLInSeconds) {
+                callCount += 1;
+                expect(transactWriteItemSpy.getCall(2).args[0]).toStrictEqual({
+                    TransactItems: [
+                        {
+                            Update: {
+                                TableName: '',
+                                Key: { id: { S: id }, vid: { N: oldVid.toString() } },
+                                UpdateExpression: 'set ttlInSeconds = :ttlInSeconds',
+                                ExpressionAttributeValues: {
+                                    ':ttlInSeconds': { N: Math.floor(Date.now() / 1000 + 60).toString() },
+                                    ':resourceType': { S: 'Patient' },
+                                },
+                                ConditionExpression: 'resourceType = :resourceType',
                             },
-                            ConditionExpression: 'resourceType = :resourceType',
                         },
-                    },
-                ],
-            });
+                    ],
+                });
+            }
 
             // 3. change Patient record's documentStatus to be 'AVAILABLE'
-            expect(transactWriteItemSpy.getCall(3).args[0]).toStrictEqual({
+            callCount += 1;
+            expect(transactWriteItemSpy.getCall(callCount).args[0]).toStrictEqual({
                 TransactItems: [
                     {
                         Update: {
@@ -468,12 +480,20 @@ describe('atomicallyReadWriteResources', () => {
             });
         }
 
-        test('UPDATING a resource with no references', async () => {
-            await runUpdateTest(false);
+        test('UPDATING a resource with no references & ttlsInSeconds', async () => {
+            await runUpdateTest(false, true);
         });
 
-        test('UPDATING a resource with references', async () => {
-            await runUpdateTest(true);
+        test('UPDATING a resource with references & ttlsInSeconds', async () => {
+            await runUpdateTest(true, true);
+        });
+
+        test('UPDATING a resource with no references & with no ttlsInSeconds', async () => {
+            await runUpdateTest(false, false);
+        });
+
+        test('UPDATING a resource with references & with no ttlsInSeconds', async () => {
+            await runUpdateTest(true, false);
         });
     });
 });
