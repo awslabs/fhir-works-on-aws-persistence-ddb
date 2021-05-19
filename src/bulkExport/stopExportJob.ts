@@ -6,6 +6,9 @@
 import { Handler } from 'aws-lambda';
 import AWS from '../AWS';
 import { BulkExportStateMachineGlobalParameters } from './types';
+import getComponentLogger from '../loggerBuilder';
+
+const logger = getComponentLogger();
 
 export const stopExportJobHandler: Handler<BulkExportStateMachineGlobalParameters, { jobId: string }> = async event => {
     const { GLUE_JOB_NAME } = process.env;
@@ -25,7 +28,7 @@ export const stopExportJobHandler: Handler<BulkExportStateMachineGlobalParameter
         })
         .promise();
     if (stopJobRunResponse.Errors!.length > 0) {
-        console.log('Failed to stop job', JSON.stringify(stopJobRunResponse));
+        logger.error('Failed to stop job', JSON.stringify(stopJobRunResponse));
         throw new Error(`Failed to stop job ${glueJobRunId}`);
     }
     return {

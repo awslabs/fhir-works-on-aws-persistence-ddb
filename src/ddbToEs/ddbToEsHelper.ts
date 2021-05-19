@@ -11,6 +11,9 @@ import AWS from '../AWS';
 import PromiseParamAndId, { PromiseType } from './promiseParamAndId';
 import { DOCUMENT_STATUS_FIELD } from '../dataServices/dynamoDbUtil';
 import DOCUMENT_STATUS from '../dataServices/documentStatus';
+import getComponentLogger from '../loggerBuilder';
+
+const logger = getComponentLogger();
 
 const BINARY_RESOURCE = 'binary';
 
@@ -72,7 +75,7 @@ export default class DdbToEsHelper {
                 await this.ElasticSearch.indices.create(params);
             }
         } catch (error) {
-            console.error(`Failed to check if index: ${indexName} exist or create index`);
+            logger.error(`Failed to check if index: ${indexName} exist or create index`);
             throw error;
         }
     }
@@ -160,7 +163,7 @@ export default class DdbToEsHelper {
             return;
         }
 
-        console.log(
+        logger.info(
             `Starting operation "${type}" on resource Ids: `,
             filteredPromiseParamAndIds.map(paramAndId => {
                 return paramAndId.id;
@@ -181,7 +184,7 @@ export default class DdbToEsHelper {
                     }
                     return response;
                 } catch (e) {
-                    console.error(`${type} failed on id: ${paramAndId.id}, due to error:\n${e}`);
+                    logger.error(`${type} failed on id: ${paramAndId.id}, due to error:\n${e}`);
                     throw e;
                 }
             }),
