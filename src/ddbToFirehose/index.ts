@@ -22,7 +22,7 @@ export async function handleDdbToFirehoseEvent(event: any) {
     try {
         const deliveryStreamName = process.env.ARCHIVE_DELIVERY_STREAM_NAME || DEFAULT_ARCHIVE_DELIVERY_STREAM_NAME;
         const firehose = new AWS.Firehose();
-        console.log(JSON.stringify(event));
+        //console.log(JSON.stringify(event));
 
         // make sure we have any records
         if (!_.isUndefined(event) && _.has(event, 'Records') && !_.isEmpty(event.Records)) {
