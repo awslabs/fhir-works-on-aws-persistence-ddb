@@ -247,7 +247,7 @@ describe('ddbToFirehoseLambda', () => {
         expect(consoleLogStub.lastCall.firstArg).toEqual('Nothing to see here, carry on.');
     });
 
-    test.only('putRecordBatch fails', async () => {
+    test('putRecordBatch fails', async () => {
         putRecordBatchStub.reset();
         putRecordBatchStub.yields(new Error('AWS Firehose.putRecordBatch call failed'));
         const event = {

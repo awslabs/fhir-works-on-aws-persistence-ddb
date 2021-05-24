@@ -201,7 +201,10 @@ export default class DynamoDbParamBuilder {
                     id,
                     vid,
                 }),
-                UpdateExpression: `set ${TTL_IN_SECONDS_FIELD} = :ttlInSeconds`,
+                UpdateExpression: `set #a = :ttlInSeconds`,
+                ExpressionAttributeNames: {
+                    '#a': TTL_IN_SECONDS_FIELD,
+                },
                 ExpressionAttributeValues: DynamoDBConverter.marshall({
                     ':ttlInSeconds': ttlInSeconds,
                     ':resourceType': resourceType,

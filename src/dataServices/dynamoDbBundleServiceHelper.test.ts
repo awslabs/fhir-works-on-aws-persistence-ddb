@@ -38,7 +38,7 @@ describe('generateStagingRequests', () => {
         expect(actualResult).toMatchObject(expectedResult);
     });
 
-    test.only('CREATE ttlInSeconds set', () => {
+    test('CREATE ttlInSeconds set', () => {
         const createRequest = GenerateStagingRequestsFactory.getCreate();
         const actualResult = DynamoDbBundleServiceHelper.generateStagingRequests(
             [createRequest.request],

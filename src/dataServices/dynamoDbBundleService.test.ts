@@ -408,7 +408,10 @@ describe('atomicallyReadWriteResources', () => {
                             Update: {
                                 TableName: '',
                                 Key: { id: { S: id }, vid: { N: oldVid.toString() } },
-                                UpdateExpression: `set ${TTL_IN_SECONDS_FIELD} = :ttlInSeconds`,
+                                UpdateExpression: `set #a = :ttlInSeconds`,
+                                ExpressionAttributeNames: {
+                                    '#a': TTL_IN_SECONDS_FIELD,
+                                },
                                 ExpressionAttributeValues: {
                                     ':ttlInSeconds': { N: Math.floor(Date.now() / 1000 + 60).toString() },
                                     ':resourceType': { S: 'Patient' },
