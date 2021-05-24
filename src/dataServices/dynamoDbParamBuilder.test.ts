@@ -8,6 +8,7 @@ import sinon from 'sinon';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 import DOCUMENT_STATUS from './documentStatus';
 import { timeFromEpochInMsRegExp, utcTimeRegExp } from '../../testUtilities/regExpressions';
+import { TTL_IN_SECONDS_FIELD } from './dynamoDbUtil';
 
 describe('buildUpdateDocumentStatusParam', () => {
     const resourceType = 'Patient';
@@ -246,10 +247,10 @@ describe('buildPutAvailableItemParam', () => {
         expect(actualParams).toEqual(clonedExpectedParams);
     });
 
-    test('ttlInSeconds set', () => {
+    test('_ttlInSeconds set', () => {
         const actualParams = DynamoDbParamBuilder.buildPutAvailableItemParam(item, id, vid, undefined, 60);
         const ttlExpectedParams = cloneDeep(expectedParams);
-        ttlExpectedParams.Item.ttlInSeconds = {
+        ttlExpectedParams.Item[TTL_IN_SECONDS_FIELD] = {
             N: Math.floor(Date.now() / 1000 + 60).toString(),
         };
         expect(actualParams).toEqual(ttlExpectedParams);

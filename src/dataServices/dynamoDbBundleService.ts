@@ -20,7 +20,7 @@ import {
 import DOCUMENT_STATUS from './documentStatus';
 import DynamoDbBundleServiceHelper, { ItemRequest } from './dynamoDbBundleServiceHelper';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
-import { TTL_IN_SECONDS } from './dynamoDbUtil';
+import { TTL_IN_SECONDS_FIELD } from './dynamoDbUtil';
 
 import DynamoDbHelper from './dynamoDbHelper';
 import getComponentLogger from '../loggerBuilder';
@@ -434,7 +434,8 @@ export class DynamoDbBundleService implements Bundle {
             // otherwise, we can end up with a single resource instance missing versions b/c they've been archived
             const ttlInSecondsUpdates = _.filter(updateRequests, updateRequest => {
                 return (
-                    parseInt(updateRequest.Put.Item.vid.N, 10) !== 1 && _.has(updateRequest.Put.Item, TTL_IN_SECONDS)
+                    parseInt(updateRequest.Put.Item.vid.N, 10) !== 1 &&
+                    _.has(updateRequest.Put.Item, TTL_IN_SECONDS_FIELD)
                 );
             });
             if (ttlInSecondsUpdates.length > 0) {
@@ -446,7 +447,7 @@ export class DynamoDbBundleService implements Bundle {
                                 updateRequest.Put.Item.id.S,
                                 vid,
                                 updateRequest.Put.Item.resourceType.S,
-                                parseInt(updateRequest.Put.Item.ttlInSeconds.N, 10),
+                                parseInt(updateRequest.Put.Item[TTL_IN_SECONDS_FIELD].N, 10),
                             );
                         });
                     }),

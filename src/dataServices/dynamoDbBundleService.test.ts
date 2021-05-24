@@ -13,7 +13,13 @@ import { DynamoDbBundleService } from './dynamoDbBundleService';
 import { DynamoDBConverter } from './dynamoDb';
 import { timeFromEpochInMsRegExp, utcTimeRegExp, uuidRegExp } from '../../testUtilities/regExpressions';
 import DynamoDbHelper from './dynamoDbHelper';
-import { DOCUMENT_STATUS_FIELD, LOCK_END_TS_FIELD, REFERENCES_FIELD, VID_FIELD } from './dynamoDbUtil';
+import {
+    DOCUMENT_STATUS_FIELD,
+    LOCK_END_TS_FIELD,
+    REFERENCES_FIELD,
+    VID_FIELD,
+    TTL_IN_SECONDS_FIELD,
+} from './dynamoDbUtil';
 // eslint-disable-next-line import/order
 import sinon = require('sinon');
 
@@ -327,7 +333,7 @@ describe('atomicallyReadWriteResources', () => {
             });
 
             if (shouldReqHaveTTLInSeconds) {
-                newResource.ttlInSeconds = Math.floor(Date.now() / 1000 + 60);
+                newResource[TTL_IN_SECONDS_FIELD] = Math.floor(Date.now() / 1000 + 60);
             }
 
             // CHECK
@@ -396,13 +402,13 @@ describe('atomicallyReadWriteResources', () => {
             // 2. Update ttlInSeconds for previous version
             if (shouldReqHaveTTLInSeconds) {
                 callCount += 1;
-                expect(transactWriteItemSpy.getCall(2).args[0]).toStrictEqual({
+                expect(transactWriteItemSpy.getCall(callCount).args[0]).toStrictEqual({
                     TransactItems: [
                         {
                             Update: {
                                 TableName: '',
                                 Key: { id: { S: id }, vid: { N: oldVid.toString() } },
-                                UpdateExpression: 'set ttlInSeconds = :ttlInSeconds',
+                                UpdateExpression: `set ${TTL_IN_SECONDS_FIELD} = :ttlInSeconds`,
                                 ExpressionAttributeValues: {
                                     ':ttlInSeconds': { N: Math.floor(Date.now() / 1000 + 60).toString() },
                                     ':resourceType': { S: 'Patient' },

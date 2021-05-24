@@ -11,7 +11,7 @@ import {
     TypeOperation,
     SystemOperation,
 } from 'fhir-works-on-aws-interface';
-import { DynamoDbUtil, TTL_IN_SECONDS } from './dynamoDbUtil';
+import { DynamoDbUtil, TTL_IN_SECONDS_FIELD } from './dynamoDbUtil';
 import DOCUMENT_STATUS from './documentStatus';
 import { DynamoDBConverter, RESOURCE_TABLE } from './dynamoDb';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
@@ -63,8 +63,8 @@ export default class DynamoDbBundleServiceHelper {
                     });
 
                     const stagingResource = _.cloneDeep(request.resource);
-                    if (_.has(Item, TTL_IN_SECONDS)) {
-                        stagingResource[TTL_IN_SECONDS] = Item.ttlInSeconds;
+                    if (_.has(Item, TTL_IN_SECONDS_FIELD)) {
+                        stagingResource[TTL_IN_SECONDS_FIELD] = Item.ttlInSeconds;
                     }
                     const { stagingResponse, itemLocked } = this.addStagingResponseAndItemsLocked(request.operation, {
                         ...stagingResource,
@@ -96,8 +96,8 @@ export default class DynamoDbBundleServiceHelper {
                     });
 
                     const stagingResource = _.cloneDeep(request.resource);
-                    if (_.has(Item, TTL_IN_SECONDS)) {
-                        stagingResource[TTL_IN_SECONDS] = Item.ttlInSeconds;
+                    if (_.has(Item, TTL_IN_SECONDS_FIELD)) {
+                        stagingResource[TTL_IN_SECONDS_FIELD] = Item[TTL_IN_SECONDS_FIELD];
                     }
 
                     const { stagingResponse, itemLocked } = this.addStagingResponseAndItemsLocked(request.operation, {

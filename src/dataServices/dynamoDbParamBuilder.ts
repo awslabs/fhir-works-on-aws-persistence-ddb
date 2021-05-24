@@ -10,7 +10,7 @@ import {
     EXPORT_REQUEST_TABLE,
     EXPORT_REQUEST_TABLE_JOB_STATUS_INDEX,
 } from './dynamoDb';
-import { DynamoDbUtil, DOCUMENT_STATUS_FIELD, LOCK_END_TS_FIELD, TTL_IN_SECONDS } from './dynamoDbUtil';
+import { DynamoDbUtil, DOCUMENT_STATUS_FIELD, LOCK_END_TS_FIELD, TTL_IN_SECONDS_FIELD } from './dynamoDbUtil';
 import DOCUMENT_STATUS from './documentStatus';
 import { BulkExportJob } from '../bulkExport/types';
 
@@ -201,7 +201,7 @@ export default class DynamoDbParamBuilder {
                     id,
                     vid,
                 }),
-                UpdateExpression: `set ${TTL_IN_SECONDS} = :ttlInSeconds`,
+                UpdateExpression: `set ${TTL_IN_SECONDS_FIELD} = :ttlInSeconds`,
                 ExpressionAttributeValues: DynamoDBConverter.marshall({
                     ':ttlInSeconds': ttlInSeconds,
                     ':resourceType': resourceType,

@@ -5,7 +5,14 @@
 
 import { clone } from 'fhir-works-on-aws-interface';
 import sinon from 'sinon';
-import { DOCUMENT_STATUS_FIELD, DynamoDbUtil, LOCK_END_TS_FIELD, REFERENCES_FIELD, VID_FIELD } from './dynamoDbUtil';
+import {
+    DOCUMENT_STATUS_FIELD,
+    DynamoDbUtil,
+    LOCK_END_TS_FIELD,
+    REFERENCES_FIELD,
+    VID_FIELD,
+    TTL_IN_SECONDS_FIELD,
+} from './dynamoDbUtil';
 import DOCUMENT_STATUS from './documentStatus';
 import { utcTimeRegExp } from '../../testUtilities/regExpressions';
 
@@ -214,7 +221,7 @@ describe('prepItemForDdbInsert', () => {
 
         // CHECK
         const expectedResource = clone(resource);
-        expectedResource.ttlInSeconds = 60;
+        expectedResource[TTL_IN_SECONDS_FIELD] = 60;
         expectedResource[REFERENCES_FIELD] = [];
 
         checkExpectedItemMatchActualItem(actualItem, expectedResource, vid);

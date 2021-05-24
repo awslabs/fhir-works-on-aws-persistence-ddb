@@ -29,6 +29,7 @@ import { DynamoDBConverter } from './dynamoDb';
 import DynamoDbHelper from './dynamoDbHelper';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 import { ConditionalCheckFailedExceptionMock } from '../../testUtilities/ConditionalCheckFailedException';
+import { TTL_IN_SECONDS_FIELD } from './dynamoDbUtil';
 
 jest.mock('../bulkExport/bulkExport');
 AWSMock.setSDKInstance(AWS);
@@ -159,7 +160,7 @@ describe('CREATE', () => {
         expect(serviceResponse.resource).toStrictEqual(expectedResource);
 
         expect(putItemStub.called).toBeTruthy();
-        expect(putItemStub.firstCall.firstArg.Item.ttlInSeconds.N).toEqual('60');
+        expect(putItemStub.firstCall.firstArg.Item[TTL_IN_SECONDS_FIELD].N).toEqual('60');
     });
 });
 
