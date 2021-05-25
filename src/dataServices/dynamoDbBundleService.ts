@@ -190,7 +190,8 @@ export class DynamoDbBundleService implements Bundle {
         const idItemsFailedToRead: string[] = [];
         for (let i = 0; i < itemResponses.length; i += 1) {
             const itemResponse = itemResponses[i];
-            if (itemResponse instanceof ResourceNotFoundError) {
+            // allow for update as create scenario
+            if (itemResponse instanceof ResourceNotFoundError && itemsToLock[i].operation !== 'update') {
                 idItemsFailedToRead.push(`${itemsToLock[i].resourceType}/${itemsToLock[i].id}`);
             }
         }
