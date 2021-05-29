@@ -461,14 +461,14 @@ describe('atomicallyReadWriteResources', () => {
             const dynamoDb = new AWS.DynamoDB();
             const bundleService = new DynamoDbBundleService(dynamoDb, supportUpdateCreate);
 
-            const updateRequest: BatchReadWriteRequest = {
+            const batchRequest: BatchReadWriteRequest = {
                 operation,
                 resourceType: 'Patient',
                 id,
-                resource: 'Patient/bce8411e-c15e-448c-95dd-69155a837405',
+                resource: `Patient/${id}`,
             };
             // @ts-ignore
-            const actualResponse = await bundleService.lockItems([updateRequest]);
+            const actualResponse = await bundleService.lockItems([batchRequest]);
             if (isLockSuccessful) {
                 expect(actualResponse).toStrictEqual({
                     lockedItems: [],
@@ -476,7 +476,7 @@ describe('atomicallyReadWriteResources', () => {
                 });
             } else {
                 expect(actualResponse).toStrictEqual({
-                    errorMessage: 'Failed to find resources: Patient/bce8411e-c15e-448c-95dd-69155a837405',
+                    errorMessage: `Failed to find resources: Patient/${id}`,
                     errorType: 'USER_ERROR',
                     lockedItems: [],
                     successfulLock: false,
