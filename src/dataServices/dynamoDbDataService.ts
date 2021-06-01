@@ -70,7 +70,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
 
     constructor(dynamoDb: DynamoDB, supportUpdateCreate: boolean = false) {
         this.dynamoDbHelper = new DynamoDbHelper(dynamoDb);
-        this.transactionService = new DynamoDbBundleService(dynamoDb);
+        this.transactionService = new DynamoDbBundleService(dynamoDb, supportUpdateCreate);
         this.dynamoDb = dynamoDb;
         this.updateCreateSupported = supportUpdateCreate;
     }
