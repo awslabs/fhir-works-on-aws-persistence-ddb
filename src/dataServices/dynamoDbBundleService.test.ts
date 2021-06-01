@@ -8,7 +8,7 @@ import * as AWSMock from 'aws-sdk-mock';
 
 import { QueryInput, TransactWriteItemsInput } from 'aws-sdk/clients/dynamodb';
 import AWS from 'aws-sdk';
-import { BundleResponse, BatchReadWriteRequest } from 'fhir-works-on-aws-interface';
+import { BundleResponse, BatchReadWriteRequest, TypeOperation } from 'fhir-works-on-aws-interface';
 import { DynamoDbBundleService } from './dynamoDbBundleService';
 import { DynamoDBConverter } from './dynamoDb';
 import { timeFromEpochInMsRegExp, utcTimeRegExp, uuidRegExp } from '../../testUtilities/regExpressions';
@@ -449,5 +449,56 @@ describe('atomicallyReadWriteResources', () => {
         test('UPDATING a resource with references', async () => {
             await runUpdateTest(true);
         });
+    });
+
+    describe('Update as Create Cases', () => {
+        const runTest = async (supportUpdateCreate: boolean, operation: TypeOperation, isLockSuccessful: boolean) => {
+            // READ items (Failure)
+            AWSMock.mock('DynamoDB', 'query', (params: QueryInput, callback: Function) => {
+                callback(null, { Items: [] });
+            });
+
+            const dynamoDb = new AWS.DynamoDB();
+            const bundleService = new DynamoDbBundleService(dynamoDb, supportUpdateCreate);
+
+            const batchRequest: BatchReadWriteRequest = {
+                operation,
+                resourceType: 'Patient',
+                id,
+                resource: `Patient/${id}`,
+            };
+            // @ts-ignore
+            const actualResponse = await bundleService.lockItems([batchRequest]);
+            if (isLockSuccessful) {
+                expect(actualResponse).toStrictEqual({
+                    lockedItems: [],
+                    successfulLock: true,
+                });
+            } else {
+                expect(actualResponse).toStrictEqual({
+                    errorMessage: `Failed to find resources: Patient/${id}`,
+                    errorType: 'USER_ERROR',
+                    lockedItems: [],
+                    successfulLock: false,
+                });
+            }
+        };
+
+        const testCases = [
+            // ['supportUpdateCreate', 'operation', 'isLockSuccessful'],
+            [true, 'create', true],
+            [true, 'update', true],
+            [true, 'read', false],
+            [false, 'create', true],
+            [false, 'update', false],
+            [false, 'read', false],
+        ];
+
+        // eslint-disable-next-line no-restricted-syntax
+        for (const [supportUpdateCreate, operation, isLockSuccessful] of testCases) {
+            test('lock update ', async () => {
+                await runTest(supportUpdateCreate as boolean, operation as TypeOperation, isLockSuccessful as boolean);
+            });
+        }
     });
 });
