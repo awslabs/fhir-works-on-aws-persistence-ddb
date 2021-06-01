@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [3.4.0](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.3.4...v3.4.0) (2021-06-01)
+
+
+### Features
+
+* support update as create in bundle service ([#80](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/80)) ([bf1366d](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/commit/bf1366dd82d08afe9eea862c792518505ed8bf54))
+
+
+### Bug Fixes
+
+* initialize ES client only once ([#79](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/79)) ([b6e6b80](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/commit/b6e6b8097cec335ec12a4e28b822387615add5e5))
+
 ### [3.3.4](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.3.3...v3.3.4) (2021-05-17)
 
 ### [3.3.3](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.3.2...v3.3.3) (2021-04-26)
