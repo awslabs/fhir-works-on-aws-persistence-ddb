@@ -33,6 +33,8 @@ export class DynamoDbBundleService implements Bundle {
     private readonly ELAPSED_TIME_WARNING_MESSAGE =
         'Transaction time is greater than max allowed code execution time. Please reduce your bundle size by sending fewer Bundle entries.';
 
+    readonly updateCreateSupported: boolean;
+
     private dynamoDbHelper: DynamoDbHelper;
 
     private dynamoDb: DynamoDB;
@@ -44,9 +46,15 @@ export class DynamoDbBundleService implements Bundle {
     private ttlsInSeconds: Map<string, number>;
 
     // Allow Mocking DDB
-    constructor(dynamoDb: DynamoDB, maxExecutionTimeMs?: number, ttlsInSeconds?: Map<string, number>) {
+    constructor(
+        dynamoDb: DynamoDB,
+        supportUpdateCreate: boolean = false,
+        maxExecutionTimeMs?: number,
+        ttlsInSeconds?: Map<string, number>,
+    ) {
         this.dynamoDbHelper = new DynamoDbHelper(dynamoDb);
         this.dynamoDb = dynamoDb;
+        this.updateCreateSupported = supportUpdateCreate;
         this.maxExecutionTimeMs = maxExecutionTimeMs || 26 * 1000;
         this.ttlsInSeconds = ttlsInSeconds || new Map<string, number>();
     }
@@ -195,7 +203,11 @@ export class DynamoDbBundleService implements Bundle {
         const idItemsFailedToRead: string[] = [];
         for (let i = 0; i < itemResponses.length; i += 1) {
             const itemResponse = itemResponses[i];
-            if (itemResponse instanceof ResourceNotFoundError) {
+            // allow for update as create scenario
+            if (
+                itemResponse instanceof ResourceNotFoundError &&
+                !(itemsToLock[i].operation === 'update' && this.updateCreateSupported)
+            ) {
                 idItemsFailedToRead.push(`${itemsToLock[i].resourceType}/${itemsToLock[i].id}`);
             }
         }
