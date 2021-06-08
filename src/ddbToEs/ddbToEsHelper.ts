@@ -20,7 +20,7 @@ const BINARY_RESOURCE = 'binary';
 const { IS_OFFLINE, ELASTICSEARCH_DOMAIN_ENDPOINT } = process.env;
 
 export default class DdbToEsHelper {
-    private ElasticSearch: Client;
+    public ElasticSearch: Client;
 
     constructor() {
         let ES_DOMAIN_ENDPOINT = ELASTICSEARCH_DOMAIN_ENDPOINT || 'https://fake-es-endpoint.com';
@@ -43,8 +43,10 @@ export default class DdbToEsHelper {
     }
 
     async createIndexIfNotExist(indexName: string) {
+        logger.info('entering create index function');
         try {
             const indexExistResponse = await this.ElasticSearch.indices.exists({ index: indexName });
+            logger.debug(indexExistResponse);
             if (!indexExistResponse.body) {
                 // Create Index
                 const params = {
@@ -70,12 +72,27 @@ export default class DdbToEsHelper {
                                 },
                             },
                         },
+                        [`${indexName}-alias`]: {},
                     },
                 };
                 await this.ElasticSearch.indices.create(params);
+            } else {
+                const indexAliasExistResponse = await this.ElasticSearch.indices.existsAlias({
+                    index: indexName,
+                    name: `${indexName}-alias`,
+                });
+                logger.debug(indexAliasExistResponse);
+                if (!indexAliasExistResponse.body) {
+                    // Create Alias
+                    logger.debug(`create alias ${indexName}-alias`);
+                    await this.ElasticSearch.indices.putAlias({
+                        index: indexName,
+                        name: `${indexName}-alias`,
+                    });
+                }
             }
         } catch (error) {
-            logger.error(`Failed to check if index: ${indexName} exist or create index`);
+            logger.error(`Failed to check if index(and alias): ${indexName} exist or create index(and alias)`);
             throw error;
         }
     }
