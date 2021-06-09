@@ -40,6 +40,7 @@ describe('DdbToEsHelper', () => {
             expect(mockAddIndex).toHaveBeenCalledWith(
                 expect.objectContaining({
                     body: {
+                        aliases: { 'patient-alias': {} },
                         mappings: {
                             properties: {
                                 _references: { index: true, type: 'keyword' },
@@ -48,7 +49,6 @@ describe('DdbToEsHelper', () => {
                                 resourceType: { index: true, type: 'keyword' },
                             },
                         },
-                        'patient-alias': {},
                     },
                     method: 'PUT',
                     path: '/patient',
