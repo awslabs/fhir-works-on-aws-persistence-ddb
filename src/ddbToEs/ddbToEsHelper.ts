@@ -42,8 +42,8 @@ export default class DdbToEsHelper {
         });
     }
 
-    async createIndexIfNotExist(indexName: string) {
-        logger.info('entering create index function');
+    async createIndexAndAliasIfNotExist(indexName: string) {
+        logger.debug('entering create index function');
         try {
             const indexExistResponse = await this.ElasticSearch.indices.exists({ index: indexName });
             logger.debug(indexExistResponse);
@@ -72,7 +72,7 @@ export default class DdbToEsHelper {
                                 },
                             },
                         },
-                        [`${indexName}-alias`]: {},
+                        aliases: { [`${indexName}-alias`]: {} },
                     },
                 };
                 await this.ElasticSearch.indices.create(params);
@@ -111,7 +111,7 @@ export default class DdbToEsHelper {
         const compositeId = this.generateFullId(id, vid);
         return {
             promiseParam: {
-                index: lowercaseResourceType,
+                index: `${lowercaseResourceType}-alias`,
                 id: compositeId,
             },
             id: compositeId,
@@ -141,7 +141,7 @@ export default class DdbToEsHelper {
         return {
             id: compositeId,
             promiseParam: {
-                index: lowercaseResourceType,
+                index: `${lowercaseResourceType}-alias`,
                 id: compositeId,
                 body: {
                     doc: newImage,

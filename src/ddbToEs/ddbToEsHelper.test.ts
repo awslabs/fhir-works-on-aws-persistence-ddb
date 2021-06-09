@@ -35,7 +35,7 @@ describe('DdbToEsHelper', () => {
                 mockAddIndex,
             );
             // TEST
-            await ddbToEsHelper.createIndexIfNotExist('patient');
+            await ddbToEsHelper.createIndexAndAliasIfNotExist('patient');
             // VALIDATE
             expect(mockAddIndex).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -80,7 +80,7 @@ describe('DdbToEsHelper', () => {
                 mockAddAlias,
             );
             // TEST
-            await ddbToEsHelper.createIndexIfNotExist('patient');
+            await ddbToEsHelper.createIndexAndAliasIfNotExist('patient');
             // VALIDATE
             expect(mockAddAlias).toHaveBeenCalledWith(
                 expect.objectContaining({ path: '/patient/_alias/patient-alias' }),
