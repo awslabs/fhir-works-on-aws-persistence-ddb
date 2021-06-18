@@ -30,26 +30,45 @@ import { SEPARATOR } from '../constants';
 export class S3DataService implements Persistence {
     updateCreateSupported: boolean = false;
 
+    readonly enableMultiTenancy: boolean;
+
     private readonly dbPersistenceService: Persistence;
 
     private readonly fhirVersion: FhirVersion;
 
-    constructor(dbPersistenceService: Persistence, fhirVersion: FhirVersion) {
+    constructor(
+        dbPersistenceService: Persistence,
+        fhirVersion: FhirVersion,
+        { enableMultiTenancy = false }: { enableMultiTenancy?: boolean } = {},
+    ) {
         this.dbPersistenceService = dbPersistenceService;
         this.fhirVersion = fhirVersion;
+        this.enableMultiTenancy = enableMultiTenancy;
+    }
+
+    private assertValidTenancyMode(tenantId?: string) {
+        if (this.enableMultiTenancy && tenantId === undefined) {
+            throw new Error('This instance has multi-tenancy enabled, but the incoming request is missing tenantId');
+        }
+        if (!this.enableMultiTenancy && tenantId !== undefined) {
+            throw new Error('This instance has multi-tenancy disabled, but the incoming request has a tenantId');
+        }
     }
 
     async readResource(request: ReadResourceRequest): Promise<GenericResponse> {
+        this.assertValidTenancyMode(request.tenantId);
         const getResponse = await this.dbPersistenceService.readResource(request);
-        return this.getBinaryGetUrl(getResponse, request.id);
+        return this.getBinaryGetUrl(getResponse, request);
     }
 
     async vReadResource(request: vReadResourceRequest): Promise<GenericResponse> {
+        this.assertValidTenancyMode(request.tenantId);
         const getResponse = await this.dbPersistenceService.vReadResource(request);
-        return this.getBinaryGetUrl(getResponse, request.id);
+        return this.getBinaryGetUrl(getResponse, request);
     }
 
     async createResource(request: CreateResourceRequest) {
+        this.assertValidTenancyMode(request.tenantId);
         // Delete binary data because we don't want to store the content in the data service, we store the content
         // as an object in the objStorageService
         if (this.fhirVersion === '3.0.1') {
@@ -61,7 +80,7 @@ export class S3DataService implements Persistence {
         const createResponse = await this.dbPersistenceService.createResource(request);
         const { resource } = createResponse;
 
-        const fileName = this.getFileName(resource.id, resource.meta.versionId, resource.contentType);
+        const fileName = this.getPathName(resource.id, resource.meta.versionId, resource.contentType, request.tenantId);
         let presignedPutUrlResponse;
         try {
             presignedPutUrlResponse = await S3ObjectStorageService.getPresignedPutUrl(fileName);
@@ -80,6 +99,7 @@ export class S3DataService implements Persistence {
     }
 
     async updateResource(request: UpdateResourceRequest) {
+        this.assertValidTenancyMode(request.tenantId);
         if (this.fhirVersion === '3.0.1') {
             delete request.resource.content;
         } else {
@@ -89,7 +109,7 @@ export class S3DataService implements Persistence {
         const updateResponse = await this.dbPersistenceService.updateResource(request);
         const { resource } = updateResponse;
 
-        const fileName = this.getFileName(resource.id, resource.meta.versionId, resource.contentType);
+        const fileName = this.getPathName(resource.id, resource.meta.versionId, resource.contentType, request.tenantId);
         let presignedPutUrlResponse;
         try {
             presignedPutUrlResponse = await S3ObjectStorageService.getPresignedPutUrl(fileName);
@@ -109,6 +129,7 @@ export class S3DataService implements Persistence {
     }
 
     async deleteResource(request: DeleteResourceRequest) {
+        this.assertValidTenancyMode(request.tenantId);
         await this.dbPersistenceService.readResource(request);
         await S3ObjectStorageService.deleteBasedOnPrefix(request.id);
         await this.dbPersistenceService.deleteResource(request);
@@ -156,19 +177,28 @@ export class S3DataService implements Persistence {
         throw new Error('Method not implemented.');
     }
 
-    private getFileName(id: string, versionId: string, contentType: string) {
+    private getPathName(id: string, versionId: string, contentType: string, tenantId: string = '') {
         const fileExtension = mime.extension(contentType);
-        return `${id}${SEPARATOR}${versionId}.${fileExtension}`;
+        const filename = `${id}${SEPARATOR}${versionId}.${fileExtension}`;
+        if (this.enableMultiTenancy) {
+            return `${tenantId}/${filename}`;
+        }
+        return filename;
     }
 
-    private async getBinaryGetUrl(dbResponse: GenericResponse, id: string): Promise<GenericResponse> {
-        const fileName = this.getFileName(id, dbResponse.resource.meta.versionId, dbResponse.resource.contentType);
+    private async getBinaryGetUrl(dbResponse: GenericResponse, request: ReadResourceRequest): Promise<GenericResponse> {
+        const fileName = this.getPathName(
+            request.id,
+            dbResponse.resource.meta.versionId,
+            dbResponse.resource.contentType,
+            request.tenantId,
+        );
         let presignedGetUrlResponse;
         try {
             presignedGetUrlResponse = await S3ObjectStorageService.getPresignedGetUrl(fileName);
         } catch (e) {
             if (e instanceof ObjectNotFoundError) {
-                throw new ResourceNotFoundError('Binary', id);
+                throw new ResourceNotFoundError('Binary', request.id);
             }
             throw e;
         }
