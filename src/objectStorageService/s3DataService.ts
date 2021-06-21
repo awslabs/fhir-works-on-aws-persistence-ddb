@@ -131,7 +131,8 @@ export class S3DataService implements Persistence {
     async deleteResource(request: DeleteResourceRequest) {
         this.assertValidTenancyMode(request.tenantId);
         await this.dbPersistenceService.readResource(request);
-        await S3ObjectStorageService.deleteBasedOnPrefix(request.id);
+        const prefix = this.enableMultiTenancy ? `${request.tenantId}/${request.id}` : request.id;
+        await S3ObjectStorageService.deleteBasedOnPrefix(prefix);
         await this.dbPersistenceService.deleteResource(request);
 
         return { success: true, message: 'Resource deleted' };
@@ -180,10 +181,7 @@ export class S3DataService implements Persistence {
     private getPathName(id: string, versionId: string, contentType: string, tenantId: string = '') {
         const fileExtension = mime.extension(contentType);
         const filename = `${id}${SEPARATOR}${versionId}.${fileExtension}`;
-        if (this.enableMultiTenancy) {
-            return `${tenantId}/${filename}`;
-        }
-        return filename;
+        return this.enableMultiTenancy ? `${tenantId}/${filename}` : filename;
     }
 
     private async getBinaryGetUrl(dbResponse: GenericResponse, request: ReadResourceRequest): Promise<GenericResponse> {

@@ -22,6 +22,8 @@ import validV3JpegBinary from '../../sampleData/validV3JpegBinary.json';
 import DynamoDbDataService from '../dataServices/__mocks__/dynamoDbDataService';
 import { S3DataService } from './s3DataService';
 
+import S3ObjectStorageService from './s3ObjectStorageService';
+
 jest.mock('./s3ObjectStorageService');
 
 describe('SUCCESS CASES: Testing create, read, update, delete of resources; version 4; multi-tenancy enabled', () => {
@@ -131,6 +133,7 @@ describe('SUCCESS CASES: Testing create, read, update, delete of resources; vers
     test('delete', async () => {
         // BUILD
         const id = 'id';
+        S3ObjectStorageService.deleteBasedOnPrefix = jest.fn();
 
         // OPERATE
         const deleteResponse: GenericResponse = await s3DataService.deleteResource({
@@ -144,6 +147,7 @@ describe('SUCCESS CASES: Testing create, read, update, delete of resources; vers
         });
         // CHECK
         expect(deleteResponse.resource).toBeUndefined();
+        expect(S3ObjectStorageService.deleteBasedOnPrefix).toHaveBeenCalledWith('tenant1/id');
     });
 });
 
@@ -249,6 +253,7 @@ describe('SUCCESS CASES: Testing create, read, update, delete of resources; vers
     test('delete', async () => {
         // BUILD
         const id = 'id';
+        S3ObjectStorageService.deleteBasedOnPrefix = jest.fn();
 
         // OPERATE
         const deleteResponse: GenericResponse = await s3DataService.deleteResource({ resourceType: 'Binary', id });
@@ -258,6 +263,7 @@ describe('SUCCESS CASES: Testing create, read, update, delete of resources; vers
         });
         // CHECK
         expect(deleteResponse.resource).toBeUndefined();
+        expect(S3ObjectStorageService.deleteBasedOnPrefix).toHaveBeenCalledWith('id');
     });
 });
 
