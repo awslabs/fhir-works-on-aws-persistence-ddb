@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [3.5.0](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.4.0...v3.5.0) (2021-06-11)
+
+
+### Features
+
+* add alias for new and existing index ([#83](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/83)) ([af637d4](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/commit/af637d442ca328507ce2dcf457f173c07bb8e3aa))
+
 ## [3.4.0](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.3.4...v3.4.0) (2021-06-01)
 
 
