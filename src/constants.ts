@@ -3,3 +3,4 @@
  *  SPDX-License-Identifier: Apache-2.0
  */
 export const SEPARATOR: string = '_';
+export const DDB_HASH_KEY_SEPARATOR: string = '|';
