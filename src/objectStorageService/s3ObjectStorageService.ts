@@ -4,7 +4,7 @@
  */
 
 import { GenericResponse } from 'fhir-works-on-aws-interface';
-import { S3, FHIR_BINARY_BUCKET } from './s3';
+import { S3, FHIR_BINARY_BUCKET, S3_KMS_KEY } from './s3';
 import ObjectStorageInterface from './objectStorageInterface';
 import ObjectNotFoundError from './ObjectNotFoundError';
 import getComponentLogger from '../loggerBuilder';
@@ -12,8 +12,6 @@ import getComponentLogger from '../loggerBuilder';
 const logger = getComponentLogger();
 
 const S3ObjectStorageService: ObjectStorageInterface = class {
-    static S3_KMS_KEY = process.env.S3_KMS_KEY || '';
-
     static SSE_ALGORITHM = 'aws:kms';
 
     static PRESIGNED_URL_EXPIRATION_IN_SECONDS = 300;
@@ -30,7 +28,7 @@ const S3ObjectStorageService: ObjectStorageInterface = class {
             ContentEncoding: 'base64',
             ContentType: contentType,
             ServerSideEncryption: this.SSE_ALGORITHM,
-            SSEKMSKeyId: this.S3_KMS_KEY,
+            SSEKMSKeyId: S3_KMS_KEY,
         };
 
         try {
@@ -79,7 +77,7 @@ const S3ObjectStorageService: ObjectStorageInterface = class {
             Key: fileName,
             Expires: this.PRESIGNED_URL_EXPIRATION_IN_SECONDS,
             ServerSideEncryption: this.SSE_ALGORITHM,
-            SSEKMSKeyId: this.S3_KMS_KEY,
+            SSEKMSKeyId: S3_KMS_KEY,
         });
         return { message: url };
     }
