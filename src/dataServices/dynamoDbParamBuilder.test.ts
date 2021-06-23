@@ -147,6 +147,28 @@ describe('buildUpdateDocumentStatusParam', () => {
         expect(futureTs).toBeGreaterThanOrEqual(currentTs - wiggleRoomInMs);
         expect(actualParam).toEqual(getExpectedParamForUpdateWithoutOldStatus(DOCUMENT_STATUS.AVAILABLE, id, vid));
     });
+
+    test('tenantId present', () => {
+        const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
+        const vid = 1;
+        const actualParam = DynamoDbParamBuilder.buildUpdateDocumentStatusParam(
+            null,
+            DOCUMENT_STATUS.AVAILABLE,
+            id,
+            vid,
+            resourceType,
+            'tenant1',
+        );
+        const expected = getExpectedParamForUpdateWithoutOldStatus(DOCUMENT_STATUS.AVAILABLE, id, vid);
+        expected.Update.Key = {
+            ...expected.Update.Key,
+            id: {
+                S: 'tenant1|8cafa46d-08b4-4ee4-b51b-803e20ae8126',
+            },
+        };
+
+        expect(actualParam).toEqual(expected);
+    });
 });
 
 describe('buildPutAvailableItemParam', () => {
@@ -235,6 +257,26 @@ describe('buildPutAvailableItemParam', () => {
 
         expect(actualParams).toEqual(clonedExpectedParams);
     });
+
+    test('tenantId present', () => {
+        const actualParams = DynamoDbParamBuilder.buildPutAvailableItemParam(item, id, vid, false, 'tenant1');
+
+        const clonedExpectedParams = cloneDeep(expectedParams);
+        clonedExpectedParams.Item = {
+            ...clonedExpectedParams.Item,
+            _tenantId: {
+                S: 'tenant1',
+            },
+            _id: {
+                S: '8cafa46d-08b4-4ee4-b51b-803e20ae8126',
+            },
+            id: {
+                S: 'tenant1|8cafa46d-08b4-4ee4-b51b-803e20ae8126',
+            },
+        };
+
+        expect(actualParams).toEqual(clonedExpectedParams);
+    });
 });
 
 describe('buildGetResourcesQueryParam', () => {
@@ -262,6 +304,20 @@ describe('buildGetResourcesQueryParam', () => {
 
         const clonedExpectedParam: any = cloneDeep(expectedParam);
         clonedExpectedParam.ProjectionExpression = projectionExpression;
+
+        expect(actualParam).toEqual(clonedExpectedParam);
+    });
+
+    test('tenantId present', () => {
+        const actualParam = DynamoDbParamBuilder.buildGetResourcesQueryParam(id, 'Patient', 2, undefined, 'tenant1');
+
+        const clonedExpectedParam: any = cloneDeep(expectedParam);
+        clonedExpectedParam.ExpressionAttributeValues = {
+            ...clonedExpectedParam.ExpressionAttributeValues,
+            ':hkey': {
+                S: 'tenant1|8cafa46d-08b4-4ee4-b51b-803e20ae8126',
+            },
+        };
 
         expect(actualParam).toEqual(clonedExpectedParam);
     });

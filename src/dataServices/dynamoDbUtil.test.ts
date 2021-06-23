@@ -31,6 +31,28 @@ describe('cleanItem', () => {
         });
     });
 
+    test('Remove tenantId and format id correctly', () => {
+        const item: any = {
+            resourceType: 'Patient',
+            id: 'tenant1|some-id',
+
+            _tenantId: 'tenant1',
+            _id: 'some-id',
+
+            lockEndTs: 1624339984746,
+            documentStatus: 'AVAILABLE',
+            vid,
+            _references: ['Organization/1', 'Patient/pat2'],
+        };
+
+        const actualItem = DynamoDbUtil.cleanItem(item);
+
+        expect(actualItem).toEqual({
+            resourceType: 'Patient',
+            id: 'some-id',
+        });
+    });
+
     test('Return item correctly if documentStatus, lockEndTs, and references is not in the item', () => {
         const item: any = {
             resourceType: 'Patient',
@@ -196,5 +218,57 @@ describe('prepItemForDdbInsert', () => {
         expectedResource[REFERENCES_FIELD] = [];
 
         checkExpectedItemMatchActualItem(actualItem, expectedResource, newVid);
+    });
+
+    test('tenantId is present', () => {
+        const actualItem = DynamoDbUtil.prepItemForDdbInsert(
+            clone(resource),
+            id,
+            vid,
+            DOCUMENT_STATUS.PENDING,
+            'tenant1',
+        );
+
+        // key fields that change when tenantId is present
+        expect(actualItem).toMatchObject({
+            _id: '8cafa46d-08b4-4ee4-b51b-803e20ae8126',
+            _tenantId: 'tenant1',
+            id: 'tenant1|8cafa46d-08b4-4ee4-b51b-803e20ae8126',
+        });
+
+        // snapshot to cover everything else
+        expect(actualItem).toMatchInlineSnapshot(
+            {
+                lockEndTs: expect.any(Number),
+                meta: {
+                    lastUpdated: expect.stringMatching(utcTimeRegExp),
+                },
+            },
+            `
+            Object {
+              "_id": "8cafa46d-08b4-4ee4-b51b-803e20ae8126",
+              "_references": Array [],
+              "_tenantId": "tenant1",
+              "documentStatus": "PENDING",
+              "gender": "male",
+              "id": "tenant1|8cafa46d-08b4-4ee4-b51b-803e20ae8126",
+              "lockEndTs": Any<Number>,
+              "meta": Object {
+                "lastUpdated": StringMatching /\\\\d\\{4\\}-\\\\d\\{2\\}-\\\\d\\{2\\}T\\\\d\\{2\\}:\\\\d\\{2\\}:\\\\d\\{2\\}\\.\\\\d\\+Z/,
+                "versionId": "1",
+              },
+              "name": Array [
+                Object {
+                  "family": "Jameson",
+                  "given": Array [
+                    "Matt",
+                  ],
+                },
+              ],
+              "resourceType": "Patient",
+              "vid": 1,
+            }
+        `,
+        );
     });
 });

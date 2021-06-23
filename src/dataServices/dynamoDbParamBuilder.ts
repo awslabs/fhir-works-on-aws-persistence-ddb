@@ -6,11 +6,11 @@
 import { ExportJobStatus } from 'fhir-works-on-aws-interface';
 import {
     DynamoDBConverter,
-    RESOURCE_TABLE,
     EXPORT_REQUEST_TABLE,
     EXPORT_REQUEST_TABLE_JOB_STATUS_INDEX,
+    RESOURCE_TABLE,
 } from './dynamoDb';
-import { DynamoDbUtil, DOCUMENT_STATUS_FIELD, LOCK_END_TS_FIELD } from './dynamoDbUtil';
+import { buildHashKey, DOCUMENT_STATUS_FIELD, DynamoDbUtil, LOCK_END_TS_FIELD } from './dynamoDbUtil';
 import DOCUMENT_STATUS from './documentStatus';
 import { BulkExportJob } from '../bulkExport/types';
 
@@ -23,6 +23,7 @@ export default class DynamoDbParamBuilder {
         id: string,
         vid: number,
         resourceType: string,
+        tenantId?: string,
     ) {
         const currentTs = Date.now();
         let futureEndTs = currentTs;
@@ -34,7 +35,7 @@ export default class DynamoDbParamBuilder {
             Update: {
                 TableName: RESOURCE_TABLE,
                 Key: DynamoDBConverter.marshall({
-                    id,
+                    id: buildHashKey(id, tenantId),
                     vid,
                 }),
                 UpdateExpression: `set ${DOCUMENT_STATUS_FIELD} = :newStatus, ${LOCK_END_TS_FIELD} = :futureEndTs`,
@@ -69,6 +70,7 @@ export default class DynamoDbParamBuilder {
         resourceType: string,
         maxNumberOfVersions: number,
         projectionExpression?: string,
+        tenantId?: string,
     ) {
         const params: any = {
             TableName: RESOURCE_TABLE,
@@ -78,7 +80,7 @@ export default class DynamoDbParamBuilder {
             KeyConditionExpression: 'id = :hkey',
             ExpressionAttributeNames: { '#r': 'resourceType' },
             ExpressionAttributeValues: DynamoDBConverter.marshall({
-                ':hkey': id,
+                ':hkey': buildHashKey(id, tenantId),
                 ':resourceType': resourceType,
             }),
         };
@@ -90,12 +92,12 @@ export default class DynamoDbParamBuilder {
         return params;
     }
 
-    static buildDeleteParam(id: string, vid: number) {
+    static buildDeleteParam(id: string, vid: number, tenantId?: string) {
         const params: any = {
             Delete: {
                 TableName: RESOURCE_TABLE,
                 Key: DynamoDBConverter.marshall({
-                    id,
+                    id: buildHashKey(id, tenantId),
                     vid,
                 }),
             },
@@ -104,11 +106,11 @@ export default class DynamoDbParamBuilder {
         return params;
     }
 
-    static buildGetItemParam(id: string, vid: number) {
+    static buildGetItemParam(id: string, vid: number, tenantId?: string) {
         return {
             TableName: RESOURCE_TABLE,
             Key: DynamoDBConverter.marshall({
-                id,
+                id: buildHashKey(id, tenantId),
                 vid,
             }),
         };
@@ -120,8 +122,14 @@ export default class DynamoDbParamBuilder {
      * @param allowOverwriteId - Allow overwriting a resource with the same id
      * @return DDB params for PUT operation
      */
-    static buildPutAvailableItemParam(item: any, id: string, vid: number, allowOverwriteId: boolean = false) {
-        const newItem = DynamoDbUtil.prepItemForDdbInsert(item, id, vid, DOCUMENT_STATUS.AVAILABLE);
+    static buildPutAvailableItemParam(
+        item: any,
+        id: string,
+        vid: number,
+        allowOverwriteId: boolean = false,
+        tenantId?: string,
+    ) {
+        const newItem = DynamoDbUtil.prepItemForDdbInsert(item, id, vid, DOCUMENT_STATUS.AVAILABLE, tenantId);
         const param: any = {
             TableName: RESOURCE_TABLE,
             Item: DynamoDBConverter.marshall(newItem),

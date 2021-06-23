@@ -62,26 +62,48 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
 
     readonly updateCreateSupported: boolean;
 
+    readonly enableMultiTenancy: boolean;
+
     private readonly transactionService: DynamoDbBundleService;
 
     private readonly dynamoDbHelper: DynamoDbHelper;
 
     private readonly dynamoDb: DynamoDB;
 
-    constructor(dynamoDb: DynamoDB, supportUpdateCreate: boolean = false) {
+    constructor(
+        dynamoDb: DynamoDB,
+        supportUpdateCreate: boolean = false,
+        { enableMultiTenancy = false }: { enableMultiTenancy?: boolean } = {},
+    ) {
         this.dynamoDbHelper = new DynamoDbHelper(dynamoDb);
         this.transactionService = new DynamoDbBundleService(dynamoDb, supportUpdateCreate);
         this.dynamoDb = dynamoDb;
         this.updateCreateSupported = supportUpdateCreate;
+        this.enableMultiTenancy = enableMultiTenancy;
+    }
+
+    private assertValidTenancyMode(tenantId?: string) {
+        if (this.enableMultiTenancy && tenantId === undefined) {
+            throw new Error('This instance has multi-tenancy enabled, but the incoming request is missing tenantId');
+        }
+        if (!this.enableMultiTenancy && tenantId !== undefined) {
+            throw new Error('This instance has multi-tenancy disabled, but the incoming request has a tenantId');
+        }
     }
 
     async readResource(request: ReadResourceRequest): Promise<GenericResponse> {
-        return this.dynamoDbHelper.getMostRecentUserReadableResource(request.resourceType, request.id);
+        this.assertValidTenancyMode(request.tenantId);
+        return this.dynamoDbHelper.getMostRecentUserReadableResource(
+            request.resourceType,
+            request.id,
+            request.tenantId,
+        );
     }
 
     async vReadResource(request: vReadResourceRequest): Promise<GenericResponse> {
-        const { resourceType, id, vid } = request;
-        const params = DynamoDbParamBuilder.buildGetItemParam(id, parseInt(vid, 10));
+        this.assertValidTenancyMode(request.tenantId);
+        const { resourceType, id, vid, tenantId } = request;
+        const params = DynamoDbParamBuilder.buildGetItemParam(id, parseInt(vid, 10), tenantId);
         const result = await this.dynamoDb.getItem(params).promise();
         if (result.Item === undefined) {
             throw new ResourceVersionNotFoundError(resourceType, id, vid);
@@ -98,11 +120,12 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
     }
 
     async createResource(request: CreateResourceRequest) {
-        const { resourceType, resource } = request;
-        return this.createResourceWithId(resourceType, resource, uuidv4());
+        this.assertValidTenancyMode(request.tenantId);
+        const { resourceType, resource, tenantId } = request;
+        return this.createResourceWithId(resourceType, resource, uuidv4(), tenantId);
     }
 
-    private async createResourceWithId(resourceType: string, resource: any, resourceId: string) {
+    private async createResourceWithId(resourceType: string, resource: any, resourceId: string, tenantId?: string) {
         const regex = new RegExp('^[a-zA-Z0-9-.]{1,64}$');
         if (!regex.test(resourceId)) {
             throw new InvalidResourceError(`Resource creation failed, id ${resourceId} is not valid`);
@@ -112,7 +135,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
         let resourceClone = clone(resource);
         resourceClone.resourceType = resourceType;
 
-        const param = DynamoDbParamBuilder.buildPutAvailableItemParam(resourceClone, resourceId, vid);
+        const param = DynamoDbParamBuilder.buildPutAvailableItemParam(resourceClone, resourceId, vid, false, tenantId);
         try {
             await this.dynamoDb.putItem(param).promise();
         } catch (e) {
@@ -132,21 +155,23 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
     }
 
     async deleteResource(request: DeleteResourceRequest) {
-        const { resourceType, id } = request;
-        const itemServiceResponse = await this.readResource({ resourceType, id });
+        this.assertValidTenancyMode(request.tenantId);
+        const { resourceType, id, tenantId } = request;
+        const itemServiceResponse = await this.readResource({ resourceType, id, tenantId });
 
         const { versionId } = itemServiceResponse.resource.meta;
 
-        return this.deleteVersionedResource(resourceType, id, parseInt(versionId, 10));
+        return this.deleteVersionedResource(resourceType, id, parseInt(versionId, 10), tenantId);
     }
 
-    async deleteVersionedResource(resourceType: string, id: string, vid: number) {
+    async deleteVersionedResource(resourceType: string, id: string, vid: number, tenantId?: string) {
         const updateStatusToDeletedParam = DynamoDbParamBuilder.buildUpdateDocumentStatusParam(
             DOCUMENT_STATUS.AVAILABLE,
             DOCUMENT_STATUS.DELETED,
             id,
             vid,
             resourceType,
+            tenantId,
         ).Update;
         await this.dynamoDb.updateItem(updateStatusToDeletedParam).promise();
         return {
@@ -156,13 +181,14 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
     }
 
     async updateResource(request: UpdateResourceRequest) {
-        const { resource, resourceType, id } = request;
+        this.assertValidTenancyMode(request.tenantId);
+        const { resource, resourceType, id, tenantId } = request;
         try {
             // Will throw ResourceNotFoundError if resource can't be found
-            await this.readResource({ resourceType, id });
+            await this.readResource({ resourceType, id, tenantId });
         } catch (e) {
             if (this.updateCreateSupported && isResourceNotFoundError(e)) {
-                return this.createResourceWithId(resourceType, resource, id);
+                return this.createResourceWithId(resourceType, resource, id, tenantId);
             }
             throw e;
         }
@@ -179,6 +205,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
         const response: BundleResponse = await this.transactionService.transaction({
             requests: [batchRequest],
             startTime: new Date(),
+            tenantId,
         });
         const batchReadWriteEntryResponse = response.batchReadWriteResponses[0];
         resourceClone.meta = batchReadWriteEntryResponse.resource.meta;
