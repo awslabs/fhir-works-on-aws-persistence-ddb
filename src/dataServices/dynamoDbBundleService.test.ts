@@ -133,16 +133,32 @@ describe('atomicallyReadWriteResources', () => {
 
     describe('SUCCESS Cases', () => {
         // When creating a resource, no locks is needed because no items in DDB to put a lock on yet
-        async function runCreateTest(shouldReqHasReferences: boolean) {
+        async function runCreateTest(shouldReqHasReferences: boolean, useVersionedReferences: boolean = false) {
             // BUILD
             const transactWriteItemSpy = sinon.spy();
             AWSMock.mock('DynamoDB', 'transactWriteItems', (params: TransactWriteItemsInput, callback: Function) => {
                 transactWriteItemSpy(params);
                 callback(null, {});
             });
-
             const dynamoDb = new AWS.DynamoDB();
-            const transactionService = new DynamoDbBundleService(dynamoDb);
+            let versionedLinks;
+            if (useVersionedReferences) {
+                versionedLinks = {
+                    Patient: ['managingOrganization.reference'],
+                };
+                const organizationResource: any = {
+                    resourceType: 'Organization',
+                    name: 'ACME .Inc',
+                    active: true,
+                    meta: { versionId: 3 },
+                };
+
+                sinon
+                    .stub(DynamoDbHelper.prototype, 'getMostRecentResource')
+                    .withArgs('Organization', '1', 'meta')
+                    .returns(Promise.resolve({ message: 'Resource found', resource: organizationResource }));
+            }
+            const transactionService = new DynamoDbBundleService(dynamoDb, false, undefined, versionedLinks);
 
             const resourceType = 'Patient';
             const resource: any = {
@@ -192,7 +208,15 @@ describe('atomicallyReadWriteResources', () => {
             };
             insertedResourceJson[DOCUMENT_STATUS_FIELD] = 'PENDING';
             insertedResourceJson[VID_FIELD] = 1;
-            insertedResourceJson[REFERENCES_FIELD] = shouldReqHasReferences ? [organization] : [];
+            if (shouldReqHasReferences) {
+                if (useVersionedReferences) {
+                    insertedResourceJson[REFERENCES_FIELD] = [`${organization}/_history/3`];
+                } else {
+                    insertedResourceJson[REFERENCES_FIELD] = [organization];
+                }
+            } else {
+                insertedResourceJson[REFERENCES_FIELD] = [];
+            }
             insertedResourceJson[LOCK_END_TS_FIELD] = Date.now();
 
             const insertedResource = DynamoDBConverter.marshall(insertedResourceJson);
@@ -262,11 +286,15 @@ describe('atomicallyReadWriteResources', () => {
             await runCreateTest(false);
         });
 
-        test('CREATING a resource references', async () => {
+        test('CREATING a resource with references', async () => {
             await runCreateTest(true);
         });
 
-        async function runUpdateTest(shouldReqHasReferences: boolean) {
+        test('CREATING a resource with references and versioned reference links', async () => {
+            await runCreateTest(true, true);
+        });
+
+        async function runUpdateTest(shouldReqHasReferences: boolean, useVersionedReferences: boolean = false) {
             // BUILD
             const transactWriteItemSpy = sinon.spy();
             AWSMock.mock('DynamoDB', 'transactWriteItems', (params: TransactWriteItemsInput, callback: Function) => {
@@ -294,18 +322,36 @@ describe('atomicallyReadWriteResources', () => {
                     reference: organization,
                 };
             }
+
             const newResource = {
                 ...oldResource,
                 test: 'test',
                 meta: { versionId: newVid.toString(), lastUpdated: new Date().toISOString(), security: 'skynet' },
             };
 
-            sinon
-                .stub(DynamoDbHelper.prototype, 'getMostRecentResource')
+            const getMostRecentResourceStub = sinon.stub(DynamoDbHelper.prototype, 'getMostRecentResource');
+            getMostRecentResourceStub
+                .withArgs(resourceType, id, 'id, resourceType, meta')
                 .returns(Promise.resolve({ message: 'Resource found', resource: oldResource }));
 
             const dynamoDb = new AWS.DynamoDB();
-            const transactionService = new DynamoDbBundleService(dynamoDb);
+            let versionedLinks;
+            if (useVersionedReferences) {
+                versionedLinks = {
+                    Patient: ['managingOrganization.reference'],
+                };
+                const organizationResource: any = {
+                    resourceType: 'Organization',
+                    name: 'ACME .Inc',
+                    active: true,
+                    meta: { versionId: 3 },
+                };
+
+                getMostRecentResourceStub
+                    .withArgs('Organization', '1', 'meta')
+                    .returns(Promise.resolve({ message: 'Resource found', resource: organizationResource }));
+            }
+            const transactionService = new DynamoDbBundleService(dynamoDb, false, undefined, versionedLinks);
 
             const updateRequest: BatchReadWriteRequest = {
                 operation: 'update',
@@ -357,7 +403,15 @@ describe('atomicallyReadWriteResources', () => {
             };
             insertedResourceJson[DOCUMENT_STATUS_FIELD] = 'PENDING';
             insertedResourceJson[VID_FIELD] = newVid;
-            insertedResourceJson[REFERENCES_FIELD] = shouldReqHasReferences ? [organization] : [];
+            if (shouldReqHasReferences) {
+                if (useVersionedReferences) {
+                    insertedResourceJson[REFERENCES_FIELD] = [`${organization}/_history/3`];
+                } else {
+                    insertedResourceJson[REFERENCES_FIELD] = [organization];
+                }
+            } else {
+                insertedResourceJson[REFERENCES_FIELD] = [];
+            }
             insertedResourceJson[LOCK_END_TS_FIELD] = Date.now();
 
             const insertedResource = DynamoDBConverter.marshall(insertedResourceJson);
@@ -448,6 +502,10 @@ describe('atomicallyReadWriteResources', () => {
 
         test('UPDATING a resource with references', async () => {
             await runUpdateTest(true);
+        });
+
+        test('UPDATING a resource with references and versioned reference links', async () => {
+            await runUpdateTest(true, true);
         });
     });
 

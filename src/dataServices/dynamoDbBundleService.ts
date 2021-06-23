@@ -15,7 +15,11 @@ import {
     Bundle,
     chunkArray,
     ResourceNotFoundError,
+    GenericResponse,
 } from 'fhir-works-on-aws-interface';
+import flatten from 'flat';
+import set from 'lodash/set';
+
 import DOCUMENT_STATUS from './documentStatus';
 import DynamoDbBundleServiceHelper, { ItemRequest } from './dynamoDbBundleServiceHelper';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
@@ -24,6 +28,7 @@ import DynamoDbHelper from './dynamoDbHelper';
 import getComponentLogger from '../loggerBuilder';
 
 const logger = getComponentLogger();
+const captureFullUrlParts = /((?:http|https):\/\/[(A-Za-z0-9_\-\\.:%$)*/]+)?(Account|ActivityDefinition|AdverseEvent|AllergyIntolerance|Appointment|AppointmentResponse|AuditEvent|Basic|Binary|BiologicallyDerivedProduct|BodyStructure|Bundle|CapabilityStatement|CarePlan|CareTeam|CatalogEntry|ChargeItem|ChargeItemDefinition|Claim|ClaimResponse|ClinicalImpression|CodeSystem|Communication|CommunicationRequest|CompartmentDefinition|Composition|ConceptMap|Condition|Consent|Contract|Coverage|CoverageEligibilityRequest|CoverageEligibilityResponse|DetectedIssue|Device|DeviceDefinition|DeviceMetric|DeviceRequest|DeviceUseStatement|DiagnosticReport|DocumentManifest|DocumentReference|EffectEvidenceSynthesis|Encounter|Endpoint|EnrollmentRequest|EnrollmentResponse|EpisodeOfCare|EventDefinition|Evidence|EvidenceVariable|ExampleScenario|ExplanationOfBenefit|FamilyMemberHistory|Flag|Goal|GraphDefinition|Group|GuidanceResponse|HealthcareService|ImagingStudy|Immunization|ImmunizationEvaluation|ImmunizationRecommendation|ImplementationGuide|InsurancePlan|Invoice|Library|Linkage|List|Location|Measure|MeasureReport|Media|Medication|MedicationAdministration|MedicationDispense|MedicationKnowledge|MedicationRequest|MedicationStatement|MedicinalProduct|MedicinalProductAuthorization|MedicinalProductContraindication|MedicinalProductIndication|MedicinalProductIngredient|MedicinalProductInteraction|MedicinalProductManufactured|MedicinalProductPackaged|MedicinalProductPharmaceutical|MedicinalProductUndesirableEffect|MessageDefinition|MessageHeader|MolecularSequence|NamingSystem|NutritionOrder|Observation|ObservationDefinition|OperationDefinition|OperationOutcome|Organization|OrganizationAffiliation|Patient|PaymentNotice|PaymentReconciliation|Person|PlanDefinition|Practitioner|PractitionerRole|Procedure|Provenance|Questionnaire|QuestionnaireResponse|RelatedPerson|RequestGroup|ResearchDefinition|ResearchElementDefinition|ResearchStudy|ResearchSubject|RiskAssessment|RiskEvidenceSynthesis|Schedule|SearchParameter|ServiceRequest|Slot|Specimen|SpecimenDefinition|StructureDefinition|StructureMap|Subscription|Substance|SubstanceNucleicAcid|SubstancePolymer|SubstanceProtein|SubstanceReferenceInformation|SubstanceSourceMaterial|SubstanceSpecification|SupplyDelivery|SupplyRequest|Task|TerminologyCapabilities|TestReport|TestScript|ValueSet|VerificationResult|VisionPrescription)\/([A-Za-z0-9\-.]{1,64})(\/_history\/[A-Za-z0-9\-.]{1,64})?/;
 
 export class DynamoDbBundleService implements Bundle {
     private readonly MAX_TRANSACTION_SIZE: number = 25;
@@ -37,16 +42,24 @@ export class DynamoDbBundleService implements Bundle {
 
     private dynamoDb: DynamoDB;
 
-    private maxExecutionTimeMs: number;
+    private readonly maxExecutionTimeMs: number;
 
     private static readonly dynamoDbMaxBatchSize = 25;
 
+    private readonly versionedLinks: any;
+
     // Allow Mocking DDB
-    constructor(dynamoDb: DynamoDB, supportUpdateCreate: boolean = false, maxExecutionTimeMs?: number) {
+    constructor(
+        dynamoDb: DynamoDB,
+        supportUpdateCreate: boolean = false,
+        maxExecutionTimeMs?: number,
+        versionedLinks?: Record<string, string[]>,
+    ) {
         this.dynamoDbHelper = new DynamoDbHelper(dynamoDb);
         this.dynamoDb = dynamoDb;
         this.updateCreateSupported = supportUpdateCreate;
         this.maxExecutionTimeMs = maxExecutionTimeMs || 26 * 1000;
+        this.versionedLinks = versionedLinks;
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -92,6 +105,9 @@ export class DynamoDbBundleService implements Bundle {
                 batchReadWriteResponses: [],
                 errorType,
             };
+        }
+        if (this.versionedLinks) {
+            await this.updatedReferences(requests, lockedItems);
         }
 
         // 2.  Stage resources
@@ -268,6 +284,81 @@ export class DynamoDbBundleService implements Bundle {
                 lockedItems: itemsLockedSuccessfully,
             });
         }
+    }
+
+    private async updatedReferences(requests: BatchReadWriteRequest[], lockedItems: ItemRequest[]) {
+        const idToVersionId: Record<string, string> = {};
+        lockedItems.forEach((itemRequest: ItemRequest) => {
+            if (itemRequest.operation === 'update' && itemRequest.vid) {
+                idToVersionId[`${itemRequest.resourceType}_${itemRequest.id}`] = `${itemRequest.vid + 1}`;
+            }
+        });
+
+        const createOrUpdates = requests.filter((request: BatchReadWriteRequest) => {
+            return request.operation === 'create' || request.operation === 'update';
+        });
+
+        requests.forEach((request: BatchReadWriteRequest) => {
+            if (request.operation === 'create') {
+                idToVersionId[`${request.resourceType}_${request.id}`] = '1';
+            }
+        });
+
+        await Promise.all(
+            createOrUpdates.map(async (request: BatchReadWriteRequest) => {
+                const { resource } = request;
+                const versionedLinksArray = this.versionedLinks[request.resourceType];
+                if (!versionedLinksArray) {
+                    return;
+                }
+                const flattenedResources: Record<string, string> = flatten(resource);
+                const references = Object.keys(flattenedResources).filter((key: string) => {
+                    return key.endsWith('.reference');
+                });
+                if (references.length === 0) {
+                    return;
+                }
+                const versionedLinksSet = new Set(versionedLinksArray);
+                await Promise.all(
+                    references.map(async (referencePath: string) => {
+                        if (!versionedLinksSet.has(referencePath)) {
+                            return;
+                        }
+                        let entryReference = flattenedResources[referencePath];
+                        const fullUrlMatch = entryReference.match(captureFullUrlParts);
+                        if (!fullUrlMatch) {
+                            return;
+                        }
+                        const resourceType = fullUrlMatch[2];
+                        const id = fullUrlMatch[3];
+                        let vid = fullUrlMatch[4];
+                        if (!vid) {
+                            const compoundId = `${resourceType}_${id}`;
+                            if (compoundId in idToVersionId) {
+                                vid = idToVersionId[compoundId];
+                            } else {
+                                const projectionExpression = 'meta';
+                                try {
+                                    const itemResponse: GenericResponse = await this.dynamoDbHelper.getMostRecentResource(
+                                        resourceType,
+                                        id,
+                                        projectionExpression,
+                                    );
+                                    const { meta } = itemResponse.resource;
+                                    vid = meta.versionId;
+                                } catch (e) {
+                                    logger.error('Failed to find most recent resource', e);
+                                }
+                            }
+                            if (vid) {
+                                entryReference += `/_history/${vid}`;
+                                set(resource, referencePath, entryReference);
+                            }
+                        }
+                    }),
+                );
+            }),
+        );
     }
 
     /*
