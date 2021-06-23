@@ -16,7 +16,7 @@ export const TENANT_ID_FIELD = '_tenantId';
 export const INTERNAL_ID_FIELD = '_id';
 
 export const buildHashKey = (id: string, tenantId?: string): string => {
-    if (tenantId !== undefined) {
+    if (tenantId) {
         return `${tenantId}|${id}`;
     }
     return id;
@@ -72,7 +72,7 @@ export class DynamoDbUtil {
         item[DOCUMENT_STATUS_FIELD] = documentStatus;
         item[LOCK_END_TS_FIELD] = Date.now();
 
-        if (tenantId !== undefined) {
+        if (tenantId) {
             item[TENANT_ID_FIELD] = tenantId;
             item[INTERNAL_ID_FIELD] = id;
         }
