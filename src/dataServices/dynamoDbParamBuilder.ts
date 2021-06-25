@@ -10,9 +10,11 @@ import {
     EXPORT_REQUEST_TABLE_JOB_STATUS_INDEX,
     RESOURCE_TABLE,
 } from './dynamoDb';
-import { buildHashKey, DOCUMENT_STATUS_FIELD, DynamoDbUtil, LOCK_END_TS_FIELD } from './dynamoDbUtil';
+import { buildHashKey, DOCUMENT_STATUS_FIELD, DynamoDbUtil, LOCK_END_TS_FIELD, TENANT_ID_FIELD } from './dynamoDbUtil';
 import DOCUMENT_STATUS from './documentStatus';
 import { BulkExportJob } from '../bulkExport/types';
+
+const EXPORT_INTERNAL_ID_FIELD = '_jobId';
 
 export default class DynamoDbParamBuilder {
     static LOCK_DURATION_IN_MS = 35 * 1000;
@@ -142,9 +144,16 @@ export default class DynamoDbParamBuilder {
     }
 
     static buildPutCreateExportRequest(bulkExportJob: BulkExportJob) {
+        const newItem: any = { ...bulkExportJob };
+        if (newItem.tenantId !== undefined) {
+            newItem[TENANT_ID_FIELD] = newItem.tenantId;
+            newItem[EXPORT_INTERNAL_ID_FIELD] = newItem.jobId;
+            newItem.jobId = buildHashKey(newItem.jobId, newItem.tenantId);
+            delete newItem.tenantId;
+        }
         return {
             TableName: EXPORT_REQUEST_TABLE,
-            Item: DynamoDBConverter.marshall(bulkExportJob),
+            Item: DynamoDBConverter.marshall(newItem),
         };
     }
 
@@ -166,28 +175,28 @@ export default class DynamoDbParamBuilder {
         return params;
     }
 
-    static buildUpdateExportRequestJobStatus(jobId: string, jobStatus: ExportJobStatus) {
+    static buildUpdateExportRequestJobStatus(jobId: string, jobStatus: ExportJobStatus, tenantId?: string) {
         const params = {
             TableName: EXPORT_REQUEST_TABLE,
             Key: DynamoDBConverter.marshall({
-                jobId,
+                jobId: buildHashKey(jobId, tenantId),
             }),
             UpdateExpression: 'set jobStatus = :newStatus',
             ConditionExpression: 'jobId = :jobIdVal',
             ExpressionAttributeValues: DynamoDBConverter.marshall({
                 ':newStatus': jobStatus,
-                ':jobIdVal': jobId,
+                ':jobIdVal': buildHashKey(jobId, tenantId),
             }),
         };
 
         return params;
     }
 
-    static buildGetExportRequestJob(jobId: string) {
+    static buildGetExportRequestJob(jobId: string, tenantId?: string) {
         const params = {
             TableName: EXPORT_REQUEST_TABLE,
             Key: DynamoDBConverter.marshall({
-                jobId,
+                jobId: buildHashKey(jobId, tenantId),
             }),
         };
 
