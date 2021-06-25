@@ -137,12 +137,11 @@ export class DynamoDbBundleService implements Bundle {
                     };
                 }
                 logger.error('Locks were rolled back because failed to find versions of some resources');
-                const { errorType, errorMessage } = lockItemsResponse;
                 return {
                     success: false,
-                    message: errorMessage || 'Failed to find some resource versions for transaction',
+                    message: 'Failed to find some resource versions for transaction',
                     batchReadWriteResponses: [],
-                    errorType,
+                    errorType: 'USER_ERROR',
                 };
             }
         }

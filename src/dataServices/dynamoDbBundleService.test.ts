@@ -559,4 +559,228 @@ describe('atomicallyReadWriteResources', () => {
             });
         }
     });
+
+    describe('Bundle transaction with multiple resources', () => {
+        async function runTransaction(useVersionedReferences: boolean, errorFindingLatestVersion: boolean) {
+            // BUILD
+            const transactWriteItemSpy = sinon.spy();
+            AWSMock.mock('DynamoDB', 'transactWriteItems', (params: TransactWriteItemsInput, callback: Function) => {
+                transactWriteItemSpy(params);
+                callback(null, {});
+            });
+            // new organization, create
+            const managingOrgId = 'org1';
+            const managingOrgResource = {
+                id: managingOrgId,
+                resourceType: 'Organization',
+                name: 'New Org .Inc',
+                meta: { lastUpdated: new Date().toISOString() },
+            };
+            // this org already exists, just referencing to it
+            const contactOrgId = 'org2';
+            const contactOrgResource = {
+                id: contactOrgId,
+                resourceType: 'Organization',
+                name: 'Existing Ltd.',
+                meta: { versionId: '7', lastUpdated: new Date().toISOString() },
+            };
+            // practitioner already exists but we also update it now
+            const practitionerId = 'practitioner1';
+            const oldPractitionerResource = {
+                id: practitionerId,
+                resourceType: 'Practitioner',
+                name: 'James Brown',
+                meta: { versionId: '2', lastUpdated: new Date().toISOString() },
+            };
+            // updated version included in the bundle
+            const newPractitionerResource = {
+                id: practitionerId,
+                resourceType: 'Practitioner',
+                name: 'James Dean',
+                meta: { versionId: '3', lastUpdated: new Date().toISOString() },
+            };
+            // new patient resource with 3 references
+            const patientResource = {
+                id,
+                resourceType: 'Patient',
+                name: [
+                    {
+                        family: 'Jameson',
+                        given: ['Matt'],
+                    },
+                ],
+                managingOrganization: {
+                    reference: 'Organization/org1',
+                },
+                generalPractitioner: {
+                    reference: 'Practitioner/practitioner1',
+                },
+                contact: {
+                    organization: {
+                        reference: 'Organization/org2',
+                    },
+                },
+                meta: { versionId: '1', lastUpdated: new Date().toISOString() },
+            };
+            const getMostRecentResourceStub = sinon.stub(DynamoDbHelper.prototype, 'getMostRecentResource');
+            getMostRecentResourceStub
+                .withArgs('Practitioner', practitionerId, 'id, resourceType, meta')
+                .returns(Promise.resolve({ message: 'Resource found', resource: oldPractitionerResource }));
+
+            const dynamoDb = new AWS.DynamoDB();
+            let versionedLinks;
+            if (useVersionedReferences) {
+                versionedLinks = {
+                    Patient: [
+                        'managingOrganization.reference',
+                        'generalPractitioner.reference',
+                        'contact.organization.reference',
+                    ],
+                };
+
+                if (errorFindingLatestVersion) {
+                    getMostRecentResourceStub
+                        .withArgs('Organization', contactOrgId, 'meta')
+                        .throws(new Error('Error connecting to database'));
+                } else {
+                    getMostRecentResourceStub
+                        .withArgs('Organization', contactOrgId, 'meta')
+                        .returns(Promise.resolve({ message: 'Resource found', resource: contactOrgResource }));
+                }
+            }
+            const transactionService = new DynamoDbBundleService(dynamoDb, false, undefined, { versionedLinks });
+
+            const requestsList: BatchReadWriteRequest[] = [
+                {
+                    operation: 'create',
+                    resourceType: 'Organization',
+                    id: managingOrgId,
+                    resource: managingOrgResource,
+                },
+                {
+                    operation: 'update',
+                    resourceType: 'Practitioner',
+                    id: practitionerId,
+                    resource: newPractitionerResource,
+                },
+                {
+                    operation: 'create',
+                    resourceType: 'Patient',
+                    id,
+                    resource: patientResource,
+                },
+            ];
+
+            // OPERATE
+            const actualResponse = await transactionService.transaction({
+                requests: requestsList,
+                startTime: new Date(),
+            });
+
+            if (errorFindingLatestVersion) {
+                expect(actualResponse).toStrictEqual({
+                    success: false,
+                    message: 'Failed to find some resource versions for transaction',
+                    batchReadWriteResponses: [],
+                    errorType: 'USER_ERROR',
+                });
+                return;
+            }
+
+            // CHECK
+            // transactWriteItem requests is called thrice
+            expect(transactWriteItemSpy.calledThrice).toBeTruthy();
+
+            // 0. change Practitioner record's documentStatus to be 'LOCKED'
+            expect(transactWriteItemSpy.getCall(0).args[0]).toStrictEqual({
+                TransactItems: [
+                    {
+                        Update: {
+                            TableName: '',
+                            Key: {
+                                id: { S: practitionerId },
+                                vid: { N: oldPractitionerResource.meta.versionId.toString() },
+                            },
+                            ConditionExpression:
+                                'resourceType = :resourceType AND (documentStatus = :oldStatus OR (lockEndTs < :currentTs AND (documentStatus = :lockStatus OR documentStatus = :pendingStatus OR documentStatus = :pendingDeleteStatus)))',
+                            UpdateExpression: 'set documentStatus = :newStatus, lockEndTs = :futureEndTs',
+                            ExpressionAttributeValues: {
+                                ':newStatus': { S: 'LOCKED' },
+                                ':lockStatus': { S: 'LOCKED' },
+                                ':oldStatus': { S: 'AVAILABLE' },
+                                ':pendingDeleteStatus': { S: 'PENDING_DELETE' },
+                                ':pendingStatus': { S: 'PENDING' },
+                                ':currentTs': { N: expect.stringMatching(timeFromEpochInMsRegExp) },
+                                ':futureEndTs': { N: expect.stringMatching(timeFromEpochInMsRegExp) },
+                                ':resourceType': { S: 'Practitioner' },
+                            },
+                        },
+                    },
+                ],
+            });
+
+            // 1. create new records with documentStatus of 'PENDING'
+            let txItems = transactWriteItemSpy.getCall(1).args[0].TransactItems;
+            expect(txItems.length).toEqual(3);
+            expect(txItems.map((item: any) => item.Put.Item.documentStatus.S)).toEqual([
+                'PENDING',
+                'PENDING',
+                'PENDING',
+            ]);
+
+            // 2. change documentStatus of records
+            txItems = transactWriteItemSpy.getCall(2).args[0].TransactItems;
+            expect(
+                txItems.map((item: any) => {
+                    return {
+                        status: item.Update.ExpressionAttributeValues[':newStatus'].S,
+                        resourceType: item.Update.ExpressionAttributeValues[':resourceType'].S,
+                        id: item.Update.Key.id.S,
+                        vid: item.Update.Key.vid.N,
+                    };
+                }),
+            ).toStrictEqual([
+                {
+                    id: 'practitioner1',
+                    resourceType: 'Practitioner',
+                    status: 'DELETED',
+                    vid: '2',
+                },
+                {
+                    id: 'org1',
+                    resourceType: 'Organization',
+                    status: 'AVAILABLE',
+                    vid: '1',
+                },
+                {
+                    id: 'practitioner1',
+                    resourceType: 'Practitioner',
+                    status: 'AVAILABLE',
+                    vid: '3',
+                },
+                {
+                    id: 'bce8411e-c15e-448c-95dd-69155a837405',
+                    resourceType: 'Patient',
+                    status: 'AVAILABLE',
+                    vid: '1',
+                },
+            ]);
+
+            expect(actualResponse.success).toEqual(true);
+            expect(actualResponse.message).toEqual('Successfully committed requests to DB');
+            expect(actualResponse.batchReadWriteResponses.length).toEqual(3);
+        }
+
+        test('transaction without versioned references', async () => {
+            await runTransaction(false, false);
+        });
+
+        test('transaction with versioned references', async () => {
+            await runTransaction(true, false);
+        });
+
+        test('transaction with versioned references and error finding latest version', async () => {
+            await runTransaction(true, true);
+        });
+    });
 });
