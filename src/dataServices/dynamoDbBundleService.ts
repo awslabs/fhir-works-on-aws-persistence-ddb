@@ -23,12 +23,11 @@ import set from 'lodash/set';
 import DOCUMENT_STATUS from './documentStatus';
 import DynamoDbBundleServiceHelper, { ItemRequest } from './dynamoDbBundleServiceHelper';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
-
 import DynamoDbHelper from './dynamoDbHelper';
+import { captureFullUrlParts } from '../regExpressions';
 import getComponentLogger from '../loggerBuilder';
 
 const logger = getComponentLogger();
-const captureFullUrlParts = /((?:http|https):\/\/[(A-Za-z0-9_\-\\.:%$)*/]+)?(Account|ActivityDefinition|AdverseEvent|AllergyIntolerance|Appointment|AppointmentResponse|AuditEvent|Basic|Binary|BiologicallyDerivedProduct|BodyStructure|Bundle|CapabilityStatement|CarePlan|CareTeam|CatalogEntry|ChargeItem|ChargeItemDefinition|Claim|ClaimResponse|ClinicalImpression|CodeSystem|Communication|CommunicationRequest|CompartmentDefinition|Composition|ConceptMap|Condition|Consent|Contract|Coverage|CoverageEligibilityRequest|CoverageEligibilityResponse|DetectedIssue|Device|DeviceDefinition|DeviceMetric|DeviceRequest|DeviceUseStatement|DiagnosticReport|DocumentManifest|DocumentReference|EffectEvidenceSynthesis|Encounter|Endpoint|EnrollmentRequest|EnrollmentResponse|EpisodeOfCare|EventDefinition|Evidence|EvidenceVariable|ExampleScenario|ExplanationOfBenefit|FamilyMemberHistory|Flag|Goal|GraphDefinition|Group|GuidanceResponse|HealthcareService|ImagingStudy|Immunization|ImmunizationEvaluation|ImmunizationRecommendation|ImplementationGuide|InsurancePlan|Invoice|Library|Linkage|List|Location|Measure|MeasureReport|Media|Medication|MedicationAdministration|MedicationDispense|MedicationKnowledge|MedicationRequest|MedicationStatement|MedicinalProduct|MedicinalProductAuthorization|MedicinalProductContraindication|MedicinalProductIndication|MedicinalProductIngredient|MedicinalProductInteraction|MedicinalProductManufactured|MedicinalProductPackaged|MedicinalProductPharmaceutical|MedicinalProductUndesirableEffect|MessageDefinition|MessageHeader|MolecularSequence|NamingSystem|NutritionOrder|Observation|ObservationDefinition|OperationDefinition|OperationOutcome|Organization|OrganizationAffiliation|Patient|PaymentNotice|PaymentReconciliation|Person|PlanDefinition|Practitioner|PractitionerRole|Procedure|Provenance|Questionnaire|QuestionnaireResponse|RelatedPerson|RequestGroup|ResearchDefinition|ResearchElementDefinition|ResearchStudy|ResearchSubject|RiskAssessment|RiskEvidenceSynthesis|Schedule|SearchParameter|ServiceRequest|Slot|Specimen|SpecimenDefinition|StructureDefinition|StructureMap|Subscription|Substance|SubstanceNucleicAcid|SubstancePolymer|SubstanceProtein|SubstanceReferenceInformation|SubstanceSourceMaterial|SubstanceSpecification|SupplyDelivery|SupplyRequest|Task|TerminologyCapabilities|TestReport|TestScript|ValueSet|VerificationResult|VisionPrescription)\/([A-Za-z0-9\-.]{1,64})(\/_history\/[A-Za-z0-9\-.]{1,64})?/;
 
 export class DynamoDbBundleService implements Bundle {
     private readonly MAX_TRANSACTION_SIZE: number = 25;
@@ -46,14 +45,28 @@ export class DynamoDbBundleService implements Bundle {
 
     private static readonly dynamoDbMaxBatchSize = 25;
 
-    private readonly versionedLinks: any;
+    private readonly versionedLinks: Record<string, string[]> | undefined;
 
+    /**
+     *
+     * @param dynamoDb
+     * @param supportUpdateCreate
+     * @param maxExecutionTimeMs
+     * @param versionedLinks Data structure to control for which resourceTypes (key) which references (array of paths) should be modified,
+     * so that they point to the current (point in time) version of the referenced resource.
+     * For example:
+     *  {
+     *      "ExplanationOfBenefit": [ "careTeam.reference" ]
+     *  }
+     * says: for resources of type ExplanationOfBenefit, make sure the careTeam.reference url points to the current
+     * version of the practitioner resource.
+     */
     // Allow Mocking DDB
     constructor(
         dynamoDb: DynamoDB,
         supportUpdateCreate: boolean = false,
         maxExecutionTimeMs?: number,
-        versionedLinks?: Record<string, string[]>,
+        { versionedLinks }: { versionedLinks?: Record<string, string[]> } = {},
     ) {
         this.dynamoDbHelper = new DynamoDbHelper(dynamoDb);
         this.dynamoDb = dynamoDb;
@@ -107,7 +120,31 @@ export class DynamoDbBundleService implements Bundle {
             };
         }
         if (this.versionedLinks) {
-            await this.updatedReferences(requests, lockedItems);
+            const { status } = await this.updatedReferences(requests, lockedItems);
+            elapsedTimeInMs = this.getElapsedTime(startTime);
+            if (elapsedTimeInMs > this.maxExecutionTimeMs || status === 'ERROR') {
+                await this.unlockItems(lockedItems, true);
+                if (elapsedTimeInMs > this.maxExecutionTimeMs) {
+                    logger.warn(
+                        'Locks were rolled back because elapsed time is longer than max code execution time. Elapsed time',
+                        elapsedTimeInMs,
+                    );
+                    return {
+                        success: false,
+                        message: this.ELAPSED_TIME_WARNING_MESSAGE,
+                        batchReadWriteResponses: [],
+                        errorType: 'USER_ERROR',
+                    };
+                }
+                logger.error('Locks were rolled back because failed to find versions of some resources');
+                const { errorType, errorMessage } = lockItemsResponse;
+                return {
+                    success: false,
+                    message: errorMessage || 'Failed to find some resource versions for transaction',
+                    batchReadWriteResponses: [],
+                    errorType,
+                };
+            }
         }
 
         // 2.  Stage resources
@@ -286,7 +323,11 @@ export class DynamoDbBundleService implements Bundle {
         }
     }
 
-    private async updatedReferences(requests: BatchReadWriteRequest[], lockedItems: ItemRequest[]) {
+    private async updatedReferences(
+        requests: BatchReadWriteRequest[],
+        lockedItems: ItemRequest[],
+    ): Promise<{ status: string; numErrors: number }> {
+        const result: { status: string; numErrors: number } = { status: 'OK', numErrors: 0 };
         const idToVersionId: Record<string, string> = {};
         lockedItems.forEach((itemRequest: ItemRequest) => {
             if (itemRequest.operation === 'update' && itemRequest.vid) {
@@ -307,7 +348,7 @@ export class DynamoDbBundleService implements Bundle {
         await Promise.all(
             createOrUpdates.map(async (request: BatchReadWriteRequest) => {
                 const { resource } = request;
-                const versionedLinksArray = this.versionedLinks[request.resourceType];
+                const versionedLinksArray = this.versionedLinks ? this.versionedLinks[request.resourceType] : [];
                 if (!versionedLinksArray) {
                     return;
                 }
@@ -324,8 +365,8 @@ export class DynamoDbBundleService implements Bundle {
                         if (!versionedLinksSet.has(referencePath)) {
                             return;
                         }
-                        let entryReference = flattenedResources[referencePath];
-                        const fullUrlMatch = entryReference.match(captureFullUrlParts);
+                        let entryReferenceValue = flattenedResources[referencePath];
+                        const fullUrlMatch = entryReferenceValue.match(captureFullUrlParts);
                         if (!fullUrlMatch) {
                             return;
                         }
@@ -347,18 +388,24 @@ export class DynamoDbBundleService implements Bundle {
                                     const { meta } = itemResponse.resource;
                                     vid = meta.versionId;
                                 } catch (e) {
-                                    logger.error('Failed to find most recent resource', e);
+                                    const msg = `Failed to find most recent version of resource with id=${id}`;
+                                    logger.error(msg, e);
+                                    result.numErrors += 1;
                                 }
                             }
                             if (vid) {
-                                entryReference += `/_history/${vid}`;
-                                set(resource, referencePath, entryReference);
+                                entryReferenceValue += `/_history/${vid}`;
+                                set(resource, referencePath, entryReferenceValue);
                             }
                         }
                     }),
                 );
             }),
         );
+        if (result.numErrors > 0) {
+            result.status = 'ERROR';
+        }
+        return result;
     }
 
     /*

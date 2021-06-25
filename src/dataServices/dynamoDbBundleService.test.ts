@@ -158,7 +158,7 @@ describe('atomicallyReadWriteResources', () => {
                     .withArgs('Organization', '1', 'meta')
                     .returns(Promise.resolve({ message: 'Resource found', resource: organizationResource }));
             }
-            const transactionService = new DynamoDbBundleService(dynamoDb, false, undefined, versionedLinks);
+            const transactionService = new DynamoDbBundleService(dynamoDb, false, undefined, { versionedLinks });
 
             const resourceType = 'Patient';
             const resource: any = {
@@ -351,7 +351,7 @@ describe('atomicallyReadWriteResources', () => {
                     .withArgs('Organization', '1', 'meta')
                     .returns(Promise.resolve({ message: 'Resource found', resource: organizationResource }));
             }
-            const transactionService = new DynamoDbBundleService(dynamoDb, false, undefined, versionedLinks);
+            const transactionService = new DynamoDbBundleService(dynamoDb, false, undefined, { versionedLinks });
 
             const updateRequest: BatchReadWriteRequest = {
                 operation: 'update',
