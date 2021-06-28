@@ -32,8 +32,8 @@ export async function handleDdbToEsEvent(event: any) {
             }
 
             const lowercaseResourceType = image.resourceType.toLowerCase();
-            // eslint-disable-next-line no-await-in-loop
-            await ddbToEsHelper.createIndexAndAliasIfNotExist(lowercaseResourceType);
+            // eslint-disable-next-line no-await-in-loop,no-underscore-dangle
+            await ddbToEsHelper.createIndexAndAliasIfNotExist(lowercaseResourceType, image._tenantId);
             if (record.eventName === REMOVE) {
                 // If a user manually deletes a record from DDB, let's delete it from ES also
                 const idAndDeletePromise = ddbToEsHelper.getDeleteRecordPromiseParam(image);
