@@ -176,16 +176,17 @@ export default class DynamoDbParamBuilder {
     }
 
     static buildUpdateExportRequestJobStatus(jobId: string, jobStatus: ExportJobStatus, tenantId?: string) {
+        const hashKey = buildHashKey(jobId, tenantId);
         const params = {
             TableName: EXPORT_REQUEST_TABLE,
             Key: DynamoDBConverter.marshall({
-                jobId: buildHashKey(jobId, tenantId),
+                jobId: hashKey,
             }),
             UpdateExpression: 'set jobStatus = :newStatus',
             ConditionExpression: 'jobId = :jobIdVal',
             ExpressionAttributeValues: DynamoDBConverter.marshall({
                 ':newStatus': jobStatus,
-                ':jobIdVal': buildHashKey(jobId, tenantId),
+                ':jobIdVal': hashKey,
             }),
         };
 
