@@ -313,7 +313,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
     buildExportJob(initiateExportRequest: InitiateExportRequest): BulkExportJob {
         const initialStatus: ExportJobStatus = 'in-progress';
         const uuid = uuidv4();
-        let exportJob: BulkExportJob = {
+        const exportJob: BulkExportJob = {
             jobId: uuid,
             jobOwnerId: initiateExportRequest.requesterUserId,
             exportType: initiateExportRequest.exportType,
@@ -326,10 +326,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
             jobFailedMessage: '',
         };
         if (this.enableMultiTenancy) {
-            exportJob = {
-                ...exportJob,
-                tenantId: initiateExportRequest.tenantId,
-            };
+            exportJob.tenantId = initiateExportRequest.tenantId;
         }
         return exportJob;
     }

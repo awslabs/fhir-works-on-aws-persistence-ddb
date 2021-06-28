@@ -145,7 +145,7 @@ export default class DynamoDbParamBuilder {
 
     static buildPutCreateExportRequest(bulkExportJob: BulkExportJob) {
         const newItem: any = { ...bulkExportJob };
-        if (newItem.tenantId !== undefined) {
+        if (newItem.tenantId) {
             newItem[TENANT_ID_FIELD] = newItem.tenantId;
             newItem[EXPORT_INTERNAL_ID_FIELD] = newItem.jobId;
             newItem.jobId = buildHashKey(newItem.jobId, newItem.tenantId);
