@@ -6,11 +6,23 @@
 import * as AWSMock from 'aws-sdk-mock';
 import AWS from 'aws-sdk';
 import each from 'jest-each';
+import sinon from 'sinon';
 import { updateStatusStatusHandler } from './updateStatus';
+import { BulkExportStateMachineGlobalParameters } from './types';
+import DynamoDbParamBuilder from '../dataServices/dynamoDbParamBuilder';
 
 AWSMock.setSDKInstance(AWS);
 
 describe('updateStatus', () => {
+    const event: BulkExportStateMachineGlobalParameters = {
+        jobId: '1',
+        exportType: 'system',
+        transactionTime: '',
+        executionParameters: {
+            glueJobRunId: 'jr_1',
+        },
+    };
+
     beforeEach(() => {
         process.env.GLUE_JOB_NAME = 'jobName';
         AWSMock.restore();
@@ -21,14 +33,32 @@ describe('updateStatus', () => {
             callback(null);
         });
         await expect(
-            updateStatusStatusHandler({ jobId: '1', status: 'completed' }, null as any, null as any),
+            updateStatusStatusHandler({ globalParams: event, status: 'completed' }, null as any, null as any),
         ).resolves.toBeUndefined();
+    });
+
+    test('valid status in multi-tenancy mode', async () => {
+        const updateSpy = sinon.spy();
+        AWSMock.mock('DynamoDB', 'updateItem', (params: any, callback: Function) => {
+            updateSpy(params);
+            callback(null);
+        });
+        await expect(
+            updateStatusStatusHandler(
+                { globalParams: { ...event, tenantId: 'tenant1' }, status: 'completed' },
+                null as any,
+                null as any,
+            ),
+        ).resolves.toBeUndefined();
+        expect(updateSpy.getCall(0).args[0]).toMatchObject(
+            DynamoDbParamBuilder.buildUpdateExportRequestJobStatus('1', 'completed', 'tenant1'),
+        );
     });
 
     describe('Invalid status', () => {
         each([null, undefined, 'not-a-valid-status']).test('%j', async (status: any) => {
             await expect(
-                updateStatusStatusHandler({ jobId: '1', status }, null as any, null as any),
+                updateStatusStatusHandler({ globalParams: event, status }, null as any, null as any),
             ).rejects.toThrowError(`Invalid status "${status}"`);
         });
     });
