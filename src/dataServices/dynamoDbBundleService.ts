@@ -339,8 +339,15 @@ export class DynamoDbBundleService implements Bundle {
         });
 
         requests.forEach((request: BatchReadWriteRequest) => {
+            const key = `${request.resourceType}_${request.id}`;
             if (request.operation === 'create') {
-                idToVersionId[`${request.resourceType}_${request.id}`] = '1';
+                idToVersionId[key] = '1';
+            }
+            // Setting version id to '1' of resources in the bundle that have not been locked. because
+            // if updateCreateSupported==true creates may come disguised as updates. During locking they obviously weren't found
+            // now we don't want to search for them again and then fail because we can't find them.
+            if (request.operation === 'update' && this.updateCreateSupported && !(key in idToVersionId)) {
+                idToVersionId[key] = '1';
             }
         });
 
