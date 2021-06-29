@@ -7,8 +7,14 @@
 import * as AWSMock from 'aws-sdk-mock';
 
 import { QueryInput, TransactWriteItemsInput } from 'aws-sdk/clients/dynamodb';
+// @ts-ignore
 import AWS from 'aws-sdk';
-import { BundleResponse, BatchReadWriteRequest, TypeOperation } from 'fhir-works-on-aws-interface';
+import {
+    BundleResponse,
+    BatchReadWriteRequest,
+    TypeOperation,
+    ResourceNotFoundError,
+} from 'fhir-works-on-aws-interface';
 import { DynamoDbBundleService } from './dynamoDbBundleService';
 import { DynamoDBConverter } from './dynamoDb';
 import { timeFromEpochInMsRegExp, utcTimeRegExp, uuidRegExp } from '../../testUtilities/regExpressions';
@@ -561,7 +567,11 @@ describe('atomicallyReadWriteResources', () => {
     });
 
     describe('Bundle transaction with multiple resources', () => {
-        async function runTransaction(useVersionedReferences: boolean, errorFindingLatestVersion: boolean) {
+        async function runTransaction(
+            useVersionedReferences: boolean,
+            supportUpdateCreate: boolean,
+            errorFindingLatestVersion: boolean,
+        ) {
             // BUILD
             const transactWriteItemSpy = sinon.spy();
             AWSMock.mock('DynamoDB', 'transactWriteItems', (params: TransactWriteItemsInput, callback: Function) => {
@@ -623,6 +633,13 @@ describe('atomicallyReadWriteResources', () => {
                 meta: { versionId: '1', lastUpdated: new Date().toISOString() },
             };
             const getMostRecentResourceStub = sinon.stub(DynamoDbHelper.prototype, 'getMostRecentResource');
+            if (supportUpdateCreate) {
+                // in the update as create scenario the managing org looks like an update, so we try to get the most recent version
+                getMostRecentResourceStub
+                    .withArgs('Organization', managingOrgId, 'id, resourceType, meta')
+                    .throws(new ResourceNotFoundError(managingOrgId, 'This organization does not exist yet'));
+            }
+
             getMostRecentResourceStub
                 .withArgs('Practitioner', practitionerId, 'id, resourceType, meta')
                 .returns(Promise.resolve({ message: 'Resource found', resource: oldPractitionerResource }));
@@ -648,11 +665,17 @@ describe('atomicallyReadWriteResources', () => {
                         .returns(Promise.resolve({ message: 'Resource found', resource: contactOrgResource }));
                 }
             }
-            const transactionService = new DynamoDbBundleService(dynamoDb, false, undefined, { versionedLinks });
+            const transactionService = new DynamoDbBundleService(dynamoDb, supportUpdateCreate, undefined, {
+                versionedLinks,
+            });
 
+            let updateOrCreateOperation = 'create';
+            if (supportUpdateCreate) {
+                updateOrCreateOperation = 'update';
+            }
             const requestsList: BatchReadWriteRequest[] = [
                 {
-                    operation: 'create',
+                    operation: updateOrCreateOperation as TypeOperation,
                     resourceType: 'Organization',
                     id: managingOrgId,
                     resource: managingOrgResource,
@@ -769,18 +792,40 @@ describe('atomicallyReadWriteResources', () => {
             expect(actualResponse.success).toEqual(true);
             expect(actualResponse.message).toEqual('Successfully committed requests to DB');
             expect(actualResponse.batchReadWriteResponses.length).toEqual(3);
+
+            if (useVersionedReferences) {
+                expect(patientResource.managingOrganization.reference).toEqual('Organization/org1/_history/1');
+                expect(patientResource.generalPractitioner.reference).toEqual('Practitioner/practitioner1/_history/3');
+                expect(patientResource.contact.organization.reference).toEqual('Organization/org2/_history/7');
+            } else {
+                expect(patientResource.managingOrganization.reference).toEqual('Organization/org1');
+                expect(patientResource.generalPractitioner.reference).toEqual('Practitioner/practitioner1');
+                expect(patientResource.contact.organization.reference).toEqual('Organization/org2');
+            }
         }
 
         test('transaction without versioned references', async () => {
-            await runTransaction(false, false);
+            await runTransaction(false, false, false);
         });
 
         test('transaction with versioned references', async () => {
-            await runTransaction(true, false);
+            await runTransaction(true, false, false);
+        });
+
+        test('transaction with update as create and without versioned references', async () => {
+            await runTransaction(false, true, false);
+        });
+
+        test('transaction with update as create and with versioned references', async () => {
+            await runTransaction(true, true, false);
         });
 
         test('transaction with versioned references and error finding latest version', async () => {
-            await runTransaction(true, true);
+            await runTransaction(true, false, true);
+        });
+
+        test('transaction with versioned references, update as create and error finding latest version', async () => {
+            await runTransaction(true, false, true);
         });
     });
 });

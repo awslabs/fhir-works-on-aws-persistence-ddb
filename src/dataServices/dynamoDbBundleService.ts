@@ -228,6 +228,9 @@ export class DynamoDbBundleService implements Bundle {
         const itemReadPromises = itemsToLock.map(async itemToLock => {
             const projectionExpression = 'id, resourceType, meta';
             try {
+                logger.info(
+                    `getMostRecentResource(${itemToLock.resourceType}, ${itemToLock.id}, ${projectionExpression}`,
+                );
                 return await this.dynamoDbHelper.getMostRecentResource(
                     itemToLock.resourceType,
                     itemToLock.id,
