@@ -92,6 +92,10 @@ export default class DdbToEsHelper {
                                     type: 'keyword',
                                     index: true,
                                 },
+                                _tenantId: {
+                                    type: 'keyword',
+                                    index: true,
+                                },
                             },
                         },
                         aliases: { [alias]: {} },
