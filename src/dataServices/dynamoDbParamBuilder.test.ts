@@ -390,7 +390,7 @@ describe('buildPutCreateExportRequest', () => {
             _jobId: {
                 S: 'job-1',
             },
-            _tenantId: {
+            tenantId: {
                 S: 'tenant1',
             },
         };
@@ -399,7 +399,7 @@ describe('buildPutCreateExportRequest', () => {
     });
 });
 
-describe('buildPutCreateExportRequest', () => {
+describe('buildUpdateExportRequestJobStatus', () => {
     const jobId = 'job-1';
     const jobStatus = 'completed';
 

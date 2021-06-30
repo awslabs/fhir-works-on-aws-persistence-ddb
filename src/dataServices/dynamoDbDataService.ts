@@ -202,7 +202,10 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
 
     async initiateExport(initiateExportRequest: InitiateExportRequest): Promise<string> {
         this.assertValidTenancyMode(initiateExportRequest.tenantId);
-        await this.throttleExportRequestsIfNeeded(initiateExportRequest.requesterUserId);
+        await this.throttleExportRequestsIfNeeded(
+            initiateExportRequest.requesterUserId,
+            initiateExportRequest.tenantId,
+        );
         // Create new export job
         const exportJob: BulkExportJob = this.buildExportJob(initiateExportRequest);
 
@@ -213,7 +216,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
         return exportJob.jobId;
     }
 
-    async throttleExportRequestsIfNeeded(requesterUserId: string) {
+    async throttleExportRequestsIfNeeded(requesterUserId: string, tenantId?: string) {
         const jobStatusesToThrottle: ExportJobStatus[] = ['canceling', 'in-progress'];
         const exportJobItems = await this.getJobsWithExportStatuses(jobStatusesToThrottle);
 
@@ -221,9 +224,15 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
             const numberOfConcurrentUserRequest = exportJobItems.filter(item => {
                 return DynamoDBConverter.unmarshall(item).jobOwnerId === requesterUserId;
             }).length;
+            let concurrentTenantRequest = exportJobItems;
+            if (tenantId) {
+                concurrentTenantRequest = exportJobItems.filter(item => {
+                    return DynamoDBConverter.unmarshall(item).tenantId === tenantId;
+                });
+            }
             if (
                 numberOfConcurrentUserRequest >= this.MAXIMUM_CONCURRENT_REQUEST_PER_USER ||
-                exportJobItems.length >= this.MAXIMUM_SYSTEM_LEVEL_CONCURRENT_REQUESTS
+                concurrentTenantRequest.length >= this.MAXIMUM_SYSTEM_LEVEL_CONCURRENT_REQUESTS
             ) {
                 throw new TooManyConcurrentExportRequestsError();
             }
@@ -251,6 +260,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
     }
 
     async cancelExport(jobId: string, tenantId?: string): Promise<void> {
+        this.assertValidTenancyMode(tenantId);
         const jobDetailsParam = DynamoDbParamBuilder.buildGetExportRequestJob(jobId, tenantId);
         const jobDetailsResponse = await this.dynamoDb.getItem(jobDetailsParam).promise();
         if (!jobDetailsResponse.Item) {
@@ -270,6 +280,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
     }
 
     async getExportStatus(jobId: string, tenantId?: string): Promise<GetExportStatusResponse> {
+        this.assertValidTenancyMode(tenantId);
         const jobDetailsParam = DynamoDbParamBuilder.buildGetExportRequestJob(jobId, tenantId);
         const jobDetailsResponse = await this.dynamoDb.getItem(jobDetailsParam).promise();
         if (!jobDetailsResponse.Item) {
