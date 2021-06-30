@@ -10,7 +10,10 @@ import getComponentLogger from '../loggerBuilder';
 
 const logger = getComponentLogger();
 
-export const stopExportJobHandler: Handler<BulkExportStateMachineGlobalParameters, { jobId: string }> = async event => {
+export const stopExportJobHandler: Handler<
+    BulkExportStateMachineGlobalParameters,
+    BulkExportStateMachineGlobalParameters
+> = async event => {
     const { GLUE_JOB_NAME } = process.env;
     if (GLUE_JOB_NAME === undefined) {
         throw new Error('GLUE_JOB_NAME environment variable is not defined');
@@ -31,7 +34,5 @@ export const stopExportJobHandler: Handler<BulkExportStateMachineGlobalParameter
         logger.error('Failed to stop job', JSON.stringify(stopJobRunResponse));
         throw new Error(`Failed to stop job ${glueJobRunId}`);
     }
-    return {
-        jobId: event.jobId,
-    };
+    return event;
 };

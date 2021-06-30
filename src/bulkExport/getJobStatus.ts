@@ -9,6 +9,7 @@ import AWS from '../AWS';
 import { BulkExportStateMachineGlobalParameters } from './types';
 import DynamoDbParamBuilder from '../dataServices/dynamoDbParamBuilder';
 import { DynamoDBConverter } from '../dataServices/dynamoDb';
+import { buildHashKey } from '../dataServices/dynamoDbUtil';
 
 export const getJobStatusHandler: Handler<
     BulkExportStateMachineGlobalParameters,
@@ -23,15 +24,17 @@ export const getJobStatusHandler: Handler<
         throw new Error('executionParameters.glueJobRunId is missing in input event');
     }
 
+    const hashKey = buildHashKey(event.jobId, event.tenantId);
+
     const [getJobRunResponse, getItemResponse] = await Promise.all([
         new AWS.Glue().getJobRun({ JobName: GLUE_JOB_NAME, RunId: glueJobRunId }).promise(),
-        new AWS.DynamoDB().getItem(DynamoDbParamBuilder.buildGetExportRequestJob(event.jobId)).promise(),
+        new AWS.DynamoDB().getItem(DynamoDbParamBuilder.buildGetExportRequestJob(hashKey)).promise(),
     ]);
 
     if (!getItemResponse.Item) {
         // This should never happen. It'd mean that the DDB record was deleted in the middle of the bulk export state machine execution
         // or that the wrong jobId was passed to step functions.
-        throw new Error(`FHIR bulk export job was not found for jobId=${event.jobId}`);
+        throw new Error(`FHIR bulk export job was not found for jobId=${hashKey}`);
     }
 
     const { jobStatus } = DynamoDBConverter.unmarshall(getItemResponse.Item);

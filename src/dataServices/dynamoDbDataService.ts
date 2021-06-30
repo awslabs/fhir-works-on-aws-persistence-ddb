@@ -39,22 +39,6 @@ import DynamoDbHelper from './dynamoDbHelper';
 import { getBulkExportResults, startJobExecution } from '../bulkExport/bulkExport';
 import { BulkExportJob } from '../bulkExport/types';
 
-const buildExportJob = (initiateExportRequest: InitiateExportRequest): BulkExportJob => {
-    const initialStatus: ExportJobStatus = 'in-progress';
-    return {
-        jobId: uuidv4(),
-        jobOwnerId: initiateExportRequest.requesterUserId,
-        exportType: initiateExportRequest.exportType,
-        groupId: initiateExportRequest.groupId ?? '',
-        outputFormat: initiateExportRequest.outputFormat ?? 'ndjson',
-        since: initiateExportRequest.since ?? '1800-01-01T00:00:00.000Z', // Default to a long time ago in the past
-        type: initiateExportRequest.type ?? '',
-        transactionTime: initiateExportRequest.transactionTime,
-        jobStatus: initialStatus,
-        jobFailedMessage: '',
-    };
-};
-
 export class DynamoDbDataService implements Persistence, BulkDataAccess {
     private readonly MAXIMUM_SYSTEM_LEVEL_CONCURRENT_REQUESTS = 2;
 
@@ -217,9 +201,13 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
     }
 
     async initiateExport(initiateExportRequest: InitiateExportRequest): Promise<string> {
-        await this.throttleExportRequestsIfNeeded(initiateExportRequest.requesterUserId);
+        this.assertValidTenancyMode(initiateExportRequest.tenantId);
+        await this.throttleExportRequestsIfNeeded(
+            initiateExportRequest.requesterUserId,
+            initiateExportRequest.tenantId,
+        );
         // Create new export job
-        const exportJob: BulkExportJob = buildExportJob(initiateExportRequest);
+        const exportJob: BulkExportJob = this.buildExportJob(initiateExportRequest);
 
         await startJobExecution(exportJob);
 
@@ -228,7 +216,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
         return exportJob.jobId;
     }
 
-    async throttleExportRequestsIfNeeded(requesterUserId: string) {
+    async throttleExportRequestsIfNeeded(requesterUserId: string, tenantId?: string) {
         const jobStatusesToThrottle: ExportJobStatus[] = ['canceling', 'in-progress'];
         const exportJobItems = await this.getJobsWithExportStatuses(jobStatusesToThrottle);
 
@@ -236,9 +224,15 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
             const numberOfConcurrentUserRequest = exportJobItems.filter(item => {
                 return DynamoDBConverter.unmarshall(item).jobOwnerId === requesterUserId;
             }).length;
+            let concurrentTenantRequest = exportJobItems;
+            if (tenantId) {
+                concurrentTenantRequest = exportJobItems.filter(item => {
+                    return DynamoDBConverter.unmarshall(item).tenantId === tenantId;
+                });
+            }
             if (
                 numberOfConcurrentUserRequest >= this.MAXIMUM_CONCURRENT_REQUEST_PER_USER ||
-                exportJobItems.length >= this.MAXIMUM_SYSTEM_LEVEL_CONCURRENT_REQUESTS
+                concurrentTenantRequest.length >= this.MAXIMUM_SYSTEM_LEVEL_CONCURRENT_REQUESTS
             ) {
                 throw new TooManyConcurrentExportRequestsError();
             }
@@ -265,8 +259,9 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
         return allJobStatusItems;
     }
 
-    async cancelExport(jobId: string): Promise<void> {
-        const jobDetailsParam = DynamoDbParamBuilder.buildGetExportRequestJob(jobId);
+    async cancelExport(jobId: string, tenantId?: string): Promise<void> {
+        this.assertValidTenancyMode(tenantId);
+        const jobDetailsParam = DynamoDbParamBuilder.buildGetExportRequestJob(jobId, tenantId);
         const jobDetailsResponse = await this.dynamoDb.getItem(jobDetailsParam).promise();
         if (!jobDetailsResponse.Item) {
             throw new ResourceNotFoundError('$export', jobId);
@@ -280,12 +275,13 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
             return;
         }
 
-        const params = DynamoDbParamBuilder.buildUpdateExportRequestJobStatus(jobId, 'canceling');
+        const params = DynamoDbParamBuilder.buildUpdateExportRequestJobStatus(jobId, 'canceling', tenantId);
         await this.dynamoDb.updateItem(params).promise();
     }
 
-    async getExportStatus(jobId: string): Promise<GetExportStatusResponse> {
-        const jobDetailsParam = DynamoDbParamBuilder.buildGetExportRequestJob(jobId);
+    async getExportStatus(jobId: string, tenantId?: string): Promise<GetExportStatusResponse> {
+        this.assertValidTenancyMode(tenantId);
+        const jobDetailsParam = DynamoDbParamBuilder.buildGetExportRequestJob(jobId, tenantId);
         const jobDetailsResponse = await this.dynamoDb.getItem(jobDetailsParam).promise();
         if (!jobDetailsResponse.Item) {
             throw new ResourceNotFoundError('$export', jobId);
@@ -323,6 +319,27 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
         };
 
         return getExportStatusResponse;
+    }
+
+    buildExportJob(initiateExportRequest: InitiateExportRequest): BulkExportJob {
+        const initialStatus: ExportJobStatus = 'in-progress';
+        const uuid = uuidv4();
+        const exportJob: BulkExportJob = {
+            jobId: uuid,
+            jobOwnerId: initiateExportRequest.requesterUserId,
+            exportType: initiateExportRequest.exportType,
+            groupId: initiateExportRequest.groupId ?? '',
+            outputFormat: initiateExportRequest.outputFormat ?? 'ndjson',
+            since: initiateExportRequest.since ?? '1800-01-01T00:00:00.000Z', // Default to a long time ago in the past
+            type: initiateExportRequest.type ?? '',
+            transactionTime: initiateExportRequest.transactionTime,
+            jobStatus: initialStatus,
+            jobFailedMessage: '',
+        };
+        if (this.enableMultiTenancy) {
+            exportJob.tenantId = initiateExportRequest.tenantId;
+        }
+        return exportJob;
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars

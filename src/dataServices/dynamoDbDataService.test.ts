@@ -558,6 +558,17 @@ describe('initiateExport', () => {
         groupId: '1',
     };
 
+    const initiateExportRequestWithMultiTenancy: InitiateExportRequest = {
+        requesterUserId: 'userId-1',
+        exportType: 'system',
+        transactionTime: '2020-09-01T12:00:00Z',
+        outputFormat: 'ndjson',
+        since: '2020-08-01T12:00:00Z',
+        type: 'Patient',
+        groupId: '1',
+        tenantId: 'tenant1',
+    };
+
     test('Successful initiate export request', async () => {
         // BUILD
         // Return an export request that is in-progress
@@ -575,13 +586,27 @@ describe('initiateExport', () => {
             callback(null, {});
         });
 
+        /*
+        Single-tenant Mode
+         */
         const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
-
         // OPERATE
         const jobId = await dynamoDbDataService.initiateExport(initiateExportRequest);
-
         // CHECK
         expect(jobId).toBeDefined();
+
+        /*
+         Multi-tenancy mode
+         */
+        const dynamoDbDataServiceMultiTenancy = new DynamoDbDataService(new AWS.DynamoDB(), false, {
+            enableMultiTenancy: true,
+        });
+        // OPERATE
+        const jobIdWithTenant = await dynamoDbDataServiceMultiTenancy.initiateExport(
+            initiateExportRequestWithMultiTenancy,
+        );
+        // CHECK
+        expect(jobIdWithTenant).toBeDefined();
     });
 
     each(['in-progress', 'canceling']).test(
@@ -606,12 +631,9 @@ describe('initiateExport', () => {
             const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
 
             // OPERATE
-            try {
-                await dynamoDbDataService.initiateExport(initiateExportRequest);
-            } catch (e) {
-                // CHECK
-                expect(e).toMatchObject(new TooManyConcurrentExportRequestsError());
-            }
+            await expect(dynamoDbDataService.initiateExport(initiateExportRequest)).rejects.toMatchObject(
+                new TooManyConcurrentExportRequestsError(),
+            );
         },
     );
 
@@ -644,12 +666,117 @@ describe('initiateExport', () => {
         const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
 
         // OPERATE
-        try {
-            await dynamoDbDataService.initiateExport(initiateExportRequest);
-        } catch (e) {
-            // CHECK
-            expect(e).toMatchObject(new TooManyConcurrentExportRequestsError());
-        }
+        await expect(dynamoDbDataService.initiateExport(initiateExportRequest)).rejects.toMatchObject(
+            new TooManyConcurrentExportRequestsError(),
+        );
+    });
+
+    test('throttle limit should not exceeds MAXIMUM_SYSTEM_LEVEL_CONCURRENT_REQUESTS when another tenant have inprogress and canceling job', async () => {
+        // BUILD
+        // Return two export requests that are in-progress
+
+        AWSMock.mock('DynamoDB', 'query', (params: QueryInput, callback: Function) => {
+            if (isEqual(params, DynamoDbParamBuilder.buildQueryExportRequestJobStatus('in-progress'))) {
+                callback(null, {
+                    Items: [DynamoDBConverter.marshall({ jobOwnerId: 'userId-2', jobStatus: 'in-progress' })],
+                });
+            }
+            callback(null, {});
+        });
+
+        AWSMock.mock('DynamoDB', 'putItem', (params: QueryInput, callback: Function) => {
+            // Successfully update export-request table with request
+            callback(null, {});
+        });
+
+        AWSMock.mock('DynamoDB', 'query', (params: QueryInput, callback: Function) => {
+            if (
+                isEqual(
+                    params,
+                    DynamoDbParamBuilder.buildQueryExportRequestJobStatus('in-progress', 'jobOwnerId, jobStatus'),
+                )
+            ) {
+                callback(null, {
+                    Items: [
+                        DynamoDBConverter.marshall({
+                            jobOwnerId: 'userId-2',
+                            jobStatus: 'in-progress',
+                            tenantId: 'tenant1',
+                        }),
+                    ],
+                });
+            } else if (
+                isEqual(
+                    params,
+                    DynamoDbParamBuilder.buildQueryExportRequestJobStatus('canceling', 'jobOwnerId, jobStatus'),
+                )
+            ) {
+                callback(null, {
+                    Items: [
+                        DynamoDBConverter.marshall({
+                            jobOwnerId: 'userId-3',
+                            jobStatus: 'canceling',
+                            tenantId: 'tenant1',
+                        }),
+                    ],
+                });
+            }
+            callback(null, {});
+        });
+
+        const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB(), false, { enableMultiTenancy: true });
+        await expect(
+            dynamoDbDataService.initiateExport({
+                ...initiateExportRequestWithMultiTenancy,
+                tenantId: 'tenant2',
+            }),
+        ).resolves.toBeDefined();
+    });
+
+    test('throttle limit exceeded MAXIMUM_SYSTEM_LEVEL_CONCURRENT_REQUESTS because the same tenant already has a job in the "in-progress" status and the "canceling" status', async () => {
+        // BUILD
+        // Return two export requests that are in-progress
+        AWSMock.mock('DynamoDB', 'query', (params: QueryInput, callback: Function) => {
+            if (
+                isEqual(
+                    params,
+                    DynamoDbParamBuilder.buildQueryExportRequestJobStatus('in-progress', 'jobOwnerId, jobStatus'),
+                )
+            ) {
+                callback(null, {
+                    Items: [
+                        DynamoDBConverter.marshall({
+                            jobOwnerId: 'userId-2',
+                            jobStatus: 'in-progress',
+                            tenantId: 'tenant1',
+                        }),
+                    ],
+                });
+            } else if (
+                isEqual(
+                    params,
+                    DynamoDbParamBuilder.buildQueryExportRequestJobStatus('canceling', 'jobOwnerId, jobStatus'),
+                )
+            ) {
+                callback(null, {
+                    Items: [
+                        DynamoDBConverter.marshall({
+                            jobOwnerId: 'userId-3',
+                            jobStatus: 'canceling',
+                            tenantId: 'tenant1',
+                        }),
+                    ],
+                });
+            }
+            callback(null, {});
+        });
+
+        const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB(), false, { enableMultiTenancy: true });
+
+        // OPERATE
+        await expect(
+            dynamoDbDataService.initiateExport({ ...initiateExportRequest, tenantId: 'tenant1' }),
+        ).rejects.toMatchObject(new TooManyConcurrentExportRequestsError());
     });
 });
 
@@ -668,15 +795,30 @@ describe('cancelExport', () => {
             callback(null, {});
         });
 
-        const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
-
         const jobId = '2a937fe2-8bb1-442b-b9be-434c94f30e15';
+
+        /*
+        Single-tenant Mode
+         */
+        const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
         // OPERATE
         await dynamoDbDataService.cancelExport(jobId);
-
         // CHECK
         expect(updateJobSpy.getCall(0).args[0]).toMatchObject(
             DynamoDbParamBuilder.buildUpdateExportRequestJobStatus(jobId, 'canceling'),
+        );
+
+        /*
+        Multi-tenancy Mode
+         */
+        const dynamoDbDataServiceMultiTenancy = new DynamoDbDataService(new AWS.DynamoDB(), false, {
+            enableMultiTenancy: true,
+        });
+        // OPERATE
+        await dynamoDbDataServiceMultiTenancy.cancelExport(jobId, 'tenant1');
+        // CHECK
+        expect(updateJobSpy.getCall(1).args[0]).toMatchObject(
+            DynamoDbParamBuilder.buildUpdateExportRequestJobStatus(jobId, 'canceling', 'tenant1'),
         );
     });
 
@@ -693,15 +835,11 @@ describe('cancelExport', () => {
             const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
 
             const jobId = '2a937fe2-8bb1-442b-b9be-434c94f30e15';
+
             // OPERATE
-            try {
-                await dynamoDbDataService.cancelExport(jobId);
-            } catch (e) {
-                // CHECK
-                expect(e).toMatchObject(
-                    new Error(`Job cannot be canceled because job is already in ${jobStatus} state`),
-                );
-            }
+            await expect(dynamoDbDataService.cancelExport(jobId)).rejects.toMatchObject(
+                new Error(`Job cannot be canceled because job is already in ${jobStatus} state`),
+            );
         },
     );
 });
@@ -757,14 +895,15 @@ each(['cancelExport', 'getExportStatus']).test('%s:Unable to find job', async (t
     const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
 
     const jobId = '2a937fe2-8bb1-442b-b9be-434c94f30e15';
-    try {
-        // OPERATE
-        if (testMethod === 'cancelExport') {
-            await dynamoDbDataService.cancelExport(jobId);
-        } else {
-            await dynamoDbDataService.getExportStatus(jobId);
-        }
-    } catch (e) {
-        expect(e).toMatchObject(new ResourceNotFoundError('$export', jobId));
+
+    // OPERATE
+    if (testMethod === 'cancelExport') {
+        await expect(dynamoDbDataService.cancelExport(jobId)).rejects.toMatchObject(
+            new ResourceNotFoundError('$export', jobId),
+        );
+    } else {
+        await expect(dynamoDbDataService.getExportStatus(jobId)).rejects.toMatchObject(
+            new ResourceNotFoundError('$export', jobId),
+        );
     }
 });

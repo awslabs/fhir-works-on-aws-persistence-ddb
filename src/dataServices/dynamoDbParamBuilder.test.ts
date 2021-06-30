@@ -7,6 +7,7 @@ import { cloneDeep } from 'lodash';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 import DOCUMENT_STATUS from './documentStatus';
 import { timeFromEpochInMsRegExp, utcTimeRegExp } from '../../testUtilities/regExpressions';
+import { BulkExportJob } from '../bulkExport/types';
 
 describe('buildUpdateDocumentStatusParam', () => {
     const resourceType = 'Patient';
@@ -318,6 +319,115 @@ describe('buildGetResourcesQueryParam', () => {
                 S: 'tenant1|8cafa46d-08b4-4ee4-b51b-803e20ae8126',
             },
         };
+
+        expect(actualParam).toEqual(clonedExpectedParam);
+    });
+});
+
+describe('buildPutCreateExportRequest', () => {
+    const jobId = 'job-1';
+    const exportType = 'system';
+    const transactionTime = '2020-10-10T00:00:00.000Z';
+    const since = '2020-10-09T00:00:00.000Z';
+    const outputFormat = 'ndjson';
+
+    const job: BulkExportJob = {
+        jobId,
+        jobStatus: 'in-progress',
+        jobOwnerId: 'owner-1',
+        exportType,
+        transactionTime,
+        outputFormat,
+        since,
+    };
+
+    const jobWithTenantId: BulkExportJob = {
+        ...job,
+        tenantId: 'tenant1',
+    };
+
+    const expectedParam = {
+        TableName: '',
+        Item: {
+            exportType: {
+                S: 'system',
+            },
+            jobId: {
+                S: 'job-1',
+            },
+            jobOwnerId: {
+                S: 'owner-1',
+            },
+            jobStatus: {
+                S: 'in-progress',
+            },
+            outputFormat: {
+                S: 'ndjson',
+            },
+            since: {
+                S: '2020-10-09T00:00:00.000Z',
+            },
+            transactionTime: {
+                S: '2020-10-10T00:00:00.000Z',
+            },
+        },
+    };
+    test('Job without tenantId', () => {
+        const actualParam = DynamoDbParamBuilder.buildPutCreateExportRequest(job);
+        console.log(actualParam);
+        expect(actualParam).toEqual(expectedParam);
+    });
+
+    test('tenantId present', () => {
+        const actualParam = DynamoDbParamBuilder.buildPutCreateExportRequest(jobWithTenantId);
+
+        const clonedExpectedParam: any = cloneDeep(expectedParam);
+        clonedExpectedParam.Item = {
+            ...clonedExpectedParam.Item,
+            jobId: {
+                S: 'tenant1|job-1',
+            },
+            _jobId: {
+                S: 'job-1',
+            },
+            tenantId: {
+                S: 'tenant1',
+            },
+        };
+
+        expect(actualParam).toEqual(clonedExpectedParam);
+    });
+});
+
+describe('buildUpdateExportRequestJobStatus', () => {
+    const jobId = 'job-1';
+    const jobStatus = 'completed';
+
+    const expectedParam = {
+        TableName: '',
+        Key: { jobId: { S: jobId } },
+        UpdateExpression: 'set jobStatus = :newStatus',
+        ConditionExpression: 'jobId = :jobIdVal',
+        ExpressionAttributeValues: {
+            ':newStatus': { S: jobStatus },
+            ':jobIdVal': { S: jobId },
+        },
+    };
+
+    test('Job without tenantId', () => {
+        const actualParam = DynamoDbParamBuilder.buildUpdateExportRequestJobStatus(jobId, jobStatus);
+        console.log(actualParam);
+        expect(actualParam).toEqual(expectedParam);
+    });
+
+    test('tenantId present', () => {
+        const tenantId = 'tenant1';
+        const hashKey = `${tenantId}|${jobId}`;
+        const actualParam = DynamoDbParamBuilder.buildUpdateExportRequestJobStatus(jobId, jobStatus, tenantId);
+
+        const clonedExpectedParam: any = cloneDeep(expectedParam);
+        clonedExpectedParam.Key.jobId.S = hashKey;
+        clonedExpectedParam.ExpressionAttributeValues[':jobIdVal'].S = hashKey;
 
         expect(actualParam).toEqual(clonedExpectedParam);
     });

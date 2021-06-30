@@ -28,6 +28,7 @@ export const startExportJobHandler: Handler<
                 '--since': event.since!,
                 '--type': event.type!,
                 '--outputFormat': event.outputFormat!,
+                '--tenantId': event.tenantId!,
             },
         })
         .promise();

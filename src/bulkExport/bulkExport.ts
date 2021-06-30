@@ -69,7 +69,7 @@ export const getBulkExportResults = async (jobId: string): Promise<{ type: strin
 };
 
 export const startJobExecution = async (bulkExportJob: BulkExportJob): Promise<void> => {
-    const { jobId, exportType, groupId, type, transactionTime, outputFormat, since } = bulkExportJob;
+    const { jobId, exportType, groupId, type, transactionTime, outputFormat, since, tenantId } = bulkExportJob;
     const params: any = {
         jobId,
         exportType,
@@ -82,6 +82,9 @@ export const startJobExecution = async (bulkExportJob: BulkExportJob): Promise<v
     }
     if (type) {
         params.type = type;
+    }
+    if (tenantId) {
+        params.tenantId = tenantId;
     }
 
     await new AWS.StepFunctions()
