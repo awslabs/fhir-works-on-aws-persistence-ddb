@@ -19,6 +19,27 @@ const BINARY_RESOURCE = 'binary';
 
 const { IS_OFFLINE, ELASTICSEARCH_DOMAIN_ENDPOINT } = process.env;
 
+const getAliasName = (resourceType: string, tenantId?: string) => {
+    const lowercaseResourceType = resourceType.toLowerCase();
+    if (tenantId) {
+        return `${lowercaseResourceType}-alias-tenant-${tenantId}`;
+    }
+    return `${lowercaseResourceType}-alias`;
+};
+
+const formatDocument = (ddbImage: any): any => {
+    // eslint-disable-next-line no-underscore-dangle
+    if (ddbImage._tenantId) {
+        return {
+            ...ddbImage,
+            // eslint-disable-next-line no-underscore-dangle
+            id: ddbImage._id, // use the original resourceId as id instead of the DDB composite id
+            _id: undefined, // _id is a reserved field in ES, so it must be removed.
+        };
+    }
+    return ddbImage;
+};
+
 export default class DdbToEsHelper {
     public ElasticSearch: Client;
 
@@ -42,7 +63,8 @@ export default class DdbToEsHelper {
         });
     }
 
-    async createIndexAndAliasIfNotExist(indexName: string) {
+    async createIndexAndAliasIfNotExist(indexName: string, tenantId?: string) {
+        const alias = getAliasName(indexName, tenantId);
         logger.debug('entering create index function');
         try {
             const indexExistResponse = await this.ElasticSearch.indices.exists({ index: indexName });
@@ -70,24 +92,28 @@ export default class DdbToEsHelper {
                                     type: 'keyword',
                                     index: true,
                                 },
+                                _tenantId: {
+                                    type: 'keyword',
+                                    index: true,
+                                },
                             },
                         },
-                        aliases: { [`${indexName}-alias`]: {} },
+                        aliases: { [alias]: {} },
                     },
                 };
                 await this.ElasticSearch.indices.create(params);
             } else {
                 const indexAliasExistResponse = await this.ElasticSearch.indices.existsAlias({
                     index: indexName,
-                    name: `${indexName}-alias`,
+                    name: alias,
                 });
                 logger.debug(indexAliasExistResponse);
                 if (!indexAliasExistResponse.body) {
                     // Create Alias
-                    logger.debug(`create alias ${indexName}-alias`);
+                    logger.debug(`create alias ${alias}`);
                     await this.ElasticSearch.indices.putAlias({
                         index: indexName,
-                        name: `${indexName}-alias`,
+                        name: alias,
                     });
                 }
             }
@@ -98,20 +124,22 @@ export default class DdbToEsHelper {
     }
 
     // eslint-disable-next-line class-methods-use-this
-    private generateFullId(id: string, vid: number) {
+    private generateFullId(ddbImage: any) {
+        const { id, vid, _tenantId, _id } = ddbImage;
+        if (_tenantId) {
+            return `${_tenantId}_${_id}_${vid}`;
+        }
         return `${id}_${vid}`;
     }
 
     // Getting promise params for actual deletion of the record from ES
     // eslint-disable-next-line class-methods-use-this
     getDeleteRecordPromiseParam(image: any): PromiseParamAndId {
-        const lowercaseResourceType = image.resourceType.toLowerCase();
-
-        const { id, vid } = image;
-        const compositeId = this.generateFullId(id, vid);
+        const { _tenantId } = image;
+        const compositeId = this.generateFullId(image);
         return {
             promiseParam: {
-                index: `${lowercaseResourceType}-alias`,
+                index: getAliasName(image.resourceType, _tenantId),
                 id: compositeId,
             },
             id: compositeId,
@@ -122,8 +150,6 @@ export default class DdbToEsHelper {
     // Getting promise params for inserting a new record or editing a record
     // eslint-disable-next-line class-methods-use-this
     getUpsertRecordPromiseParam(newImage: any): PromiseParamAndId | null {
-        const lowercaseResourceType = newImage.resourceType.toLowerCase();
-
         // We only perform operations on records with documentStatus === AVAILABLE || DELETED
         if (
             newImage[DOCUMENT_STATUS_FIELD] !== DOCUMENT_STATUS.AVAILABLE &&
@@ -136,15 +162,15 @@ export default class DdbToEsHelper {
         if (newImage[DOCUMENT_STATUS_FIELD] === DOCUMENT_STATUS.AVAILABLE) {
             type = 'upsert-AVAILABLE';
         }
-        const { id, vid } = newImage;
-        const compositeId = this.generateFullId(id, vid);
+        const { _tenantId } = newImage;
+        const compositeId = this.generateFullId(newImage);
         return {
             id: compositeId,
             promiseParam: {
-                index: `${lowercaseResourceType}-alias`,
+                index: getAliasName(newImage.resourceType, _tenantId),
                 id: compositeId,
                 body: {
-                    doc: newImage,
+                    doc: formatDocument(newImage),
                     doc_as_upsert: true,
                 },
             },
