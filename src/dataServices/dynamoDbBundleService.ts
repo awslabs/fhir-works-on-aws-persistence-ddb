@@ -19,6 +19,7 @@ import {
 } from 'fhir-works-on-aws-interface';
 import flatten from 'flat';
 import set from 'lodash/set';
+import mapValues from 'lodash/mapValues';
 
 import DOCUMENT_STATUS from './documentStatus';
 import DynamoDbBundleServiceHelper, { ItemRequest } from './dynamoDbBundleServiceHelper';
@@ -45,7 +46,7 @@ export class DynamoDbBundleService implements Bundle {
 
     private static readonly dynamoDbMaxBatchSize = 25;
 
-    private readonly versionedLinks: Record<string, string[]> | undefined;
+    private readonly versionedLinks: Record<string, Set<string>> | undefined;
 
     /**
      *
@@ -72,7 +73,7 @@ export class DynamoDbBundleService implements Bundle {
         this.dynamoDb = dynamoDb;
         this.updateCreateSupported = supportUpdateCreate;
         this.maxExecutionTimeMs = maxExecutionTimeMs || 26 * 1000;
-        this.versionedLinks = versionedLinks;
+        this.versionedLinks = mapValues(versionedLinks, value => new Set(value));
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -120,9 +121,9 @@ export class DynamoDbBundleService implements Bundle {
             };
         }
         if (this.versionedLinks) {
-            const { status } = await this.updatedReferences(requests, lockedItems);
+            const wasSuccessful = await this.updatedReferences(requests, lockedItems);
             elapsedTimeInMs = this.getElapsedTime(startTime);
-            if (elapsedTimeInMs > this.maxExecutionTimeMs || status === 'ERROR') {
+            if (elapsedTimeInMs > this.maxExecutionTimeMs || !wasSuccessful) {
                 await this.unlockItems(lockedItems, true);
                 if (elapsedTimeInMs > this.maxExecutionTimeMs) {
                     logger.warn(
@@ -228,9 +229,6 @@ export class DynamoDbBundleService implements Bundle {
         const itemReadPromises = itemsToLock.map(async itemToLock => {
             const projectionExpression = 'id, resourceType, meta';
             try {
-                logger.info(
-                    `getMostRecentResource(${itemToLock.resourceType}, ${itemToLock.id}, ${projectionExpression}`,
-                );
                 return await this.dynamoDbHelper.getMostRecentResource(
                     itemToLock.resourceType,
                     itemToLock.id,
@@ -325,11 +323,7 @@ export class DynamoDbBundleService implements Bundle {
         }
     }
 
-    private async updatedReferences(
-        requests: BatchReadWriteRequest[],
-        lockedItems: ItemRequest[],
-    ): Promise<{ status: string; numErrors: number }> {
-        const result: { status: string; numErrors: number } = { status: 'OK', numErrors: 0 };
+    private async updatedReferences(requests: BatchReadWriteRequest[], lockedItems: ItemRequest[]): Promise<boolean> {
         const idToVersionId: Record<string, string> = {};
         lockedItems.forEach((itemRequest: ItemRequest) => {
             if (itemRequest.operation === 'update' && itemRequest.vid) {
@@ -354,67 +348,74 @@ export class DynamoDbBundleService implements Bundle {
             }
         });
 
-        await Promise.all(
-            createOrUpdates.map(async (request: BatchReadWriteRequest) => {
+        const requestsWithReferencesThatMustBeLookedUp = createOrUpdates
+            .filter((request: BatchReadWriteRequest) => {
+                const versionedLinksArray = this.versionedLinks?.[request.resourceType];
+                return !!versionedLinksArray;
+            })
+            .flatMap((request: BatchReadWriteRequest) => {
                 const { resource } = request;
-                const versionedLinksArray = this.versionedLinks ? this.versionedLinks[request.resourceType] : [];
-                if (!versionedLinksArray) {
-                    return;
-                }
-                const flattenedResources: Record<string, string> = flatten(resource);
-                const references = Object.keys(flattenedResources).filter((key: string) => {
-                    return key.endsWith('.reference');
+                return Object.entries(flatten(resource)).map(entry => {
+                    return {
+                        resource: request.resource,
+                        resourceType: request.resourceType,
+                        path: entry[0],
+                        value: entry[1],
+                    };
                 });
-                if (references.length === 0) {
-                    return;
+            })
+            .filter(
+                item => item.path.endsWith('.reference') && this.versionedLinks?.[item.resourceType].has(item.path),
+            );
+
+        const requestsForDDB: {
+            resource: any;
+            path: string;
+            value: string;
+            resourceType: string;
+            id: string;
+        }[] = [];
+        requestsWithReferencesThatMustBeLookedUp.forEach((item: any) => {
+            const fullUrlMatch = item.value.match(captureFullUrlParts);
+            if (!fullUrlMatch) {
+                return;
+            }
+            const resourceType = fullUrlMatch[2];
+            const id = fullUrlMatch[3];
+            let vid = fullUrlMatch[4];
+            if (!vid) {
+                const compoundId = `${resourceType}_${id}`;
+                if (compoundId in idToVersionId) {
+                    vid = idToVersionId[compoundId];
+                    set(item.resource, item.path, `${item.value}/_history/${vid}`);
+                } else {
+                    requestsForDDB.push({
+                        ...item,
+                        resourceType,
+                        id,
+                    });
                 }
-                const versionedLinksSet = new Set(versionedLinksArray);
-                await Promise.all(
-                    references.map(async (referencePath: string) => {
-                        if (!versionedLinksSet.has(referencePath)) {
-                            return;
-                        }
-                        let entryReferenceValue = flattenedResources[referencePath];
-                        const fullUrlMatch = entryReferenceValue.match(captureFullUrlParts);
-                        if (!fullUrlMatch) {
-                            return;
-                        }
-                        const resourceType = fullUrlMatch[2];
-                        const id = fullUrlMatch[3];
-                        let vid = fullUrlMatch[4];
-                        if (!vid) {
-                            const compoundId = `${resourceType}_${id}`;
-                            if (compoundId in idToVersionId) {
-                                vid = idToVersionId[compoundId];
-                            } else {
-                                const projectionExpression = 'meta';
-                                try {
-                                    const itemResponse: GenericResponse = await this.dynamoDbHelper.getMostRecentResource(
-                                        resourceType,
-                                        id,
-                                        projectionExpression,
-                                    );
-                                    const { meta } = itemResponse.resource;
-                                    vid = meta.versionId;
-                                } catch (e) {
-                                    const msg = `Failed to find most recent version of resource with id=${id}`;
-                                    logger.error(msg, e);
-                                    result.numErrors += 1;
-                                }
-                            }
-                            if (vid) {
-                                entryReferenceValue += `/_history/${vid}`;
-                                set(resource, referencePath, entryReferenceValue);
-                            }
-                        }
-                    }),
-                );
+            }
+        });
+        const responsesFromDDB: boolean[] = await Promise.all(
+            requestsForDDB.map(async item => {
+                try {
+                    const itemResponse: GenericResponse = await this.dynamoDbHelper.getMostRecentResource(
+                        item.resourceType,
+                        item.id,
+                        'meta',
+                    );
+                    const { meta } = itemResponse.resource;
+                    set(item.resource, item.path, `${item.value}/_history/${meta.versionId}`);
+                    return true;
+                } catch (e) {
+                    const msg = `Failed to find most recent version of ${item.resourceType} resource with id=${item.id}`;
+                    logger.error(msg, e);
+                    return false;
+                }
             }),
         );
-        if (result.numErrors > 0) {
-            result.status = 'ERROR';
-        }
-        return result;
+        return responsesFromDDB.every(item => item);
     }
 
     /*
