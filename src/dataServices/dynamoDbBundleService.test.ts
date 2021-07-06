@@ -7,8 +7,14 @@
 import * as AWSMock from 'aws-sdk-mock';
 
 import { QueryInput, TransactWriteItemsInput } from 'aws-sdk/clients/dynamodb';
+// @ts-ignore
 import AWS from 'aws-sdk';
-import { BundleResponse, BatchReadWriteRequest, TypeOperation } from 'fhir-works-on-aws-interface';
+import {
+    BundleResponse,
+    BatchReadWriteRequest,
+    TypeOperation,
+    ResourceNotFoundError,
+} from 'fhir-works-on-aws-interface';
 import { DynamoDbBundleService } from './dynamoDbBundleService';
 import { DynamoDBConverter } from './dynamoDb';
 import { timeFromEpochInMsRegExp, utcTimeRegExp, uuidRegExp } from '../../testUtilities/regExpressions';
@@ -133,16 +139,32 @@ describe('atomicallyReadWriteResources', () => {
 
     describe('SUCCESS Cases', () => {
         // When creating a resource, no locks is needed because no items in DDB to put a lock on yet
-        async function runCreateTest(shouldReqHasReferences: boolean) {
+        async function runCreateTest(shouldReqHasReferences: boolean, useVersionedReferences: boolean = false) {
             // BUILD
             const transactWriteItemSpy = sinon.spy();
             AWSMock.mock('DynamoDB', 'transactWriteItems', (params: TransactWriteItemsInput, callback: Function) => {
                 transactWriteItemSpy(params);
                 callback(null, {});
             });
-
             const dynamoDb = new AWS.DynamoDB();
-            const transactionService = new DynamoDbBundleService(dynamoDb);
+            let versionedLinks;
+            if (useVersionedReferences) {
+                versionedLinks = {
+                    Patient: ['managingOrganization.reference'],
+                };
+                const organizationResource: any = {
+                    resourceType: 'Organization',
+                    name: 'ACME .Inc',
+                    active: true,
+                    meta: { versionId: 3 },
+                };
+
+                sinon
+                    .stub(DynamoDbHelper.prototype, 'getMostRecentResource')
+                    .withArgs('Organization', '1', 'meta')
+                    .returns(Promise.resolve({ message: 'Resource found', resource: organizationResource }));
+            }
+            const transactionService = new DynamoDbBundleService(dynamoDb, false, undefined, { versionedLinks });
 
             const resourceType = 'Patient';
             const resource: any = {
@@ -192,7 +214,15 @@ describe('atomicallyReadWriteResources', () => {
             };
             insertedResourceJson[DOCUMENT_STATUS_FIELD] = 'PENDING';
             insertedResourceJson[VID_FIELD] = 1;
-            insertedResourceJson[REFERENCES_FIELD] = shouldReqHasReferences ? [organization] : [];
+            if (shouldReqHasReferences) {
+                if (useVersionedReferences) {
+                    insertedResourceJson[REFERENCES_FIELD] = [`${organization}/_history/3`];
+                } else {
+                    insertedResourceJson[REFERENCES_FIELD] = [organization];
+                }
+            } else {
+                insertedResourceJson[REFERENCES_FIELD] = [];
+            }
             insertedResourceJson[LOCK_END_TS_FIELD] = Date.now();
 
             const insertedResource = DynamoDBConverter.marshall(insertedResourceJson);
@@ -262,11 +292,15 @@ describe('atomicallyReadWriteResources', () => {
             await runCreateTest(false);
         });
 
-        test('CREATING a resource references', async () => {
+        test('CREATING a resource with references', async () => {
             await runCreateTest(true);
         });
 
-        async function runUpdateTest(shouldReqHasReferences: boolean) {
+        test('CREATING a resource with references and versioned reference links', async () => {
+            await runCreateTest(true, true);
+        });
+
+        async function runUpdateTest(shouldReqHasReferences: boolean, useVersionedReferences: boolean = false) {
             // BUILD
             const transactWriteItemSpy = sinon.spy();
             AWSMock.mock('DynamoDB', 'transactWriteItems', (params: TransactWriteItemsInput, callback: Function) => {
@@ -294,18 +328,36 @@ describe('atomicallyReadWriteResources', () => {
                     reference: organization,
                 };
             }
+
             const newResource = {
                 ...oldResource,
                 test: 'test',
                 meta: { versionId: newVid.toString(), lastUpdated: new Date().toISOString(), security: 'skynet' },
             };
 
-            sinon
-                .stub(DynamoDbHelper.prototype, 'getMostRecentResource')
+            const getMostRecentResourceStub = sinon.stub(DynamoDbHelper.prototype, 'getMostRecentResource');
+            getMostRecentResourceStub
+                .withArgs(resourceType, id, 'id, resourceType, meta')
                 .returns(Promise.resolve({ message: 'Resource found', resource: oldResource }));
 
             const dynamoDb = new AWS.DynamoDB();
-            const transactionService = new DynamoDbBundleService(dynamoDb);
+            let versionedLinks;
+            if (useVersionedReferences) {
+                versionedLinks = {
+                    Patient: ['managingOrganization.reference'],
+                };
+                const organizationResource: any = {
+                    resourceType: 'Organization',
+                    name: 'ACME .Inc',
+                    active: true,
+                    meta: { versionId: 3 },
+                };
+
+                getMostRecentResourceStub
+                    .withArgs('Organization', '1', 'meta')
+                    .returns(Promise.resolve({ message: 'Resource found', resource: organizationResource }));
+            }
+            const transactionService = new DynamoDbBundleService(dynamoDb, false, undefined, { versionedLinks });
 
             const updateRequest: BatchReadWriteRequest = {
                 operation: 'update',
@@ -357,7 +409,15 @@ describe('atomicallyReadWriteResources', () => {
             };
             insertedResourceJson[DOCUMENT_STATUS_FIELD] = 'PENDING';
             insertedResourceJson[VID_FIELD] = newVid;
-            insertedResourceJson[REFERENCES_FIELD] = shouldReqHasReferences ? [organization] : [];
+            if (shouldReqHasReferences) {
+                if (useVersionedReferences) {
+                    insertedResourceJson[REFERENCES_FIELD] = [`${organization}/_history/3`];
+                } else {
+                    insertedResourceJson[REFERENCES_FIELD] = [organization];
+                }
+            } else {
+                insertedResourceJson[REFERENCES_FIELD] = [];
+            }
             insertedResourceJson[LOCK_END_TS_FIELD] = Date.now();
 
             const insertedResource = DynamoDBConverter.marshall(insertedResourceJson);
@@ -449,6 +509,10 @@ describe('atomicallyReadWriteResources', () => {
         test('UPDATING a resource with references', async () => {
             await runUpdateTest(true);
         });
+
+        test('UPDATING a resource with references and versioned reference links', async () => {
+            await runUpdateTest(true, true);
+        });
     });
 
     describe('Update as Create Cases', () => {
@@ -500,5 +564,272 @@ describe('atomicallyReadWriteResources', () => {
                 await runTest(supportUpdateCreate as boolean, operation as TypeOperation, isLockSuccessful as boolean);
             });
         }
+    });
+
+    const apiUrl = 'https://patient.ia/fhir';
+
+    describe('Bundle transaction with multiple resources', () => {
+        async function runTransaction(
+            useVersionedReferences: boolean,
+            supportUpdateCreate: boolean,
+            errorFindingLatestVersion: boolean,
+        ) {
+            // BUILD
+            const transactWriteItemSpy = sinon.spy();
+            AWSMock.mock('DynamoDB', 'transactWriteItems', (params: TransactWriteItemsInput, callback: Function) => {
+                transactWriteItemSpy(params);
+                callback(null, {});
+            });
+            // new organization, create
+            const managingOrgId = 'org1';
+            const managingOrgResource = {
+                id: managingOrgId,
+                resourceType: 'Organization',
+                name: 'New Org .Inc',
+                meta: { lastUpdated: new Date().toISOString() },
+            };
+            // this org already exists, just referencing to it
+            const contactOrgId = 'org2';
+            const contactOrgResource = {
+                id: contactOrgId,
+                resourceType: 'Organization',
+                name: 'Existing Ltd.',
+                meta: { versionId: '7', lastUpdated: new Date().toISOString() },
+            };
+            // practitioner already exists but we also update it now
+            const practitionerId = 'practitioner1';
+            const oldPractitionerResource = {
+                id: practitionerId,
+                resourceType: 'Practitioner',
+                name: 'James Brown',
+                meta: { versionId: '2', lastUpdated: new Date().toISOString() },
+            };
+            // updated version included in the bundle
+            const newPractitionerResource = {
+                id: practitionerId,
+                resourceType: 'Practitioner',
+                name: 'James Dean',
+                meta: { versionId: '3', lastUpdated: new Date().toISOString() },
+            };
+            // new patient resource with 3 references
+            const patientResource = {
+                id,
+                resourceType: 'Patient',
+                name: [
+                    {
+                        family: 'Jameson',
+                        given: ['Matt'],
+                    },
+                ],
+                managingOrganization: {
+                    reference: `${apiUrl}/Organization/org1`,
+                },
+                generalPractitioner: {
+                    reference: 'Practitioner/practitioner1',
+                },
+                contact: {
+                    organization: {
+                        reference: 'Organization/org2',
+                    },
+                },
+                meta: { versionId: '1', lastUpdated: new Date().toISOString() },
+            };
+            const getMostRecentResourceStub = sinon.stub(DynamoDbHelper.prototype, 'getMostRecentResource');
+            if (supportUpdateCreate) {
+                // in the update as create scenario the managing org looks like an update, so we try to get the most recent version
+                getMostRecentResourceStub
+                    .withArgs('Organization', managingOrgId, 'id, resourceType, meta')
+                    .throws(new ResourceNotFoundError(managingOrgId, 'This organization does not exist yet'));
+            }
+
+            getMostRecentResourceStub
+                .withArgs('Practitioner', practitionerId, 'id, resourceType, meta')
+                .returns(Promise.resolve({ message: 'Resource found', resource: oldPractitionerResource }));
+
+            const dynamoDb = new AWS.DynamoDB();
+            let versionedLinks;
+            if (useVersionedReferences) {
+                versionedLinks = {
+                    Patient: [
+                        'managingOrganization.reference',
+                        'generalPractitioner.reference',
+                        'contact.organization.reference',
+                    ],
+                };
+
+                if (errorFindingLatestVersion) {
+                    getMostRecentResourceStub
+                        .withArgs('Organization', contactOrgId, 'meta')
+                        .throws(new Error('Error connecting to database'));
+                } else {
+                    getMostRecentResourceStub
+                        .withArgs('Organization', contactOrgId, 'meta')
+                        .returns(Promise.resolve({ message: 'Resource found', resource: contactOrgResource }));
+                }
+            }
+            const transactionService = new DynamoDbBundleService(dynamoDb, supportUpdateCreate, undefined, {
+                versionedLinks,
+            });
+
+            let updateOrCreateOperation = 'create';
+            if (supportUpdateCreate) {
+                updateOrCreateOperation = 'update';
+            }
+            const requestsList: BatchReadWriteRequest[] = [
+                {
+                    operation: updateOrCreateOperation as TypeOperation,
+                    resourceType: 'Organization',
+                    id: managingOrgId,
+                    resource: managingOrgResource,
+                },
+                {
+                    operation: 'update',
+                    resourceType: 'Practitioner',
+                    id: practitionerId,
+                    resource: newPractitionerResource,
+                },
+                {
+                    operation: 'create',
+                    resourceType: 'Patient',
+                    id,
+                    resource: patientResource,
+                },
+            ];
+
+            // OPERATE
+            const actualResponse = await transactionService.transaction({
+                requests: requestsList,
+                startTime: new Date(),
+            });
+
+            if (errorFindingLatestVersion) {
+                expect(actualResponse).toStrictEqual({
+                    success: false,
+                    message: 'Failed to find some resource versions for transaction',
+                    batchReadWriteResponses: [],
+                    errorType: 'USER_ERROR',
+                });
+                return;
+            }
+
+            // CHECK
+            // transactWriteItem requests is called thrice
+            expect(transactWriteItemSpy.calledThrice).toBeTruthy();
+
+            // 0. change Practitioner record's documentStatus to be 'LOCKED'
+            expect(transactWriteItemSpy.getCall(0).args[0]).toStrictEqual({
+                TransactItems: [
+                    {
+                        Update: {
+                            TableName: '',
+                            Key: {
+                                id: { S: practitionerId },
+                                vid: { N: oldPractitionerResource.meta.versionId.toString() },
+                            },
+                            ConditionExpression:
+                                'resourceType = :resourceType AND (documentStatus = :oldStatus OR (lockEndTs < :currentTs AND (documentStatus = :lockStatus OR documentStatus = :pendingStatus OR documentStatus = :pendingDeleteStatus)))',
+                            UpdateExpression: 'set documentStatus = :newStatus, lockEndTs = :futureEndTs',
+                            ExpressionAttributeValues: {
+                                ':newStatus': { S: 'LOCKED' },
+                                ':lockStatus': { S: 'LOCKED' },
+                                ':oldStatus': { S: 'AVAILABLE' },
+                                ':pendingDeleteStatus': { S: 'PENDING_DELETE' },
+                                ':pendingStatus': { S: 'PENDING' },
+                                ':currentTs': { N: expect.stringMatching(timeFromEpochInMsRegExp) },
+                                ':futureEndTs': { N: expect.stringMatching(timeFromEpochInMsRegExp) },
+                                ':resourceType': { S: 'Practitioner' },
+                            },
+                        },
+                    },
+                ],
+            });
+
+            // 1. create new records with documentStatus of 'PENDING'
+            let txItems = transactWriteItemSpy.getCall(1).args[0].TransactItems;
+            expect(txItems.length).toEqual(3);
+            expect(txItems.map((item: any) => item.Put.Item.documentStatus.S)).toEqual([
+                'PENDING',
+                'PENDING',
+                'PENDING',
+            ]);
+
+            // 2. change documentStatus of records
+            txItems = transactWriteItemSpy.getCall(2).args[0].TransactItems;
+            expect(
+                txItems.map((item: any) => {
+                    return {
+                        status: item.Update.ExpressionAttributeValues[':newStatus'].S,
+                        resourceType: item.Update.ExpressionAttributeValues[':resourceType'].S,
+                        id: item.Update.Key.id.S,
+                        vid: item.Update.Key.vid.N,
+                    };
+                }),
+            ).toStrictEqual([
+                {
+                    id: 'practitioner1',
+                    resourceType: 'Practitioner',
+                    status: 'DELETED',
+                    vid: '2',
+                },
+                {
+                    id: 'org1',
+                    resourceType: 'Organization',
+                    status: 'AVAILABLE',
+                    vid: '1',
+                },
+                {
+                    id: 'practitioner1',
+                    resourceType: 'Practitioner',
+                    status: 'AVAILABLE',
+                    vid: '3',
+                },
+                {
+                    id: 'bce8411e-c15e-448c-95dd-69155a837405',
+                    resourceType: 'Patient',
+                    status: 'AVAILABLE',
+                    vid: '1',
+                },
+            ]);
+
+            expect(actualResponse.success).toEqual(true);
+            expect(actualResponse.message).toEqual('Successfully committed requests to DB');
+            expect(actualResponse.batchReadWriteResponses.length).toEqual(3);
+
+            if (useVersionedReferences) {
+                expect(patientResource.managingOrganization.reference).toEqual(
+                    `${apiUrl}/Organization/org1/_history/1`,
+                );
+                expect(patientResource.generalPractitioner.reference).toEqual('Practitioner/practitioner1/_history/3');
+                expect(patientResource.contact.organization.reference).toEqual('Organization/org2/_history/7');
+            } else {
+                expect(patientResource.managingOrganization.reference).toEqual(`${apiUrl}/Organization/org1`);
+                expect(patientResource.generalPractitioner.reference).toEqual('Practitioner/practitioner1');
+                expect(patientResource.contact.organization.reference).toEqual('Organization/org2');
+            }
+        }
+
+        test('transaction without versioned references', async () => {
+            await runTransaction(false, false, false);
+        });
+
+        test('transaction with versioned references', async () => {
+            await runTransaction(true, false, false);
+        });
+
+        test('transaction with update as create and without versioned references', async () => {
+            await runTransaction(false, true, false);
+        });
+
+        test('transaction with update as create and with versioned references', async () => {
+            await runTransaction(true, true, false);
+        });
+
+        test('transaction with versioned references and error finding latest version', async () => {
+            await runTransaction(true, false, true);
+        });
+
+        test('transaction with versioned references, update as create and error finding latest version', async () => {
+            await runTransaction(true, false, true);
+        });
     });
 });

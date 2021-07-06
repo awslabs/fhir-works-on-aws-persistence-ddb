@@ -15,12 +15,17 @@ import {
     Bundle,
     chunkArray,
     ResourceNotFoundError,
+    GenericResponse,
 } from 'fhir-works-on-aws-interface';
+import flatten from 'flat';
+import set from 'lodash/set';
+import mapValues from 'lodash/mapValues';
+
 import DOCUMENT_STATUS from './documentStatus';
 import DynamoDbBundleServiceHelper, { ItemRequest } from './dynamoDbBundleServiceHelper';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
-
 import DynamoDbHelper from './dynamoDbHelper';
+import { captureFullUrlParts } from '../regExpressions';
 import getComponentLogger from '../loggerBuilder';
 
 const logger = getComponentLogger();
@@ -37,16 +42,39 @@ export class DynamoDbBundleService implements Bundle {
 
     private dynamoDb: DynamoDB;
 
-    private maxExecutionTimeMs: number;
+    private readonly maxExecutionTimeMs: number;
 
     private static readonly dynamoDbMaxBatchSize = 25;
 
+    private readonly versionedLinks: Record<string, Set<string>> | undefined;
+
+    /**
+     *
+     * @param dynamoDb
+     * @param supportUpdateCreate
+     * @param maxExecutionTimeMs
+     * @param versionedLinks Data structure to control for which resourceTypes (key) which references (array of paths) should be modified,
+     * so that they point to the current (point in time) version of the referenced resource.
+     * For example:
+     *  {
+     *      "ExplanationOfBenefit": [ "careTeam.reference" ]
+     *  }
+     * says: for resource type ExplanationOfBenefit, make sure the careTeam.reference url points to the current
+     * version of the practitioner resource.
+     * For example, that would mean the reference would be corrected to: `{fhirURl}/Practitioner/1234/_history/<vid>`; instead of the default: `{fhirURl}/Practitioner/1234`
+     * */
     // Allow Mocking DDB
-    constructor(dynamoDb: DynamoDB, supportUpdateCreate: boolean = false, maxExecutionTimeMs?: number) {
+    constructor(
+        dynamoDb: DynamoDB,
+        supportUpdateCreate: boolean = false,
+        maxExecutionTimeMs?: number,
+        { versionedLinks }: { versionedLinks?: Record<string, string[]> } = {},
+    ) {
         this.dynamoDbHelper = new DynamoDbHelper(dynamoDb);
         this.dynamoDb = dynamoDb;
         this.updateCreateSupported = supportUpdateCreate;
         this.maxExecutionTimeMs = maxExecutionTimeMs || 26 * 1000;
+        this.versionedLinks = mapValues(versionedLinks, value => new Set(value));
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -92,6 +120,32 @@ export class DynamoDbBundleService implements Bundle {
                 batchReadWriteResponses: [],
                 errorType,
             };
+        }
+        if (this.versionedLinks) {
+            const wasSuccessful = await this.updatedReferences(requests, lockedItems);
+            elapsedTimeInMs = this.getElapsedTime(startTime);
+            if (elapsedTimeInMs > this.maxExecutionTimeMs || !wasSuccessful) {
+                await this.unlockItems(lockedItems, true);
+                if (elapsedTimeInMs > this.maxExecutionTimeMs) {
+                    logger.warn(
+                        'Locks were rolled back because elapsed time is longer than max code execution time. Elapsed time',
+                        elapsedTimeInMs,
+                    );
+                    return {
+                        success: false,
+                        message: this.ELAPSED_TIME_WARNING_MESSAGE,
+                        batchReadWriteResponses: [],
+                        errorType: 'USER_ERROR',
+                    };
+                }
+                logger.error('Locks were rolled back because failed to find versions of some resources');
+                return {
+                    success: false,
+                    message: 'Failed to find some resource versions for transaction',
+                    batchReadWriteResponses: [],
+                    errorType: 'USER_ERROR',
+                };
+            }
         }
 
         // 2.  Stage resources
@@ -268,6 +322,101 @@ export class DynamoDbBundleService implements Bundle {
                 lockedItems: itemsLockedSuccessfully,
             });
         }
+    }
+
+    private async updatedReferences(requests: BatchReadWriteRequest[], lockedItems: ItemRequest[]): Promise<boolean> {
+        const idToVersionId: Record<string, string> = {};
+        lockedItems.forEach((itemRequest: ItemRequest) => {
+            if (itemRequest.operation === 'update' && itemRequest.vid) {
+                idToVersionId[`${itemRequest.resourceType}_${itemRequest.id}`] = `${itemRequest.vid + 1}`;
+            }
+        });
+
+        const createOrUpdates = requests.filter((request: BatchReadWriteRequest) => {
+            return request.operation === 'create' || request.operation === 'update';
+        });
+
+        requests.forEach((request: BatchReadWriteRequest) => {
+            const key = `${request.resourceType}_${request.id}`;
+            if (request.operation === 'create') {
+                idToVersionId[key] = '1';
+            }
+            // Setting version id to '1' of resources in the bundle that have not been locked. because
+            // if updateCreateSupported==true creates may come disguised as updates. During locking they obviously weren't found
+            // now we don't want to search for them again and then fail because we can't find them.
+            if (request.operation === 'update' && this.updateCreateSupported && !(key in idToVersionId)) {
+                idToVersionId[key] = '1';
+            }
+        });
+
+        const requestsWithReferencesThatMustBeLookedUp = createOrUpdates
+            .filter((request: BatchReadWriteRequest) => {
+                const versionedLinksArray = this.versionedLinks?.[request.resourceType];
+                return !!versionedLinksArray;
+            })
+            .flatMap((request: BatchReadWriteRequest) => {
+                const { resource } = request;
+                return Object.entries(flatten(resource)).map(entry => {
+                    return {
+                        resource: request.resource,
+                        resourceType: request.resourceType,
+                        path: entry[0],
+                        value: entry[1],
+                    };
+                });
+            })
+            .filter(
+                item => item.path.endsWith('.reference') && this.versionedLinks?.[item.resourceType].has(item.path),
+            );
+
+        const requestsForDDB: {
+            resource: any;
+            path: string;
+            value: string;
+            resourceType: string;
+            id: string;
+        }[] = [];
+        requestsWithReferencesThatMustBeLookedUp.forEach((item: any) => {
+            const fullUrlMatch = item.value.match(captureFullUrlParts);
+            if (!fullUrlMatch) {
+                return;
+            }
+            const resourceType = fullUrlMatch[2];
+            const id = fullUrlMatch[3];
+            let vid = fullUrlMatch[4];
+            if (!vid) {
+                const compoundId = `${resourceType}_${id}`;
+                if (compoundId in idToVersionId) {
+                    vid = idToVersionId[compoundId];
+                    set(item.resource, item.path, `${item.value}/_history/${vid}`);
+                } else {
+                    requestsForDDB.push({
+                        ...item,
+                        resourceType,
+                        id,
+                    });
+                }
+            }
+        });
+        const responsesFromDDB: boolean[] = await Promise.all(
+            requestsForDDB.map(async item => {
+                try {
+                    const itemResponse: GenericResponse = await this.dynamoDbHelper.getMostRecentResource(
+                        item.resourceType,
+                        item.id,
+                        'meta',
+                    );
+                    const { meta } = itemResponse.resource;
+                    set(item.resource, item.path, `${item.value}/_history/${meta.versionId}`);
+                    return true;
+                } catch (e) {
+                    const msg = `Failed to find most recent version of ${item.resourceType} resource with id=${item.id}`;
+                    logger.error(msg, e);
+                    return false;
+                }
+            }),
+        );
+        return responsesFromDDB.every(item => item);
     }
 
     /*
