@@ -566,6 +566,8 @@ describe('atomicallyReadWriteResources', () => {
         }
     });
 
+    const apiUrl = 'https://patient.ia/fhir';
+
     describe('Bundle transaction with multiple resources', () => {
         async function runTransaction(
             useVersionedReferences: boolean,
@@ -620,7 +622,7 @@ describe('atomicallyReadWriteResources', () => {
                     },
                 ],
                 managingOrganization: {
-                    reference: 'Organization/org1',
+                    reference: `${apiUrl}/Organization/org1`,
                 },
                 generalPractitioner: {
                     reference: 'Practitioner/practitioner1',
@@ -794,11 +796,13 @@ describe('atomicallyReadWriteResources', () => {
             expect(actualResponse.batchReadWriteResponses.length).toEqual(3);
 
             if (useVersionedReferences) {
-                expect(patientResource.managingOrganization.reference).toEqual('Organization/org1/_history/1');
+                expect(patientResource.managingOrganization.reference).toEqual(
+                    `${apiUrl}/Organization/org1/_history/1`,
+                );
                 expect(patientResource.generalPractitioner.reference).toEqual('Practitioner/practitioner1/_history/3');
                 expect(patientResource.contact.organization.reference).toEqual('Organization/org2/_history/7');
             } else {
-                expect(patientResource.managingOrganization.reference).toEqual('Organization/org1');
+                expect(patientResource.managingOrganization.reference).toEqual(`${apiUrl}/Organization/org1`);
                 expect(patientResource.generalPractitioner.reference).toEqual('Practitioner/practitioner1');
                 expect(patientResource.contact.organization.reference).toEqual('Organization/org2');
             }

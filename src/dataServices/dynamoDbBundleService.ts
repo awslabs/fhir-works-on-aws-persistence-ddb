@@ -59,9 +59,10 @@ export class DynamoDbBundleService implements Bundle {
      *  {
      *      "ExplanationOfBenefit": [ "careTeam.reference" ]
      *  }
-     * says: for resources of type ExplanationOfBenefit, make sure the careTeam.reference url points to the current
+     * says: for resource type ExplanationOfBenefit, make sure the careTeam.reference url points to the current
      * version of the practitioner resource.
-     */
+     * For example, that would mean the reference would be corrected to: `{fhirURl}/Practitioner/1234/_history/<vid>`; instead of the default: `{fhirURl}/Practitioner/1234`
+     * */
     // Allow Mocking DDB
     constructor(
         dynamoDb: DynamoDB,
