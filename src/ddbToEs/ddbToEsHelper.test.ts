@@ -47,6 +47,7 @@ describe('DdbToEsHelper', () => {
                                 documentStatus: { index: true, type: 'keyword' },
                                 id: { index: true, type: 'keyword' },
                                 resourceType: { index: true, type: 'keyword' },
+                                _tenantId: { index: true, type: 'keyword' },
                             },
                         },
                     },
