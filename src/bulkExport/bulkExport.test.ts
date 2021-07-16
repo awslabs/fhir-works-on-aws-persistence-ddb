@@ -38,6 +38,19 @@ describe('getBulkExportResults', () => {
         ]);
     });
 
+    test('happy case with tenantId', async () => {
+        AWSMock.mock('S3', 'listObjectsV2', (params: any, callback: Function) => {
+            callback(null, {
+                Contents: [{ Key: 'tenant1/job-1/Patient-1.ndjson' }, { Key: 'tenant1/job-1/Observation-1.ndjson' }],
+            });
+        });
+
+        await expect(getBulkExportResults('job-1', 'tenant1')).resolves.toEqual([
+            { type: 'Patient', url: 'https://somePresignedUrl' },
+            { type: 'Observation', url: 'https://somePresignedUrl' },
+        ]);
+    });
+
     test('no results', async () => {
         AWSMock.mock('S3', 'listObjectsV2', (params: any, callback: Function) => {
             callback(null, {

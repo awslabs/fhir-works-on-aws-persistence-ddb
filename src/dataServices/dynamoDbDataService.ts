@@ -304,7 +304,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
             errorMessage = '',
         } = item;
 
-        const exportedFileUrls = jobStatus === 'completed' ? await getBulkExportResults(jobId) : [];
+        const exportedFileUrls = jobStatus === 'completed' ? await getBulkExportResults(jobId, tenantId) : [];
 
         const getExportStatusResponse: GetExportStatusResponse = {
             jobOwnerId,
