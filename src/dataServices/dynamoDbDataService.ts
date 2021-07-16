@@ -60,7 +60,9 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
         { enableMultiTenancy = false }: { enableMultiTenancy?: boolean } = {},
     ) {
         this.dynamoDbHelper = new DynamoDbHelper(dynamoDb);
-        this.transactionService = new DynamoDbBundleService(dynamoDb, supportUpdateCreate);
+        this.transactionService = new DynamoDbBundleService(dynamoDb, supportUpdateCreate, undefined, {
+            enableMultiTenancy,
+        });
         this.dynamoDb = dynamoDb;
         this.updateCreateSupported = supportUpdateCreate;
         this.enableMultiTenancy = enableMultiTenancy;
