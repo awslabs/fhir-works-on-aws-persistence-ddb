@@ -5,7 +5,7 @@
 
 import AWS from 'aws-sdk';
 import DdbToEsHelper from './ddbToEsHelper';
-import PromiseParamAndId from './promiseParamAndId';
+import ESBulkCommand from './promiseParamAndId';
 import getComponentLogger from '../loggerBuilder';
 
 const REMOVE = 'REMOVE';
@@ -18,10 +18,11 @@ const ddbToEsHelper = new DdbToEsHelper();
 
 export async function handleDdbToEsEvent(event: any) {
     try {
-        const promiseParamAndIds: PromiseParamAndId[] = [];
+        const idToCommand: Record<string, ESBulkCommand> = {};
+        const resourceTypes = new Set();
         for (let i = 0; i < event.Records.length; i += 1) {
             const record = event.Records[i];
-            logger.info('EventName: ', record.eventName);
+            logger.error('EventName: ', record.eventName);
 
             const ddbJsonImage = record.eventName === REMOVE ? record.dynamodb.OldImage : record.dynamodb.NewImage;
             const image = AWS.DynamoDB.Converter.unmarshall(ddbJsonImage);
@@ -31,22 +32,23 @@ export async function handleDdbToEsEvent(event: any) {
                 continue;
             }
 
-            const lowercaseResourceType = image.resourceType.toLowerCase();
-            // eslint-disable-next-line no-await-in-loop
-            await ddbToEsHelper.createIndexAndAliasIfNotExist(lowercaseResourceType);
-            if (record.eventName === REMOVE) {
-                // If a user manually deletes a record from DDB, let's delete it from ES also
-                const idAndDeletePromise = ddbToEsHelper.getDeleteRecordPromiseParam(image);
-                promiseParamAndIds.push(idAndDeletePromise);
-            } else {
-                const idAndUpsertPromise = ddbToEsHelper.getUpsertRecordPromiseParam(image);
-                if (idAndUpsertPromise) {
-                    promiseParamAndIds.push(idAndUpsertPromise);
-                }
+            resourceTypes.add(image.resourceType.toLowerCase());
+
+            const cmd =
+                record.eventName === REMOVE
+                    ? ddbToEsHelper.createBulkESDelete(image)
+                    : ddbToEsHelper.getUpsertRecordPromiseParam(image);
+
+            if (cmd) {
+                // Note this will overwrite the item if present
+                // DDB streams guarantee in-order delivery of all mutations to each item
+                // Meaning the last record in the event stream is the "newest"
+                idToCommand[cmd.id] = cmd;
             }
         }
+        await ddbToEsHelper.logAndExecutePromises(Object.values(idToCommand));
 
-        await ddbToEsHelper.logAndExecutePromises(promiseParamAndIds);
+        // await ddbToEsHelper.createIndexAndAliasIfNotExist(resourceTypes);
     } catch (e) {
         logger.error(
             'Synchronization failed! The resources that could be effected are: ',

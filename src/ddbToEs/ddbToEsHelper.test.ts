@@ -3,6 +3,7 @@ import { Client } from '@elastic/elasticsearch';
 import Mock from '@elastic/elasticsearch-mock';
 
 import DdbToEsHelper from './ddbToEsHelper';
+import ESBulkCommand from './promiseParamAndId';
 
 const ddbToEsHelper = new DdbToEsHelper();
 
@@ -85,6 +86,100 @@ describe('DdbToEsHelper', () => {
             expect(mockAddAlias).toHaveBeenCalledWith(
                 expect.objectContaining({ path: '/patient/_alias/patient-alias' }),
             );
+        });
+    });
+
+    describe('createBulkESDelete', () => {
+        // BUILD
+        const resourceType = 'Patient';
+        const id = '1234';
+        const vid = 5;
+        const compositeId = `${id}_${vid}`;
+
+        const ddbImage = {
+            resourceType,
+            id,
+            vid,
+            documentStatus: 'AVAILABLE',
+        };
+
+        // TEST
+        const result: ESBulkCommand = ddbToEsHelper.createBulkESDelete(ddbImage);
+        // VALIDATE
+        const expectedOutput: ESBulkCommand = {
+            id: compositeId,
+            type: 'delete',
+            bulkCommand: [
+                {
+                    delete: { _index: `${resourceType.toLowerCase()}-alias`, _id: compositeId },
+                },
+            ],
+        };
+        expect(result).toStrictEqual(expectedOutput);
+    });
+
+    describe('getUpsertRecordPromiseParam', () => {
+        const resourceType = 'Patient';
+        const id = '1234';
+        const vid = 5;
+        const compositeId = `${id}_${vid}`;
+
+        const ddbImage = {
+            resourceType,
+            id,
+            vid,
+        };
+        test('document status is AVAILABLE', async () => {
+            // BUILD
+            const ddbImageCopy = { ...ddbImage, documentStatus: 'AVAILABLE' };
+
+            // TEST
+            const result: ESBulkCommand | null = ddbToEsHelper.getUpsertRecordPromiseParam(ddbImageCopy);
+            // VALIDATE
+            const expectedOutput: ESBulkCommand = {
+                id: compositeId,
+                type: 'upsert-AVAILABLE',
+                bulkCommand: [
+                    { update: { _index: `${resourceType.toLowerCase()}-alias`, _id: compositeId } },
+                    { doc: ddbImageCopy, doc_as_upsert: true },
+                ],
+            };
+            expect(result).toStrictEqual(expectedOutput);
+        });
+        test('document status is DELETED', async () => {
+            // BUILD
+            const ddbImageCopy = { ...ddbImage, documentStatus: 'DELETED' };
+
+            // TEST
+            const result: ESBulkCommand | null = ddbToEsHelper.getUpsertRecordPromiseParam(ddbImageCopy);
+            // VALIDATE
+            const expectedOutput: ESBulkCommand = {
+                id: compositeId,
+                type: 'upsert-DELETED',
+                bulkCommand: [
+                    { update: { _index: `${resourceType.toLowerCase()}-alias`, _id: compositeId } },
+                    { doc: ddbImageCopy, doc_as_upsert: true },
+                ],
+            };
+            expect(result).toStrictEqual(expectedOutput);
+        });
+        test('document status is PENDING', async () => {
+            // BUILD
+            const ddbImageCopy = { ...ddbImage, documentStatus: 'PENDING' };
+
+            // TEST
+            const result: ESBulkCommand | null = ddbToEsHelper.getUpsertRecordPromiseParam(ddbImageCopy);
+            // VALIDATE
+            expect(result).toBeNull();
+        });
+        test('document status is LOCKED', async () => {
+            // BUILD
+            const ddbImageCopy = { ...ddbImage, documentStatus: 'LOCKED' };
+
+            // TEST
+            const result: ESBulkCommand | null = ddbToEsHelper.getUpsertRecordPromiseParam(ddbImageCopy);
+            // VALIDATE
+            expect(result).toBeNull();
         });
     });
 });

@@ -3,12 +3,14 @@
  *  SPDX-License-Identifier: Apache-2.0
  */
 
+/* eslint-disable no-underscore-dangle */
+
 import { Client } from '@elastic/elasticsearch';
 // @ts-ignore
 import { AmazonConnection, AmazonTransport } from 'aws-elasticsearch-connector';
 import allSettled from 'promise.allsettled';
 import AWS from '../AWS';
-import PromiseParamAndId, { PromiseType } from './promiseParamAndId';
+import ESBulkCommand, { OperationType } from './promiseParamAndId';
 import { DOCUMENT_STATUS_FIELD } from '../dataServices/dynamoDbUtil';
 import DOCUMENT_STATUS from '../dataServices/documentStatus';
 import getComponentLogger from '../loggerBuilder';
@@ -104,16 +106,17 @@ export default class DdbToEsHelper {
 
     // Getting promise params for actual deletion of the record from ES
     // eslint-disable-next-line class-methods-use-this
-    getDeleteRecordPromiseParam(image: any): PromiseParamAndId {
-        const lowercaseResourceType = image.resourceType.toLowerCase();
+    createBulkESDelete(ddbResourceImage: any): ESBulkCommand {
+        const lowercaseResourceType = ddbResourceImage.resourceType.toLowerCase();
 
-        const { id, vid } = image;
+        const { id, vid } = ddbResourceImage;
         const compositeId = this.generateFullId(id, vid);
         return {
-            promiseParam: {
-                index: `${lowercaseResourceType}-alias`,
-                id: compositeId,
-            },
+            bulkCommand: [
+                {
+                    delete: { _index: `${lowercaseResourceType}-alias`, _id: compositeId },
+                },
+            ],
             id: compositeId,
             type: 'delete',
         };
@@ -121,7 +124,7 @@ export default class DdbToEsHelper {
 
     // Getting promise params for inserting a new record or editing a record
     // eslint-disable-next-line class-methods-use-this
-    getUpsertRecordPromiseParam(newImage: any): PromiseParamAndId | null {
+    getUpsertRecordPromiseParam(newImage: any): ESBulkCommand | null {
         const lowercaseResourceType = newImage.resourceType.toLowerCase();
 
         // We only perform operations on records with documentStatus === AVAILABLE || DELETED
@@ -132,7 +135,7 @@ export default class DdbToEsHelper {
             return null;
         }
 
-        let type: PromiseType = 'upsert-DELETED';
+        let type: OperationType = 'upsert-DELETED';
         if (newImage[DOCUMENT_STATUS_FIELD] === DOCUMENT_STATUS.AVAILABLE) {
             type = 'upsert-AVAILABLE';
         }
@@ -140,14 +143,10 @@ export default class DdbToEsHelper {
         const compositeId = this.generateFullId(id, vid);
         return {
             id: compositeId,
-            promiseParam: {
-                index: `${lowercaseResourceType}-alias`,
-                id: compositeId,
-                body: {
-                    doc: newImage,
-                    doc_as_upsert: true,
-                },
-            },
+            bulkCommand: [
+                { update: { _index: `${lowercaseResourceType}-alias`, _id: compositeId } },
+                { doc: newImage, doc_as_upsert: true },
+            ],
             type,
         };
     }
@@ -159,60 +158,55 @@ export default class DdbToEsHelper {
         return resourceType === BINARY_RESOURCE;
     }
 
-    // eslint-disable-next-line class-methods-use-this
-    async logAndExecutePromises(promiseParamAndIds: PromiseParamAndId[]) {
+    async logAndExecutePromises(cmds: ESBulkCommand[]) {
         // We're using allSettled-shim because as of 7/21/2020 'serverless-plugin-typescript' does not support
         // Promise.allSettled.
         allSettled.shim();
 
-        await this.executePromiseBlock('upsert-AVAILABLE', promiseParamAndIds);
-        await this.executePromiseBlock('upsert-DELETED', promiseParamAndIds);
-        await this.executePromiseBlock('delete', promiseParamAndIds);
-    }
-
-    // eslint-disable-next-line class-methods-use-this
-    private async executePromiseBlock(type: PromiseType, promiseParamAndIds: PromiseParamAndId[]) {
-        const filteredPromiseParamAndIds = promiseParamAndIds.filter(paramAndId => {
-            return paramAndId.type === type;
-        });
-
-        if (filteredPromiseParamAndIds.length === 0) {
+        if (cmds.length === 0) {
             return;
         }
 
-        logger.info(
-            `Starting operation "${type}" on resource Ids: `,
-            filteredPromiseParamAndIds.map(paramAndId => {
-                return paramAndId.id;
+        const bulkCmds: any[] = cmds.flat();
+
+        logger.error(
+            `Starting bulk sync operation on resource Ids: `,
+            cmds.map(cmd => {
+                return cmd.id;
             }),
         );
 
-        // @ts-ignore
-        const results = await Promise.allSettled(
-            filteredPromiseParamAndIds.map(async paramAndId => {
-                try {
-                    let response;
-                    if (type === 'upsert-AVAILABLE' || type === 'upsert-DELETED') {
-                        response = await this.ElasticSearch.update(paramAndId.promiseParam);
-                    } else if (type === 'delete') {
-                        response = await this.ElasticSearch.delete(paramAndId.promiseParam);
-                    } else {
-                        throw new Error(`unknown type: ${type}`);
-                    }
-                    return response;
-                } catch (e) {
-                    logger.error(`${type} failed on id: ${paramAndId.id}, due to error:\n${e}`);
-                    throw e;
+        const { body: bulkResponse } = await this.ElasticSearch.bulk({
+            refresh: 'wait_for',
+            require_alias: true,
+            body: bulkCmds,
+        });
+
+        if (bulkResponse.errors) {
+            const erroredDocuments: any[] = [];
+            // The items array has the same order of the dataset we just indexed.
+            // The presence of the `error` key indicates that the operation
+            // that we did for the document has failed.
+            bulkResponse.items.forEach((action: any) => {
+                const operation = Object.keys(action)[0];
+                if (action[operation].error) {
+                    erroredDocuments.push({
+                        // If the status is 429 it means that you can retry the document,
+                        // otherwise it's very likely a mapping error, and you should
+                        // fix the document before to try it again.
+                        status: action[operation].status,
+                        error: action[operation].error,
+                        index: action[operation]._index,
+                        id: action[operation]._id,
+                        esOperation: operation,
+                    });
                 }
-            }),
-        );
+            });
 
-        // Throw rejected promises
-        const rejected = results
-            .filter((result: { status: string }) => result.status === 'rejected')
-            .map((result: { reason: string }) => result.reason);
-        if (rejected.length > 0) {
-            throw new Error(rejected);
+            // TODO handle retries
+
+            logger.error(erroredDocuments);
+            throw new Error(erroredDocuments.toString()); // TODO
         }
     }
 }
