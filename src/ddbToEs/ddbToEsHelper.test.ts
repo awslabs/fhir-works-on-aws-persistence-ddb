@@ -20,28 +20,90 @@ describe('DdbToEsHelper', () => {
         esMock.clearAll();
     });
 
-    describe('createIndexIfNotExist', () => {
-        test('Create index and alias for new index', async () => {
+    describe('createIndexAndAliasIfNotExist', () => {
+        const getAliasesBody = {
+            documentreference: {
+                aliases: {},
+            },
+            fake: {
+                aliases: {
+                    'fake-alias': {},
+                },
+            },
+            '.kibana_1': {
+                aliases: {
+                    '.kibana': {},
+                    '.kibana_1-alias': {},
+                },
+            },
+            patient: {
+                aliases: {
+                    'patient-alias': {},
+                },
+            },
+            'patient-delete': {
+                aliases: {},
+            },
+            practitioner: {
+                aliases: {
+                    'practitioner-alias': {},
+                },
+            },
+        };
+        test('empty set passed in', async () => {
+            // TEST
+            await expect(ddbToEsHelper.createIndexAndAliasIfNotExist(new Set())).resolves.not.toThrow();
+        });
+        test('Alias already created', async () => {
             // BUILD
-            // esMock throws 404 for unmocked method, so there's no need to mock HEAD /patient here
+            const mockExists = jest.fn(() => {
+                return { statusCode: 200, body: true };
+            });
+
+            esMock.add(
+                {
+                    method: 'HEAD',
+                    // path: '/patient/_alias/patient-alias',
+                    path: '/_alias/patient-alias',
+                },
+                mockExists,
+            );
+            // TEST
+            await ddbToEsHelper.createIndexAndAliasIfNotExist(new Set(['patient-alias']));
+            // VALIDATE
+            expect(mockExists).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    method: 'HEAD',
+                    path: '/_alias/patient-alias',
+                    querystring: { expand_wildcards: 'all' },
+                }),
+            );
+        });
+
+        test('Create index and alias', async () => {
+            // BUILD
+            // esMock throws 404 for unmocked method, so there's no need to mock HEAD /patient/_alias/patient-alias here
+            esMock.add({ method: 'GET', path: '/_alias' }, () => {
+                return getAliasesBody;
+            });
+
             const mockAddIndex = jest.fn(() => {
                 return { statusCode: 200 };
             });
             esMock.add(
                 {
                     method: 'PUT',
-                    // path: '/patient/_alias/patient-alias',
-                    path: '/patient',
+                    path: '/organization',
                 },
                 mockAddIndex,
             );
             // TEST
-            await ddbToEsHelper.createIndexAndAliasIfNotExist('patient');
+            await ddbToEsHelper.createIndexAndAliasIfNotExist(new Set(['organization-alias']));
             // VALIDATE
             expect(mockAddIndex).toHaveBeenCalledWith(
                 expect.objectContaining({
                     body: {
-                        aliases: { 'patient-alias': {} },
+                        aliases: { 'organization-alias': {} },
                         mappings: {
                             properties: {
                                 _references: { index: true, type: 'keyword' },
@@ -52,7 +114,7 @@ describe('DdbToEsHelper', () => {
                         },
                     },
                     method: 'PUT',
-                    path: '/patient',
+                    path: '/organization',
                     querystring: {},
                 }),
             );
@@ -61,30 +123,25 @@ describe('DdbToEsHelper', () => {
         test('Create alias for existing index', async () => {
             // BUILD
             // esMock throws 404 for unmocked method, so there's no need to mock HEAD /patient/_alias/patient-alias here
-            esMock.add({ method: 'HEAD', path: '/patient' }, () => {
-                return {
-                    headers: {
-                        date: 'Mon, 07 Jun 2021 17:47:31 GMT',
-                        connection: 'keep-alive',
-                        'access-control-allow-origin': '*',
-                    },
-                };
+            esMock.add({ method: 'GET', path: '/_alias' }, () => {
+                return getAliasesBody;
             });
+
             const mockAddAlias = jest.fn(() => {
-                return { status: 'ok' };
+                return { statusCode: 200 };
             });
             esMock.add(
                 {
                     method: 'PUT',
-                    path: '/patient/_alias/patient-alias',
+                    path: '/documentreference/_alias/documentreference-alias',
                 },
                 mockAddAlias,
             );
             // TEST
-            await ddbToEsHelper.createIndexAndAliasIfNotExist('patient');
+            await ddbToEsHelper.createIndexAndAliasIfNotExist(new Set(['documentreference-alias']));
             // VALIDATE
             expect(mockAddAlias).toHaveBeenCalledWith(
-                expect.objectContaining({ path: '/patient/_alias/patient-alias' }),
+                expect.objectContaining({ path: '/documentreference/_alias/documentreference-alias' }),
             );
         });
     });
@@ -180,6 +237,184 @@ describe('DdbToEsHelper', () => {
             const result: ESBulkCommand | null = ddbToEsHelper.getUpsertRecordPromiseParam(ddbImageCopy);
             // VALIDATE
             expect(result).toBeNull();
+        });
+    });
+
+    describe('executeEsCmds', () => {
+        test('empty list passed in', async () => {
+            // TEST
+            await expect(ddbToEsHelper.executeEsCmds([])).resolves.not.toThrow();
+        });
+
+        test('bulk happy path', async () => {
+            // BUILD
+            const mockBulk = jest.fn(() => {
+                return {
+                    took: 30,
+                    errors: false,
+                    items: [
+                        {
+                            delete: {
+                                _index: 'patient',
+                                _type: '_doc',
+                                _id: '2',
+                                _version: 1,
+                                result: 'not_found',
+                                _shards: {
+                                    total: 2,
+                                    successful: 1,
+                                    failed: 0,
+                                },
+                                status: 404,
+                                _seq_no: 1,
+                                _primary_term: 2,
+                            },
+                        },
+                        {
+                            update: {
+                                _index: 'patient',
+                                _type: '_doc',
+                                _id: '1',
+                                _version: 2,
+                                result: 'updated',
+                                _shards: {
+                                    total: 2,
+                                    successful: 1,
+                                    failed: 0,
+                                },
+                                status: 200,
+                                _seq_no: 3,
+                                _primary_term: 4,
+                            },
+                        },
+                    ],
+                };
+            });
+            esMock.add(
+                {
+                    method: 'POST',
+                    path: '/_bulk',
+                },
+                mockBulk,
+            );
+            // TEST
+            await ddbToEsHelper.executeEsCmds([
+                {
+                    id: 'id_1',
+                    type: 'delete',
+                    bulkCommand: [
+                        {
+                            delete: { _index: `patient-alias`, _id: 'id_1' },
+                        },
+                    ],
+                },
+                {
+                    id: 'id1_1',
+                    type: 'upsert-AVAILABLE',
+                    bulkCommand: [
+                        { update: { _index: `patient-alias`, _id: 'id1_1' } },
+                        { doc: { image: 'patient' }, doc_as_upsert: true },
+                    ],
+                },
+            ]);
+            // VALIDATE
+            expect(mockBulk).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    body: [
+                        { delete: { _id: 'id_1', _index: 'patient-alias' } },
+                        { update: { _id: 'id1_1', _index: 'patient-alias' } },
+                        { doc: { image: 'patient' }, doc_as_upsert: true },
+                    ],
+                    method: 'POST',
+                    path: '/_bulk',
+                    querystring: { refresh: 'wait_for' },
+                }),
+            );
+        });
+        test('bulk error path', async () => {
+            // BUILD
+            const mockBulk = jest.fn(() => {
+                return {
+                    took: 486,
+                    errors: true,
+                    items: [
+                        {
+                            update: {
+                                _index: 'patient',
+                                _type: '_doc',
+                                _id: 'id1_1',
+                                status: 404,
+                                error: {
+                                    type: 'document_missing_exception',
+                                    reason: '[_doc][5]: document missing',
+                                    index_uuid: 'aAsFqTI0Tc2W0LCWgPNrOA',
+                                    shard: '0',
+                                    index: 'patient',
+                                },
+                            },
+                        },
+                        {
+                            delete: {
+                                _index: 'patient',
+                                _type: '_doc',
+                                _id: '2',
+                                _version: 1,
+                                result: 'not_found',
+                                _shards: {
+                                    total: 2,
+                                    successful: 1,
+                                    failed: 0,
+                                },
+                                status: 404,
+                                _seq_no: 1,
+                                _primary_term: 2,
+                            },
+                        },
+                    ],
+                };
+            });
+            esMock.add(
+                {
+                    method: 'POST',
+                    path: '/_bulk',
+                },
+                mockBulk,
+            );
+            // TEST
+            expect(
+                await ddbToEsHelper.executeEsCmds([
+                    {
+                        id: 'id_1',
+                        type: 'delete',
+                        bulkCommand: [
+                            {
+                                delete: { _index: `patient-alias`, _id: 'id_1' },
+                            },
+                        ],
+                    },
+                    {
+                        id: 'id1_1',
+                        type: 'upsert-AVAILABLE',
+                        bulkCommand: [
+                            { update: { _index: `patient-alias`, _id: 'id1_1' } },
+                            { doc: { image: 'patient' }, doc_as_upsert: true },
+                        ],
+                    },
+                ]),
+            ).rejects.toThrow(Error);
+            // VALIDATE
+            expect(mockBulk).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    body: [
+                        { delete: { _id: 'id_1', _index: 'patient-alias' } },
+                        { update: { _id: 'id1_1', _index: 'patient-alias' } },
+                        { doc: { image: 'patient' }, doc_as_upsert: true },
+                    ],
+                    method: 'POST',
+                    path: '/_bulk',
+                    querystring: { refresh: 'wait_for' },
+                }),
+            );
         });
     });
 });

@@ -11,6 +11,7 @@ import getComponentLogger from '../loggerBuilder';
 const REMOVE = 'REMOVE';
 const logger = getComponentLogger();
 const ddbToEsHelper = new DdbToEsHelper();
+let knownAliases: Set<string> = new Set();
 
 // This is a separate lambda function from the main FHIR API server lambda.
 // This lambda picks up changes from DDB by way of DDB stream, and sends those changes to ElasticSearch Service for indexing.
@@ -19,10 +20,10 @@ const ddbToEsHelper = new DdbToEsHelper();
 export async function handleDdbToEsEvent(event: any) {
     try {
         const idToCommand: Record<string, ESBulkCommand> = {};
-        const resourceTypes = new Set();
+        const aliasToCreate: Set<string> = new Set();
         for (let i = 0; i < event.Records.length; i += 1) {
             const record = event.Records[i];
-            logger.error('EventName: ', record.eventName);
+            logger.debug('EventName: ', record.eventName);
 
             const ddbJsonImage = record.eventName === REMOVE ? record.dynamodb.OldImage : record.dynamodb.NewImage;
             const image = AWS.DynamoDB.Converter.unmarshall(ddbJsonImage);
@@ -31,8 +32,10 @@ export async function handleDdbToEsEvent(event: any) {
                 // eslint-disable-next-line no-continue
                 continue;
             }
-
-            resourceTypes.add(image.resourceType.toLowerCase());
+            const alias = `${image.resourceType.toLowerCase()}-alias`;
+            if (!knownAliases.has(alias)) {
+                aliasToCreate.add(alias);
+            }
 
             const cmd =
                 record.eventName === REMOVE
@@ -46,9 +49,10 @@ export async function handleDdbToEsEvent(event: any) {
                 idToCommand[cmd.id] = cmd;
             }
         }
-        await ddbToEsHelper.logAndExecutePromises(Object.values(idToCommand));
-
-        // await ddbToEsHelper.createIndexAndAliasIfNotExist(resourceTypes);
+        await ddbToEsHelper.createIndexAndAliasIfNotExist(aliasToCreate);
+        // update cache of all known aliases
+        knownAliases = new Set([...knownAliases, ...aliasToCreate]);
+        await ddbToEsHelper.executeEsCmds(Object.values(idToCommand));
     } catch (e) {
         logger.error(
             'Synchronization failed! The resources that could be effected are: ',

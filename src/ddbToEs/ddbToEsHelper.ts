@@ -8,7 +8,6 @@
 import { Client } from '@elastic/elasticsearch';
 // @ts-ignore
 import { AmazonConnection, AmazonTransport } from 'aws-elasticsearch-connector';
-import allSettled from 'promise.allsettled';
 import AWS from '../AWS';
 import ESBulkCommand, { OperationType } from './promiseParamAndId';
 import { DOCUMENT_STATUS_FIELD } from '../dataServices/dynamoDbUtil';
@@ -44,57 +43,89 @@ export default class DdbToEsHelper {
         });
     }
 
-    async createIndexAndAliasIfNotExist(indexName: string) {
-        logger.debug('entering create index function');
+    async createIndexAndAliasIfNotExist(aliases: Set<string>) {
+        if (aliases.size === 0) {
+            return;
+        }
+
+        const listOfAliases = Array.from(aliases);
+        const { body: allFound } = await this.ElasticSearch.indices.existsAlias({
+            name: listOfAliases,
+            expand_wildcards: 'all',
+        });
+        if (allFound) {
+            // All needed aliases exist
+            return;
+        }
+
+        logger.debug('There are missing aliases');
+
+        const indicesToCreate: Set<string> = new Set();
+        listOfAliases.forEach((alias: string) => {
+            indicesToCreate.add(alias.substring(0, alias.length - 6)); // remove '-alias'
+        });
+        const aliasesToCreate: Set<string> = new Set(aliases);
+
+        const { body: indices } = await this.ElasticSearch.indices.getAlias();
+        // for each index and alias found remove from set
+        Object.entries(indices).forEach(([k, v]) => {
+            indicesToCreate.delete(k);
+            Object.keys((v as any).aliases).forEach((aliasNames: string) => {
+                aliasesToCreate.delete(aliasNames);
+            });
+        });
         try {
-            const indexExistResponse = await this.ElasticSearch.indices.exists({ index: indexName });
-            logger.debug(indexExistResponse);
-            if (!indexExistResponse.body) {
-                // Create Index
-                const params = {
-                    index: indexName,
-                    body: {
-                        mappings: {
-                            properties: {
-                                id: {
-                                    type: 'keyword',
-                                    index: true,
-                                },
-                                resourceType: {
-                                    type: 'keyword',
-                                    index: true,
-                                },
-                                _references: {
-                                    type: 'keyword',
-                                    index: true,
-                                },
-                                documentStatus: {
-                                    type: 'keyword',
-                                    index: true,
+            const promises: any[] = [];
+            Array.from(indicesToCreate).forEach((index: string) => {
+                const alias = `${index}-alias`;
+                // Only create index when we also need to create an alias
+                if (aliasesToCreate.has(alias)) {
+                    aliasesToCreate.delete(alias);
+                    logger.info(`create index ${index} & alias ${alias}`);
+                    const params = {
+                        index,
+                        body: {
+                            mappings: {
+                                properties: {
+                                    id: {
+                                        type: 'keyword',
+                                        index: true,
+                                    },
+                                    resourceType: {
+                                        type: 'keyword',
+                                        index: true,
+                                    },
+                                    _references: {
+                                        type: 'keyword',
+                                        index: true,
+                                    },
+                                    documentStatus: {
+                                        type: 'keyword',
+                                        index: true,
+                                    },
                                 },
                             },
+                            aliases: { [alias]: {} },
                         },
-                        aliases: { [`${indexName}-alias`]: {} },
-                    },
-                };
-                await this.ElasticSearch.indices.create(params);
-            } else {
-                const indexAliasExistResponse = await this.ElasticSearch.indices.existsAlias({
-                    index: indexName,
-                    name: `${indexName}-alias`,
-                });
-                logger.debug(indexAliasExistResponse);
-                if (!indexAliasExistResponse.body) {
-                    // Create Alias
-                    logger.debug(`create alias ${indexName}-alias`);
-                    await this.ElasticSearch.indices.putAlias({
-                        index: indexName,
-                        name: `${indexName}-alias`,
-                    });
+                    };
+                    promises.push(this.ElasticSearch.indices.create(params));
                 }
-            }
+            });
+
+            Array.from(aliasesToCreate).forEach((alias: string) => {
+                // Create Alias
+                logger.info(`create alias ${alias}`);
+                promises.push(
+                    this.ElasticSearch.indices.putAlias({
+                        index: alias.substring(0, alias.length - 6),
+                        name: alias,
+                    }),
+                );
+            });
+
+            await Promise.all(promises);
         } catch (error) {
-            logger.error(`Failed to check if index(and alias): ${indexName} exist or create index(and alias)`);
+            logger.error(`Failed to create indices and aliases. Aliases: ${aliases} were examined`);
             throw error;
         }
     }
@@ -105,7 +136,6 @@ export default class DdbToEsHelper {
     }
 
     // Getting promise params for actual deletion of the record from ES
-    // eslint-disable-next-line class-methods-use-this
     createBulkESDelete(ddbResourceImage: any): ESBulkCommand {
         const lowercaseResourceType = ddbResourceImage.resourceType.toLowerCase();
 
@@ -123,7 +153,6 @@ export default class DdbToEsHelper {
     }
 
     // Getting promise params for inserting a new record or editing a record
-    // eslint-disable-next-line class-methods-use-this
     getUpsertRecordPromiseParam(newImage: any): ESBulkCommand | null {
         const lowercaseResourceType = newImage.resourceType.toLowerCase();
 
@@ -158,55 +187,45 @@ export default class DdbToEsHelper {
         return resourceType === BINARY_RESOURCE;
     }
 
-    async logAndExecutePromises(cmds: ESBulkCommand[]) {
-        // We're using allSettled-shim because as of 7/21/2020 'serverless-plugin-typescript' does not support
-        // Promise.allSettled.
-        allSettled.shim();
-
-        if (cmds.length === 0) {
-            return;
-        }
-
-        const bulkCmds: any[] = cmds.flat();
-
-        logger.error(
-            `Starting bulk sync operation on resource Ids: `,
-            cmds.map(cmd => {
-                return cmd.id;
-            }),
-        );
-
-        const { body: bulkResponse } = await this.ElasticSearch.bulk({
-            refresh: 'wait_for',
-            require_alias: true,
-            body: bulkCmds,
+    async executeEsCmds(cmds: ESBulkCommand[]) {
+        const bulkCmds: any[] = cmds.flatMap((cmd: ESBulkCommand) => {
+            return cmd.bulkCommand;
         });
 
-        if (bulkResponse.errors) {
-            const erroredDocuments: any[] = [];
-            // The items array has the same order of the dataset we just indexed.
-            // The presence of the `error` key indicates that the operation
-            // that we did for the document has failed.
-            bulkResponse.items.forEach((action: any) => {
-                const operation = Object.keys(action)[0];
-                if (action[operation].error) {
-                    erroredDocuments.push({
-                        // If the status is 429 it means that you can retry the document,
-                        // otherwise it's very likely a mapping error, and you should
-                        // fix the document before to try it again.
-                        status: action[operation].status,
-                        error: action[operation].error,
-                        index: action[operation]._index,
-                        id: action[operation]._id,
-                        esOperation: operation,
-                    });
-                }
+        if (bulkCmds.length === 0) {
+            return;
+        }
+        const listOfIds = cmds.map(cmd => {
+            return cmd.id;
+        });
+        logger.info(`Starting bulk sync operation on ids: `, listOfIds);
+        try {
+            const { body: bulkResponse } = await this.ElasticSearch.bulk({
+                refresh: 'wait_for',
+                body: bulkCmds,
             });
 
-            // TODO handle retries
-
-            logger.error(erroredDocuments);
-            throw new Error(erroredDocuments.toString()); // TODO
+            if (bulkResponse.errors) {
+                const erroredDocuments: any[] = [];
+                // The presence of the `error` key indicates that the operation
+                // that we did for the document has failed.
+                bulkResponse.items.forEach((action: any) => {
+                    const operation = Object.keys(action)[0];
+                    if (action[operation].error) {
+                        erroredDocuments.push({
+                            status: action[operation].status,
+                            error: action[operation].error,
+                            index: action[operation]._index,
+                            id: action[operation]._id,
+                            esOperation: operation,
+                        });
+                    }
+                });
+                throw new Error(JSON.stringify(erroredDocuments));
+            }
+        } catch (error) {
+            logger.error(`Bulk sync operation failed on ids: `, listOfIds);
+            throw error;
         }
     }
 }
