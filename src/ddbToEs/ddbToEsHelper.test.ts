@@ -331,6 +331,7 @@ describe('DdbToEsHelper', () => {
                 }),
             );
         });
+
         test('bulk error path', async () => {
             // BUILD
             const mockBulk = jest.fn(() => {
@@ -381,8 +382,8 @@ describe('DdbToEsHelper', () => {
                 mockBulk,
             );
             // TEST
-            expect(
-                await ddbToEsHelper.executeEsCmds([
+            await expect(
+                ddbToEsHelper.executeEsCmds([
                     {
                         id: 'id_1',
                         type: 'delete',
@@ -401,7 +402,9 @@ describe('DdbToEsHelper', () => {
                         ],
                     },
                 ]),
-            ).rejects.toThrow(Error);
+            ).rejects.toThrow(
+                '[{"status":404,"error":{"type":"document_missing_exception","reason":"[_doc][5]: document missing","index_uuid":"aAsFqTI0Tc2W0LCWgPNrOA","shard":"0","index":"patient"},"index":"patient","id":"id1_1","esOperation":"update"}]',
+            );
             // VALIDATE
             expect(mockBulk).toHaveBeenCalledWith(
                 expect.objectContaining({
