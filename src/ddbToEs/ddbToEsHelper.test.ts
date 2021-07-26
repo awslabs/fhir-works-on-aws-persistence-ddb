@@ -3,7 +3,7 @@ import { Client } from '@elastic/elasticsearch';
 import Mock from '@elastic/elasticsearch-mock';
 
 import DdbToEsHelper from './ddbToEsHelper';
-import ESBulkCommand from './promiseParamAndId';
+import ESBulkCommand from './ESBulkCommand';
 
 const ddbToEsHelper = new DdbToEsHelper();
 
@@ -175,7 +175,7 @@ describe('DdbToEsHelper', () => {
         expect(result).toStrictEqual(expectedOutput);
     });
 
-    describe('getUpsertRecordPromiseParam', () => {
+    describe('createBulkESUpsert', () => {
         const resourceType = 'Patient';
         const id = '1234';
         const vid = 5;
@@ -191,7 +191,7 @@ describe('DdbToEsHelper', () => {
             const ddbImageCopy = { ...ddbImage, documentStatus: 'AVAILABLE' };
 
             // TEST
-            const result: ESBulkCommand | null = ddbToEsHelper.getUpsertRecordPromiseParam(ddbImageCopy);
+            const result: ESBulkCommand | null = ddbToEsHelper.createBulkESUpsert(ddbImageCopy);
             // VALIDATE
             const expectedOutput: ESBulkCommand = {
                 id: compositeId,
@@ -208,7 +208,7 @@ describe('DdbToEsHelper', () => {
             const ddbImageCopy = { ...ddbImage, documentStatus: 'DELETED' };
 
             // TEST
-            const result: ESBulkCommand | null = ddbToEsHelper.getUpsertRecordPromiseParam(ddbImageCopy);
+            const result: ESBulkCommand | null = ddbToEsHelper.createBulkESUpsert(ddbImageCopy);
             // VALIDATE
             const expectedOutput: ESBulkCommand = {
                 id: compositeId,
@@ -225,7 +225,7 @@ describe('DdbToEsHelper', () => {
             const ddbImageCopy = { ...ddbImage, documentStatus: 'PENDING' };
 
             // TEST
-            const result: ESBulkCommand | null = ddbToEsHelper.getUpsertRecordPromiseParam(ddbImageCopy);
+            const result: ESBulkCommand | null = ddbToEsHelper.createBulkESUpsert(ddbImageCopy);
             // VALIDATE
             expect(result).toBeNull();
         });
@@ -234,7 +234,7 @@ describe('DdbToEsHelper', () => {
             const ddbImageCopy = { ...ddbImage, documentStatus: 'LOCKED' };
 
             // TEST
-            const result: ESBulkCommand | null = ddbToEsHelper.getUpsertRecordPromiseParam(ddbImageCopy);
+            const result: ESBulkCommand | null = ddbToEsHelper.createBulkESUpsert(ddbImageCopy);
             // VALIDATE
             expect(result).toBeNull();
         });

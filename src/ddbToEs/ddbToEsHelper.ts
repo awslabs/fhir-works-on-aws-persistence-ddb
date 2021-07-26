@@ -9,7 +9,7 @@ import { Client } from '@elastic/elasticsearch';
 // @ts-ignore
 import { AmazonConnection, AmazonTransport } from 'aws-elasticsearch-connector';
 import AWS from '../AWS';
-import ESBulkCommand, { OperationType } from './promiseParamAndId';
+import ESBulkCommand, { OperationType } from './ESBulkCommand';
 import { DOCUMENT_STATUS_FIELD } from '../dataServices/dynamoDbUtil';
 import DOCUMENT_STATUS from '../dataServices/documentStatus';
 import getComponentLogger from '../loggerBuilder';
@@ -153,7 +153,7 @@ export default class DdbToEsHelper {
     }
 
     // Getting promise params for inserting a new record or editing a record
-    getUpsertRecordPromiseParam(newImage: any): ESBulkCommand | null {
+    createBulkESUpsert(newImage: any): ESBulkCommand | null {
         const lowercaseResourceType = newImage.resourceType.toLowerCase();
 
         // We only perform operations on records with documentStatus === AVAILABLE || DELETED

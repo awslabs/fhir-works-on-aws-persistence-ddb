@@ -5,7 +5,7 @@
 
 import AWS from 'aws-sdk';
 import DdbToEsHelper from './ddbToEsHelper';
-import ESBulkCommand from './promiseParamAndId';
+import ESBulkCommand from './ESBulkCommand';
 import getComponentLogger from '../loggerBuilder';
 
 const REMOVE = 'REMOVE';
@@ -40,7 +40,7 @@ export async function handleDdbToEsEvent(event: any) {
             const cmd =
                 record.eventName === REMOVE
                     ? ddbToEsHelper.createBulkESDelete(image)
-                    : ddbToEsHelper.getUpsertRecordPromiseParam(image);
+                    : ddbToEsHelper.createBulkESUpsert(image);
 
             if (cmd) {
                 // Note this will overwrite the item if present
