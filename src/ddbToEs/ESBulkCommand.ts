@@ -8,7 +8,7 @@ export type OperationType = 'delete' | 'upsert-AVAILABLE' | 'upsert-DELETED';
 export default interface ESBulkCommand {
     bulkCommand: any[];
     /**
-     * This will be a unquie identifier or composite id i.e. `<id>_<vid>`
+     * This will be a unique identifier or composite id i.e. `<id>_<vid>`
      */
     id: string;
     type: OperationType;
