@@ -16,8 +16,6 @@ import getComponentLogger from '../loggerBuilder';
 
 const logger = getComponentLogger();
 
-const BINARY_RESOURCE = 'binary';
-
 const { IS_OFFLINE, ELASTICSEARCH_DOMAIN_ENDPOINT } = process.env;
 
 export default class DdbToEsHelper {
@@ -43,12 +41,14 @@ export default class DdbToEsHelper {
         });
     }
 
-    async createIndexAndAliasIfNotExist(aliases: Set<string>) {
-        if (aliases.size === 0) {
+    async createIndexAndAliasIfNotExist(resourceTypes: Set<string>) {
+        if (resourceTypes.size === 0) {
             return;
         }
 
-        const listOfAliases = Array.from(aliases);
+        const listOfAliases = Array.from(resourceTypes).map((resourceType: string) => {
+            return this.generateAlias(resourceType);
+        });
         const { body: allFound } = await this.ElasticSearch.indices.existsAlias({
             name: listOfAliases,
             expand_wildcards: 'all',
@@ -60,24 +60,21 @@ export default class DdbToEsHelper {
 
         logger.debug('There are missing aliases');
 
-        const indicesToCreate: Set<string> = new Set();
-        listOfAliases.forEach((alias: string) => {
-            indicesToCreate.add(alias.substring(0, alias.length - 6)); // remove '-alias'
-        });
-        const aliasesToCreate: Set<string> = new Set(aliases);
+        const indicesToCreate: Set<string> = new Set(resourceTypes);
+        const aliasesToCreate: Set<string> = new Set(listOfAliases);
 
         const { body: indices } = await this.ElasticSearch.indices.getAlias();
         // for each index and alias found remove from set
-        Object.entries(indices).forEach(([k, v]) => {
-            indicesToCreate.delete(k);
-            Object.keys((v as any).aliases).forEach((aliasNames: string) => {
-                aliasesToCreate.delete(aliasNames);
+        Object.entries(indices).forEach(([indexName, indexBody]) => {
+            indicesToCreate.delete(indexName);
+            Object.keys((indexBody as any).aliases).forEach((alias: string) => {
+                aliasesToCreate.delete(alias);
             });
         });
         try {
             const promises: any[] = [];
             Array.from(indicesToCreate).forEach((index: string) => {
-                const alias = `${index}-alias`;
+                const alias = this.generateAlias(index);
                 // Only create index when we also need to create an alias
                 if (aliasesToCreate.has(alias)) {
                     aliasesToCreate.delete(alias);
@@ -125,7 +122,7 @@ export default class DdbToEsHelper {
 
             await Promise.all(promises);
         } catch (error) {
-            logger.error(`Failed to create indices and aliases. Aliases: ${aliases} were examined`);
+            logger.error(`Failed to create indices and aliases. Resource types: ${resourceTypes} were examined`);
             throw error;
         }
     }
@@ -135,16 +132,19 @@ export default class DdbToEsHelper {
         return `${id}_${vid}`;
     }
 
+    // eslint-disable-next-line class-methods-use-this
+    private generateAlias(resourceType: string) {
+        return `${resourceType.toLowerCase()}-alias`;
+    }
+
     // Getting promise params for actual deletion of the record from ES
     createBulkESDelete(ddbResourceImage: any): ESBulkCommand {
-        const lowercaseResourceType = ddbResourceImage.resourceType.toLowerCase();
-
         const { id, vid } = ddbResourceImage;
         const compositeId = this.generateFullId(id, vid);
         return {
             bulkCommand: [
                 {
-                    delete: { _index: `${lowercaseResourceType}-alias`, _id: compositeId },
+                    delete: { _index: this.generateAlias(ddbResourceImage.resourceType), _id: compositeId },
                 },
             ],
             id: compositeId,
@@ -154,8 +154,6 @@ export default class DdbToEsHelper {
 
     // Getting promise params for inserting a new record or editing a record
     createBulkESUpsert(newImage: any): ESBulkCommand | null {
-        const lowercaseResourceType = newImage.resourceType.toLowerCase();
-
         // We only perform operations on records with documentStatus === AVAILABLE || DELETED
         if (
             newImage[DOCUMENT_STATUS_FIELD] !== DOCUMENT_STATUS.AVAILABLE &&
@@ -173,18 +171,11 @@ export default class DdbToEsHelper {
         return {
             id: compositeId,
             bulkCommand: [
-                { update: { _index: `${lowercaseResourceType}-alias`, _id: compositeId } },
+                { update: { _index: this.generateAlias(newImage.resourceType), _id: compositeId } },
                 { doc: newImage, doc_as_upsert: true },
             ],
             type,
         };
-    }
-
-    // eslint-disable-next-line class-methods-use-this
-    isBinaryResource(image: any): boolean {
-        const resourceType = image.resourceType.toLowerCase();
-        // Don't index binary files
-        return resourceType === BINARY_RESOURCE;
     }
 
     async executeEsCmds(cmds: ESBulkCommand[]) {

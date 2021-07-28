@@ -69,7 +69,7 @@ describe('DdbToEsHelper', () => {
                 mockExists,
             );
             // TEST
-            await ddbToEsHelper.createIndexAndAliasIfNotExist(new Set(['patient-alias']));
+            await ddbToEsHelper.createIndexAndAliasIfNotExist(new Set(['patient']));
             // VALIDATE
             expect(mockExists).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -98,7 +98,7 @@ describe('DdbToEsHelper', () => {
                 mockAddIndex,
             );
             // TEST
-            await ddbToEsHelper.createIndexAndAliasIfNotExist(new Set(['organization-alias']));
+            await ddbToEsHelper.createIndexAndAliasIfNotExist(new Set(['organization']));
             // VALIDATE
             expect(mockAddIndex).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -138,7 +138,7 @@ describe('DdbToEsHelper', () => {
                 mockAddAlias,
             );
             // TEST
-            await ddbToEsHelper.createIndexAndAliasIfNotExist(new Set(['documentreference-alias']));
+            await ddbToEsHelper.createIndexAndAliasIfNotExist(new Set(['documentreference']));
             // VALIDATE
             expect(mockAddAlias).toHaveBeenCalledWith(
                 expect.objectContaining({ path: '/documentreference/_alias/documentreference-alias' }),
