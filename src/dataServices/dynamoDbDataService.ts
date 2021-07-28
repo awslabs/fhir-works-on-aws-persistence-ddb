@@ -30,6 +30,7 @@ import {
     vReadResourceRequest,
 } from 'fhir-works-on-aws-interface';
 import DynamoDB, { ItemList } from 'aws-sdk/clients/dynamodb';
+import { intersection } from 'lodash';
 import { DynamoDBConverter } from './dynamoDb';
 import DOCUMENT_STATUS from './documentStatus';
 import { DynamoDbBundleService } from './dynamoDbBundleService';
@@ -327,6 +328,11 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
     buildExportJob(initiateExportRequest: InitiateExportRequest): BulkExportJob {
         const initialStatus: ExportJobStatus = 'in-progress';
         const uuid = uuidv4();
+        // Combine allowedResourceTypes and user input parameter type before pass to Glue job
+        let type = initiateExportRequest.allowedResourceTypes.join(',');
+        if (initiateExportRequest.type) {
+            type = intersection(type.split(','), initiateExportRequest.allowedResourceTypes).join(',');
+        }
         const exportJob: BulkExportJob = {
             jobId: uuid,
             jobOwnerId: initiateExportRequest.requesterUserId,
@@ -335,7 +341,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
             serverUrl: initiateExportRequest.serverUrl ?? '',
             outputFormat: initiateExportRequest.outputFormat ?? 'ndjson',
             since: initiateExportRequest.since ?? '1800-01-01T00:00:00.000Z', // Default to a long time ago in the past
-            type: initiateExportRequest.type ?? '',
+            type,
             transactionTime: initiateExportRequest.transactionTime,
             jobStatus: initialStatus,
             jobFailedMessage: '',
