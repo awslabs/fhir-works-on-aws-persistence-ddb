@@ -18,6 +18,8 @@ const logger = getComponentLogger();
 
 const { IS_OFFLINE, ELASTICSEARCH_DOMAIN_ENDPOINT } = process.env;
 
+const ALIAS_SUFFIX = '-alias';
+
 export default class DdbToEsHelper {
     public ElasticSearch: Client;
 
@@ -110,11 +112,11 @@ export default class DdbToEsHelper {
             });
 
             Array.from(aliasesToCreate).forEach((alias: string) => {
-                // Create Alias
+                // Create Alias; this block is creating aliases for existing indices
                 logger.info(`create alias ${alias}`);
                 promises.push(
                     this.ElasticSearch.indices.putAlias({
-                        index: alias.substring(0, alias.length - 6),
+                        index: this.getResourceType(alias),
                         name: alias,
                     }),
                 );
@@ -134,7 +136,12 @@ export default class DdbToEsHelper {
 
     // eslint-disable-next-line class-methods-use-this
     private generateAlias(resourceType: string) {
-        return `${resourceType.toLowerCase()}-alias`;
+        return `${resourceType.toLowerCase()}${ALIAS_SUFFIX}`;
+    }
+
+    // eslint-disable-next-line class-methods-use-this
+    private getResourceType(alias: string) {
+        return alias.substring(0, alias.length - ALIAS_SUFFIX.length);
     }
 
     // Getting promise params for actual deletion of the record from ES
