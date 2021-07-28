@@ -213,6 +213,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
 
         await startJobExecution(exportJob);
 
+        // TODO: Remove serverURL and compartment patient file name from DDB save logic
         const params = DynamoDbParamBuilder.buildPutCreateExportRequest(exportJob);
         await this.dynamoDb.putItem(params).promise();
         return exportJob.jobId;
@@ -331,6 +332,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
             jobOwnerId: initiateExportRequest.requesterUserId,
             exportType: initiateExportRequest.exportType,
             groupId: initiateExportRequest.groupId ?? '',
+            serverUrl: initiateExportRequest.serverUrl ?? '',
             outputFormat: initiateExportRequest.outputFormat ?? 'ndjson',
             since: initiateExportRequest.since ?? '1800-01-01T00:00:00.000Z', // Default to a long time ago in the past
             type: initiateExportRequest.type ?? '',
@@ -340,6 +342,12 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
         };
         if (this.enableMultiTenancy) {
             exportJob.tenantId = initiateExportRequest.tenantId;
+        }
+        if (initiateExportRequest.groupId) {
+            exportJob.compartmentSearchParamFile =
+                initiateExportRequest.fhirVersion === '4.0.1'
+                    ? process.env.PATIENT_COMPARTMENT_V4
+                    : process.env.PATIENT_COMPARTMENT_V3;
         }
         return exportJob;
     }

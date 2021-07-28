@@ -27,6 +27,8 @@ export interface BulkExportStateMachineGlobalParameters {
     since?: string;
     type?: string;
     tenantId?: string;
+    serverUrl?: string;
+    compartmentSearchParamFile?: string;
     executionParameters?: BulkExportStateMachineExecutionParameters;
 }
 
@@ -42,4 +44,6 @@ export interface BulkExportJob {
     jobFailedMessage?: string;
     type?: string;
     tenantId?: string;
+    serverUrl?: string;
+    compartmentSearchParamFile?: string;
 }
