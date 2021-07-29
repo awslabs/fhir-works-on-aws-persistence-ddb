@@ -26,11 +26,12 @@ import {
     ResourceNotFoundError,
     ResourceVersionNotFoundError,
     TooManyConcurrentExportRequestsError,
+    UnauthorizedError,
     UpdateResourceRequest,
     vReadResourceRequest,
 } from 'fhir-works-on-aws-interface';
 import DynamoDB, { ItemList } from 'aws-sdk/clients/dynamodb';
-import { intersection } from 'lodash';
+import { difference } from 'lodash';
 import { DynamoDBConverter } from './dynamoDb';
 import DOCUMENT_STATUS from './documentStatus';
 import { DynamoDbBundleService } from './dynamoDbBundleService';
@@ -214,8 +215,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
 
         await startJobExecution(exportJob);
 
-        // TODO: Remove serverURL and compartment patient file name from DDB save logic
-        const params = DynamoDbParamBuilder.buildPutCreateExportRequest(exportJob);
+        const params = DynamoDbParamBuilder.buildPutCreateExportRequest(exportJob, initiateExportRequest);
         await this.dynamoDb.putItem(params).promise();
         return exportJob.jobId;
     }
@@ -331,7 +331,14 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
         // Combine allowedResourceTypes and user input parameter type before pass to Glue job
         let type = initiateExportRequest.allowedResourceTypes.join(',');
         if (initiateExportRequest.type) {
-            type = intersection(type.split(','), initiateExportRequest.allowedResourceTypes).join(',');
+            // If the types user requested are not a subset of allowed types, reject
+            if (
+                difference(initiateExportRequest.type.split(','), initiateExportRequest.allowedResourceTypes).length !==
+                0
+            ) {
+                throw new UnauthorizedError('User does not have permission for requested resource type.');
+            }
+            type = initiateExportRequest.type;
         }
         const exportJob: BulkExportJob = {
             jobId: uuid,

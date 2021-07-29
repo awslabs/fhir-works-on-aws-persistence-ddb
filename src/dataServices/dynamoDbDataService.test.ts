@@ -19,6 +19,7 @@ import {
     InvalidResourceError,
     isResourceNotFoundError,
     isInvalidResourceError,
+    UnauthorizedError,
 } from 'fhir-works-on-aws-interface';
 import { TooManyConcurrentExportRequestsError } from 'fhir-works-on-aws-interface/lib/errors/TooManyConcurrentExportRequestsError';
 import each from 'jest-each';
@@ -549,6 +550,7 @@ describe('updateCreateSupported flag', () => {
 
 describe('initiateExport', () => {
     const initiateExportRequest: InitiateExportRequest = {
+        allowedResourceTypes: ['Patient', 'DocumentReference'],
         requesterUserId: 'userId-1',
         exportType: 'system',
         transactionTime: '2020-09-01T12:00:00Z',
@@ -559,6 +561,7 @@ describe('initiateExport', () => {
     };
 
     const initiateExportRequestWithMultiTenancy: InitiateExportRequest = {
+        allowedResourceTypes: ['Patient', 'DocumentReference'],
         requesterUserId: 'userId-1',
         exportType: 'system',
         transactionTime: '2020-09-01T12:00:00Z',
@@ -581,7 +584,9 @@ describe('initiateExport', () => {
             callback(null, {});
         });
 
+        const ddbPutSpy = jest.fn();
         AWSMock.mock('DynamoDB', 'putItem', (params: QueryInput, callback: Function) => {
+            ddbPutSpy(params);
             // Successfully update export-request table with request
             callback(null, {});
         });
@@ -594,6 +599,9 @@ describe('initiateExport', () => {
         const jobId = await dynamoDbDataService.initiateExport(initiateExportRequest);
         // CHECK
         expect(jobId).toBeDefined();
+        expect(ddbPutSpy).toHaveBeenLastCalledWith(
+            expect.objectContaining({ Item: expect.objectContaining({ type: { S: 'Patient' } }) }),
+        );
 
         /*
          Multi-tenancy mode
@@ -607,6 +615,35 @@ describe('initiateExport', () => {
         );
         // CHECK
         expect(jobIdWithTenant).toBeDefined();
+        expect(ddbPutSpy).toHaveBeenLastCalledWith(
+            expect.objectContaining({ Item: expect.objectContaining({ type: { S: 'Patient' } }) }),
+        );
+    });
+
+    test('Export request is rejected if user request type they do not have permission for', async () => {
+        // BUILD
+        // Return an export request that is in-progress
+        AWSMock.mock('DynamoDB', 'query', (params: QueryInput, callback: Function) => {
+            if (isEqual(params, DynamoDbParamBuilder.buildQueryExportRequestJobStatus('in-progress'))) {
+                callback(null, {
+                    Items: [DynamoDBConverter.marshall({ jobOwnerId: 'userId-2', jobStatus: 'in-progress' })],
+                });
+            }
+            callback(null, {});
+        });
+
+        const ddbPutSpy = jest.fn();
+        AWSMock.mock('DynamoDB', 'putItem', (params: QueryInput, callback: Function) => {
+            ddbPutSpy(params);
+            // Successfully update export-request table with request
+            callback(null, {});
+        });
+
+        const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
+        // OPERATE
+        await expect(
+            dynamoDbDataService.initiateExport({ ...initiateExportRequest, type: 'Patient,Group' }),
+        ).rejects.toMatchObject(new UnauthorizedError('User does not have permission for requested resource type.'));
     });
 
     each(['in-progress', 'canceling']).test(

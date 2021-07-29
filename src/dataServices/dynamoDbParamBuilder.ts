@@ -3,7 +3,8 @@
  *  SPDX-License-Identifier: Apache-2.0
  */
 
-import { ExportJobStatus } from 'fhir-works-on-aws-interface';
+import { ExportJobStatus, InitiateExportRequest } from 'fhir-works-on-aws-interface';
+import { FhirVersion } from 'fhir-works-on-aws-interface/src/constants';
 import {
     DynamoDBConverter,
     EXPORT_REQUEST_TABLE,
@@ -143,12 +144,18 @@ export default class DynamoDbParamBuilder {
         return param;
     }
 
-    static buildPutCreateExportRequest(bulkExportJob: BulkExportJob) {
+    static buildPutCreateExportRequest(bulkExportJob: BulkExportJob, initiateExportRequest: InitiateExportRequest) {
         const newItem: any = { ...bulkExportJob };
         if (newItem.tenantId) {
             newItem[EXPORT_INTERNAL_ID_FIELD] = newItem.jobId;
             newItem.jobId = buildHashKey(newItem.jobId, newItem.tenantId);
         }
+        // Remove fields not needed
+        delete newItem.serverUrl;
+        delete newItem.fhirVersion;
+        delete newItem.allowedResourceTypes;
+        // Set type back to user input value
+        newItem.type = initiateExportRequest.type ?? '';
         return {
             TableName: EXPORT_REQUEST_TABLE,
             Item: DynamoDBConverter.marshall(newItem),
