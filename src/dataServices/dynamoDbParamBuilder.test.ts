@@ -4,6 +4,7 @@
  */
 
 import { cloneDeep } from 'lodash';
+import { InitiateExportRequest } from 'fhir-works-on-aws-interface';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 import DOCUMENT_STATUS from './documentStatus';
 import { timeFromEpochInMsRegExp, utcTimeRegExp } from '../../testUtilities/regExpressions';
@@ -339,6 +340,15 @@ describe('buildPutCreateExportRequest', () => {
         transactionTime,
         outputFormat,
         since,
+        type: 'Patient,DocumentReference',
+    };
+
+    const initiateExportRequest: InitiateExportRequest = {
+        allowedResourceTypes: ['Patient'],
+        exportType: 'system',
+        requesterUserId: 'fakeUserId',
+        transactionTime,
+        type: 'Patient',
     };
 
     const jobWithTenantId: BulkExportJob = {
@@ -370,16 +380,19 @@ describe('buildPutCreateExportRequest', () => {
             transactionTime: {
                 S: '2020-10-10T00:00:00.000Z',
             },
+            type: {
+                S: 'Patient',
+            },
         },
     };
     test('Job without tenantId', () => {
-        const actualParam = DynamoDbParamBuilder.buildPutCreateExportRequest(job);
+        const actualParam = DynamoDbParamBuilder.buildPutCreateExportRequest(job, initiateExportRequest);
         console.log(actualParam);
         expect(actualParam).toEqual(expectedParam);
     });
 
     test('tenantId present', () => {
-        const actualParam = DynamoDbParamBuilder.buildPutCreateExportRequest(jobWithTenantId);
+        const actualParam = DynamoDbParamBuilder.buildPutCreateExportRequest(jobWithTenantId, initiateExportRequest);
 
         const clonedExpectedParam: any = cloneDeep(expectedParam);
         clonedExpectedParam.Item = {

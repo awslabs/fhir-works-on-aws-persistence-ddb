@@ -73,7 +73,18 @@ export const getBulkExportResults = async (
 };
 
 export const startJobExecution = async (bulkExportJob: BulkExportJob): Promise<void> => {
-    const { jobId, exportType, groupId, type, transactionTime, outputFormat, since, tenantId } = bulkExportJob;
+    const {
+        jobId,
+        exportType,
+        groupId,
+        type,
+        transactionTime,
+        outputFormat,
+        since,
+        tenantId,
+        serverUrl,
+        compartmentSearchParamFile,
+    } = bulkExportJob;
     const params: any = {
         jobId,
         exportType,
@@ -83,6 +94,8 @@ export const startJobExecution = async (bulkExportJob: BulkExportJob): Promise<v
     };
     if (groupId) {
         params.groupId = groupId;
+        params.serverUrl = serverUrl;
+        params.compartmentSearchParamFile = compartmentSearchParamFile;
     }
     if (type) {
         params.type = type;

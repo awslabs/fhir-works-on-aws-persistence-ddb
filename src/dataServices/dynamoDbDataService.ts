@@ -26,10 +26,12 @@ import {
     ResourceNotFoundError,
     ResourceVersionNotFoundError,
     TooManyConcurrentExportRequestsError,
+    UnauthorizedError,
     UpdateResourceRequest,
     vReadResourceRequest,
 } from 'fhir-works-on-aws-interface';
 import DynamoDB, { ItemList } from 'aws-sdk/clients/dynamodb';
+import { difference } from 'lodash';
 import { DynamoDBConverter } from './dynamoDb';
 import DOCUMENT_STATUS from './documentStatus';
 import { DynamoDbBundleService } from './dynamoDbBundleService';
@@ -213,7 +215,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
 
         await startJobExecution(exportJob);
 
-        const params = DynamoDbParamBuilder.buildPutCreateExportRequest(exportJob);
+        const params = DynamoDbParamBuilder.buildPutCreateExportRequest(exportJob, initiateExportRequest);
         await this.dynamoDb.putItem(params).promise();
         return exportJob.jobId;
     }
@@ -326,20 +328,39 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
     buildExportJob(initiateExportRequest: InitiateExportRequest): BulkExportJob {
         const initialStatus: ExportJobStatus = 'in-progress';
         const uuid = uuidv4();
+        // Combine allowedResourceTypes and user input parameter type before pass to Glue job
+        let type = initiateExportRequest.allowedResourceTypes.join(',');
+        if (initiateExportRequest.type) {
+            // If the types user requested are not a subset of allowed types, reject
+            if (
+                difference(initiateExportRequest.type.split(','), initiateExportRequest.allowedResourceTypes).length !==
+                0
+            ) {
+                throw new UnauthorizedError('User does not have permission for requested resource type.');
+            }
+            type = initiateExportRequest.type;
+        }
         const exportJob: BulkExportJob = {
             jobId: uuid,
             jobOwnerId: initiateExportRequest.requesterUserId,
             exportType: initiateExportRequest.exportType,
             groupId: initiateExportRequest.groupId ?? '',
+            serverUrl: initiateExportRequest.serverUrl ?? '',
             outputFormat: initiateExportRequest.outputFormat ?? 'ndjson',
             since: initiateExportRequest.since ?? '1800-01-01T00:00:00.000Z', // Default to a long time ago in the past
-            type: initiateExportRequest.type ?? '',
+            type,
             transactionTime: initiateExportRequest.transactionTime,
             jobStatus: initialStatus,
             jobFailedMessage: '',
         };
         if (this.enableMultiTenancy) {
             exportJob.tenantId = initiateExportRequest.tenantId;
+        }
+        if (initiateExportRequest.groupId) {
+            exportJob.compartmentSearchParamFile =
+                initiateExportRequest.fhirVersion === '4.0.1'
+                    ? process.env.PATIENT_COMPARTMENT_V4
+                    : process.env.PATIENT_COMPARTMENT_V3;
         }
         return exportJob;
     }
