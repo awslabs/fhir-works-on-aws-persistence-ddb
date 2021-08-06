@@ -8,7 +8,6 @@ import DdbToEsHelper from './ddbToEsHelper';
 import PromiseParamAndId from './promiseParamAndId';
 import getComponentLogger from '../loggerBuilder';
 
-const REMOVE = 'REMOVE';
 const logger = getComponentLogger();
 const ddbToEsHelper = new DdbToEsHelper();
 
@@ -22,9 +21,12 @@ export async function handleDdbToEsEvent(event: any) {
         for (let i = 0; i < event.Records.length; i += 1) {
             const record = event.Records[i];
             logger.info('EventName: ', record.eventName);
+            logger.debug(event);
 
-            const ddbJsonImage = record.eventName === REMOVE ? record.dynamodb.OldImage : record.dynamodb.NewImage;
+            const removeResource = ddbToEsHelper.isRemoveResource(record);
+            const ddbJsonImage = removeResource ? record.dynamodb.OldImage : record.dynamodb.NewImage;
             const image = AWS.DynamoDB.Converter.unmarshall(ddbJsonImage);
+            logger.debug(image);
             // Don't index binary files
             if (ddbToEsHelper.isBinaryResource(image)) {
                 // eslint-disable-next-line no-continue
@@ -34,7 +36,7 @@ export async function handleDdbToEsEvent(event: any) {
             const lowercaseResourceType = image.resourceType.toLowerCase();
             // eslint-disable-next-line no-await-in-loop,no-underscore-dangle
             await ddbToEsHelper.createIndexAndAliasIfNotExist(lowercaseResourceType, image._tenantId);
-            if (record.eventName === REMOVE) {
+            if (removeResource) {
                 // If a user manually deletes a record from DDB, let's delete it from ES also
                 const idAndDeletePromise = ddbToEsHelper.getDeleteRecordPromiseParam(image);
                 promiseParamAndIds.push(idAndDeletePromise);
@@ -55,7 +57,9 @@ export async function handleDdbToEsEvent(event: any) {
                     eventName: string;
                     dynamodb: { OldImage: AWS.DynamoDB.AttributeMap; NewImage: AWS.DynamoDB.AttributeMap };
                 }) => {
-                    const image = record.eventName === REMOVE ? record.dynamodb.OldImage : record.dynamodb.NewImage;
+                    const image = ddbToEsHelper.isRemoveResource(record)
+                        ? record.dynamodb.OldImage
+                        : record.dynamodb.NewImage;
                     return `{id: ${image.id.S}, vid: ${image.vid.N}}`;
                 },
             ),
