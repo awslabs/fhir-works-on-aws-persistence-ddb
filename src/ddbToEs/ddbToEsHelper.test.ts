@@ -2,7 +2,6 @@ import { Client } from '@elastic/elasticsearch';
 
 import Mock from '@elastic/elasticsearch-mock';
 
-import cloneDeep from 'lodash';
 import DdbToEsHelper from './ddbToEsHelper';
 
 const ddbToEsHelper = new DdbToEsHelper();
@@ -92,40 +91,40 @@ describe('DdbToEsHelper', () => {
     });
 
     describe('isRemoveResource', () => {
-        const record: any = {
+        const modifyRecord: any = {
             eventID: 'some-event-id',
-            eventName: 'INSERT',
+            eventName: 'MODIFY',
             dynamodb: {
                 OldImage: { documentStatus: { S: 'AVAILABLE' } },
-                NewImage: { documentStatus: { S: 'AVAILABLE' } },
+                NewImage: { documentStatus: { S: 'DELETED' } },
             },
         };
 
         test('Should remove for REMOVE event', () => {
-            const removeRecord: any = cloneDeep(record);
-            removeRecord.eventName = 'REMOVE';
+            // BUILD
+            const removeRecord: any = {
+                eventID: 'some-event-id',
+                eventName: 'REMOVE',
+                dynamodb: {
+                    OldImage: { documentStatus: { S: 'AVAILABLE' } },
+                    NewImage: { documentStatus: { S: 'AVAILABLE' } },
+                },
+            };
+            // TEST
             expect(ddbToEsHelper.isRemoveResource(removeRecord)).toBeTruthy();
         });
 
         test('Should remove for new image in DELETED status and hard delete enabled', () => {
+            // BUILD
             process.env.ENABLE_ES_HARD_DELETE = 'true';
-            const modifyRecord: any = cloneDeep(record);
-            modifyRecord.eventName = 'MODIFY';
-            modifyRecord.dynamodb = {
-                OldImage: { documentStatus: { S: 'AVAILABLE' } },
-                NewImage: { documentStatus: { S: 'DELETED' } },
-            };
+            // TEST
             expect(ddbToEsHelper.isRemoveResource(modifyRecord)).toBeTruthy();
         });
 
         test('Should NOT remove for new image in DELETED status and hard delete NOT enabled', () => {
+            // BUILD
             process.env.ENABLE_ES_HARD_DELETE = 'false';
-            const modifyRecord: any = cloneDeep(record);
-            modifyRecord.eventName = 'MODIFY';
-            modifyRecord.dynamodb = {
-                OldImage: { documentStatus: { S: 'AVAILABLE' } },
-                NewImage: { documentStatus: { S: 'DELETED' } },
-            };
+            // TEST
             expect(ddbToEsHelper.isRemoveResource(modifyRecord)).toBeFalsy();
         });
     });
