@@ -21,6 +21,7 @@ describe('DdbToEsHelper', () => {
 
     describe('createIndexIfNotExist', () => {
         test('Create index and alias for new index', async () => {
+            process.env.ENABLE_ES_HARD_DELETE = 'true';
             // BUILD
             // esMock throws 404 for unmocked method, so there's no need to mock HEAD /patient here
             const mockAddIndex = jest.fn(() => {
@@ -86,6 +87,45 @@ describe('DdbToEsHelper', () => {
             expect(mockAddAlias).toHaveBeenCalledWith(
                 expect.objectContaining({ path: '/patient/_alias/patient-alias' }),
             );
+        });
+    });
+
+    describe('isRemoveResource', () => {
+        const modifyRecord: any = {
+            eventID: 'some-event-id',
+            eventName: 'MODIFY',
+            dynamodb: {
+                OldImage: { documentStatus: { S: 'AVAILABLE' } },
+                NewImage: { documentStatus: { S: 'DELETED' } },
+            },
+        };
+
+        test('Should remove for REMOVE event', () => {
+            // BUILD
+            const removeRecord: any = {
+                eventID: 'some-event-id',
+                eventName: 'REMOVE',
+                dynamodb: {
+                    OldImage: { documentStatus: { S: 'AVAILABLE' } },
+                    NewImage: { documentStatus: { S: 'AVAILABLE' } },
+                },
+            };
+            // TEST
+            expect(ddbToEsHelper.isRemoveResource(removeRecord)).toBeTruthy();
+        });
+
+        test('Should remove for new image in DELETED status and hard delete enabled', () => {
+            // BUILD
+            process.env.ENABLE_ES_HARD_DELETE = 'true';
+            // TEST
+            expect(ddbToEsHelper.isRemoveResource(modifyRecord)).toBeTruthy();
+        });
+
+        test('Should NOT remove for new image in DELETED status and hard delete NOT enabled', () => {
+            // BUILD
+            process.env.ENABLE_ES_HARD_DELETE = 'false';
+            // TEST
+            expect(ddbToEsHelper.isRemoveResource(modifyRecord)).toBeFalsy();
         });
     });
 });

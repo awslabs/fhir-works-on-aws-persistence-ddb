@@ -13,6 +13,10 @@ import { DOCUMENT_STATUS_FIELD } from '../dataServices/dynamoDbUtil';
 import DOCUMENT_STATUS from '../dataServices/documentStatus';
 import getComponentLogger from '../loggerBuilder';
 
+const REMOVE = 'REMOVE';
+const DELETED = 'DELETED';
+const { ENABLE_ES_HARD_DELETE } = process.env;
+
 const logger = getComponentLogger();
 
 const BINARY_RESOURCE = 'binary';
@@ -183,6 +187,14 @@ export default class DdbToEsHelper {
         const resourceType = image.resourceType.toLowerCase();
         // Don't index binary files
         return resourceType === BINARY_RESOURCE;
+    }
+
+    // eslint-disable-next-line class-methods-use-this
+    isRemoveResource(record: any): boolean {
+        if (record.eventName === REMOVE) {
+            return true;
+        }
+        return record.dynamodb.NewImage.documentStatus.S === DELETED && process.env.ENABLE_ES_HARD_DELETE === 'true';
     }
 
     // eslint-disable-next-line class-methods-use-this
