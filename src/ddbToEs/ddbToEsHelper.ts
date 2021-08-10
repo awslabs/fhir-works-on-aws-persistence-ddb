@@ -15,7 +15,6 @@ import getComponentLogger from '../loggerBuilder';
 
 const REMOVE = 'REMOVE';
 const DELETED = 'DELETED';
-const { ENABLE_ES_HARD_DELETE } = process.env;
 
 const logger = getComponentLogger();
 
