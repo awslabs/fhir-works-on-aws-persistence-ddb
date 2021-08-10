@@ -4,7 +4,6 @@
  */
 
 import { ExportJobStatus, InitiateExportRequest } from 'fhir-works-on-aws-interface';
-import { FhirVersion } from 'fhir-works-on-aws-interface/src/constants';
 import {
     DynamoDBConverter,
     EXPORT_REQUEST_TABLE,
