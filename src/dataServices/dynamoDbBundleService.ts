@@ -16,6 +16,7 @@ import {
     chunkArray,
     ResourceNotFoundError,
     GenericResponse,
+    ResourceConflictError,
 } from 'fhir-works-on-aws-interface';
 import flatten from 'flat';
 import set from 'lodash/set';
@@ -118,7 +119,7 @@ export class DynamoDbBundleService implements Bundle {
                 success: false,
                 message: errorMessage || 'Failed to lock resources for transaction',
                 batchReadWriteResponses: [],
-                errorType,
+                errorType: errorType || 'SYSTEM_ERROR',
             };
         }
         if (this.versionedLinks) {
@@ -314,9 +315,20 @@ export class DynamoDbBundleService implements Bundle {
             });
         } catch (e) {
             logger.error('Failed to lock', e);
+            for (let i = 0; i < lockedItems.length; i += 1) {
+                // if the request in the bundle was a PUT request, we have a race condition causing conflicts when locking/unlocking resources
+                if (lockedItems[i].isOriginalUpdateItem) {
+                    throw new ResourceConflictError(
+                        lockedItems[i].resourceType,
+                        lockedItems[i].id,
+                        `Failed to lock resource due to conflict. Please try again after ${DynamoDbParamBuilder.LOCK_DURATION_IN_MS /
+                            1000} seconds.`,
+                    );
+                }
+            }
             return Promise.resolve({
                 successfulLock: false,
-                errorType: 'SYSTEM_ERROR',
+                errorType: 'USER_ERROR',
                 errorMessage: `Failed to lock resources for transaction. Please try again after ${DynamoDbParamBuilder.LOCK_DURATION_IN_MS /
                     1000} seconds.`,
                 lockedItems: itemsLockedSuccessfully,
@@ -493,6 +505,10 @@ export class DynamoDbBundleService implements Bundle {
 
         const newLockedItems = this.removeLocksFromArray(lockedItems, itemsToRemoveFromLock);
 
+        // if batchReadWriteEntryResponses is empty, don't throw error here:
+        if (batchReadWriteEntryResponses.length === 0) {
+            return newLockedItems;
+        }
         try {
             const params = {
                 TransactItems: transactionRequests,
