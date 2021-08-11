@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [3.6.1](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.6.0...v3.6.1) (2021-08-02)
+
+
+### Bug Fixes
+
+* change ES writes to use Bulk APIs ([#97](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/97)) ([7eee06e](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/commit/7eee06e5955bb980abd17dced35a86236ea10189))
+
 ## [3.6.0](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.5.0...v3.6.0) (2021-07-09)
 
 
