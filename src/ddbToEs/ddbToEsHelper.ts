@@ -3,12 +3,13 @@
  *  SPDX-License-Identifier: Apache-2.0
  */
 
+/* eslint-disable no-underscore-dangle */
+
 import { Client } from '@elastic/elasticsearch';
 // @ts-ignore
 import { AmazonConnection, AmazonTransport } from 'aws-elasticsearch-connector';
-import allSettled from 'promise.allsettled';
 import AWS from '../AWS';
-import PromiseParamAndId, { PromiseType } from './promiseParamAndId';
+import ESBulkCommand, { OperationType } from './ESBulkCommand';
 import { DOCUMENT_STATUS_FIELD } from '../dataServices/dynamoDbUtil';
 import DOCUMENT_STATUS from '../dataServices/documentStatus';
 import getComponentLogger from '../loggerBuilder';
@@ -18,9 +19,9 @@ const DELETED = 'DELETED';
 
 const logger = getComponentLogger();
 
-const BINARY_RESOURCE = 'binary';
-
 const { IS_OFFLINE, ELASTICSEARCH_DOMAIN_ENDPOINT } = process.env;
+
+const ALIAS_SUFFIX = '-alias';
 
 const getAliasName = (resourceType: string, tenantId?: string) => {
     const lowercaseResourceType = resourceType.toLowerCase();
@@ -66,62 +67,92 @@ export default class DdbToEsHelper {
         });
     }
 
-    async createIndexAndAliasIfNotExist(indexName: string, tenantId?: string) {
-        const alias = getAliasName(indexName, tenantId);
-        logger.debug('entering create index function');
+    async createIndexAndAliasIfNotExist(resourceTypes: Set<string>) {
+        if (resourceTypes.size === 0) {
+            return;
+        }
+
+        const listOfAliases = Array.from(resourceTypes).map((resourceType: string) => {
+            return this.generateAlias(resourceType);
+        });
+        const { body: allFound } = await this.ElasticSearch.indices.existsAlias({
+            name: listOfAliases,
+            expand_wildcards: 'all',
+        });
+        if (allFound) {
+            // All needed aliases exist
+            return;
+        }
+
+        logger.debug('There are missing aliases');
+
+        const indicesToCreate: Set<string> = new Set(resourceTypes);
+        const aliasesToCreate: Set<string> = new Set(listOfAliases);
+
+        const { body: indices } = await this.ElasticSearch.indices.getAlias();
+        // for each index and alias found remove from set
+        Object.entries(indices).forEach(([indexName, indexBody]) => {
+            indicesToCreate.delete(indexName);
+            Object.keys((indexBody as any).aliases).forEach((alias: string) => {
+                aliasesToCreate.delete(alias);
+            });
+        });
         try {
-            const indexExistResponse = await this.ElasticSearch.indices.exists({ index: indexName });
-            logger.debug(indexExistResponse);
-            if (!indexExistResponse.body) {
-                // Create Index
-                const params = {
-                    index: indexName,
-                    body: {
-                        mappings: {
-                            properties: {
-                                id: {
-                                    type: 'keyword',
-                                    index: true,
-                                },
-                                resourceType: {
-                                    type: 'keyword',
-                                    index: true,
-                                },
-                                _references: {
-                                    type: 'keyword',
-                                    index: true,
-                                },
-                                documentStatus: {
-                                    type: 'keyword',
-                                    index: true,
-                                },
-                                _tenantId: {
-                                    type: 'keyword',
-                                    index: true,
+            const promises: any[] = [];
+            Array.from(indicesToCreate).forEach((index: string) => {
+                const alias = this.generateAlias(index);
+                // Only create index when we also need to create an alias
+                if (aliasesToCreate.has(alias)) {
+                    aliasesToCreate.delete(alias);
+                    logger.info(`create index ${index} & alias ${alias}`);
+                    const params = {
+                        index,
+                        body: {
+                            mappings: {
+                                properties: {
+                                    id: {
+                                        type: 'keyword',
+                                        index: true,
+                                    },
+                                    resourceType: {
+                                        type: 'keyword',
+                                        index: true,
+                                    },
+                                    _references: {
+                                        type: 'keyword',
+                                        index: true,
+                                    },
+                                    documentStatus: {
+                                        type: 'keyword',
+                                        index: true,
+                                    },
+                                    _tenantId: {
+                                        type: 'keyword',
+                                        index: true,
+                                    },
                                 },
                             },
+                            aliases: { [alias]: {} },
                         },
-                        aliases: { [alias]: {} },
-                    },
-                };
-                await this.ElasticSearch.indices.create(params);
-            } else {
-                const indexAliasExistResponse = await this.ElasticSearch.indices.existsAlias({
-                    index: indexName,
-                    name: alias,
-                });
-                logger.debug(indexAliasExistResponse);
-                if (!indexAliasExistResponse.body) {
-                    // Create Alias
-                    logger.debug(`create alias ${alias}`);
-                    await this.ElasticSearch.indices.putAlias({
-                        index: indexName,
-                        name: alias,
-                    });
+                    };
+                    promises.push(this.ElasticSearch.indices.create(params));
                 }
-            }
+            });
+
+            Array.from(aliasesToCreate).forEach((alias: string) => {
+                // Create Alias; this block is creating aliases for existing indices
+                logger.info(`create alias ${alias}`);
+                promises.push(
+                    this.ElasticSearch.indices.putAlias({
+                        index: this.getResourceType(alias),
+                        name: alias,
+                    }),
+                );
+            });
+
+            await Promise.all(promises);
         } catch (error) {
-            logger.error(`Failed to check if index(and alias): ${indexName} exist or create index(and alias)`);
+            logger.error(`Failed to create indices and aliases. Resource types: ${resourceTypes} were examined`);
             throw error;
         }
     }
@@ -135,24 +166,33 @@ export default class DdbToEsHelper {
         return `${id}_${vid}`;
     }
 
-    // Getting promise params for actual deletion of the record from ES
     // eslint-disable-next-line class-methods-use-this
-    getDeleteRecordPromiseParam(image: any): PromiseParamAndId {
-        const { _tenantId } = image;
-        const compositeId = this.generateFullId(image);
+    private generateAlias(resourceType: string) {
+        return `${resourceType.toLowerCase()}${ALIAS_SUFFIX}`;
+    }
+
+    // eslint-disable-next-line class-methods-use-this
+    private getResourceType(alias: string) {
+        return alias.substring(0, alias.length - ALIAS_SUFFIX.length);
+    }
+
+    // Getting promise params for actual deletion of the record from ES
+    createBulkESDelete(ddbResourceImage: any): ESBulkCommand {
+        const { id, vid } = ddbResourceImage;
+        const compositeId = this.generateFullId(id, vid);
         return {
-            promiseParam: {
-                index: getAliasName(image.resourceType, _tenantId),
-                id: compositeId,
-            },
+            bulkCommand: [
+                {
+                    delete: { _index: this.generateAlias(ddbResourceImage.resourceType), _id: compositeId },
+                },
+            ],
             id: compositeId,
             type: 'delete',
         };
     }
 
     // Getting promise params for inserting a new record or editing a record
-    // eslint-disable-next-line class-methods-use-this
-    getUpsertRecordPromiseParam(newImage: any): PromiseParamAndId | null {
+    createBulkESUpsert(newImage: any): ESBulkCommand | null {
         // We only perform operations on records with documentStatus === AVAILABLE || DELETED
         if (
             newImage[DOCUMENT_STATUS_FIELD] !== DOCUMENT_STATUS.AVAILABLE &&
@@ -161,7 +201,7 @@ export default class DdbToEsHelper {
             return null;
         }
 
-        let type: PromiseType = 'upsert-DELETED';
+        let type: OperationType = 'upsert-DELETED';
         if (newImage[DOCUMENT_STATUS_FIELD] === DOCUMENT_STATUS.AVAILABLE) {
             type = 'upsert-AVAILABLE';
         }
@@ -169,23 +209,54 @@ export default class DdbToEsHelper {
         const compositeId = this.generateFullId(newImage);
         return {
             id: compositeId,
-            promiseParam: {
-                index: getAliasName(newImage.resourceType, _tenantId),
-                id: compositeId,
-                body: {
-                    doc: formatDocument(newImage),
-                    doc_as_upsert: true,
-                },
-            },
+            bulkCommand: [
+                { update: { _index: this.generateAlias(newImage.resourceType), _id: compositeId } },
+                { doc: formatDocument(newImage), doc_as_upsert: true },
+            ],
             type,
         };
     }
 
-    // eslint-disable-next-line class-methods-use-this
-    isBinaryResource(image: any): boolean {
-        const resourceType = image.resourceType.toLowerCase();
-        // Don't index binary files
-        return resourceType === BINARY_RESOURCE;
+    async executeEsCmds(cmds: ESBulkCommand[]) {
+        const bulkCmds: any[] = cmds.flatMap((cmd: ESBulkCommand) => {
+            return cmd.bulkCommand;
+        });
+
+        if (bulkCmds.length === 0) {
+            return;
+        }
+        const listOfIds = cmds.map(cmd => {
+            return cmd.id;
+        });
+        logger.info(`Starting bulk sync operation on ids: `, listOfIds);
+        try {
+            const { body: bulkResponse } = await this.ElasticSearch.bulk({
+                refresh: 'wait_for',
+                body: bulkCmds,
+            });
+
+            if (bulkResponse.errors) {
+                const erroredDocuments: any[] = [];
+                // The presence of the `error` key indicates that the operation
+                // that we did for the document has failed.
+                bulkResponse.items.forEach((action: any) => {
+                    const operation = Object.keys(action)[0];
+                    if (action[operation].error) {
+                        erroredDocuments.push({
+                            status: action[operation].status,
+                            error: action[operation].error,
+                            index: action[operation]._index,
+                            id: action[operation]._id,
+                            esOperation: operation,
+                        });
+                    }
+                });
+                throw new Error(JSON.stringify(erroredDocuments));
+            }
+        } catch (error) {
+            logger.error(`Bulk sync operation failed on ids: `, listOfIds);
+            throw error;
+        }
     }
 
     // eslint-disable-next-line class-methods-use-this
@@ -194,62 +265,5 @@ export default class DdbToEsHelper {
             return true;
         }
         return record.dynamodb.NewImage.documentStatus.S === DELETED && process.env.ENABLE_ES_HARD_DELETE === 'true';
-    }
-
-    // eslint-disable-next-line class-methods-use-this
-    async logAndExecutePromises(promiseParamAndIds: PromiseParamAndId[]) {
-        // We're using allSettled-shim because as of 7/21/2020 'serverless-plugin-typescript' does not support
-        // Promise.allSettled.
-        allSettled.shim();
-
-        await this.executePromiseBlock('upsert-AVAILABLE', promiseParamAndIds);
-        await this.executePromiseBlock('upsert-DELETED', promiseParamAndIds);
-        await this.executePromiseBlock('delete', promiseParamAndIds);
-    }
-
-    // eslint-disable-next-line class-methods-use-this
-    private async executePromiseBlock(type: PromiseType, promiseParamAndIds: PromiseParamAndId[]) {
-        const filteredPromiseParamAndIds = promiseParamAndIds.filter(paramAndId => {
-            return paramAndId.type === type;
-        });
-
-        if (filteredPromiseParamAndIds.length === 0) {
-            return;
-        }
-
-        logger.info(
-            `Starting operation "${type}" on resource Ids: `,
-            filteredPromiseParamAndIds.map(paramAndId => {
-                return paramAndId.id;
-            }),
-        );
-
-        // @ts-ignore
-        const results = await Promise.allSettled(
-            filteredPromiseParamAndIds.map(async paramAndId => {
-                try {
-                    let response;
-                    if (type === 'upsert-AVAILABLE' || type === 'upsert-DELETED') {
-                        response = await this.ElasticSearch.update(paramAndId.promiseParam);
-                    } else if (type === 'delete') {
-                        response = await this.ElasticSearch.delete(paramAndId.promiseParam);
-                    } else {
-                        throw new Error(`unknown type: ${type}`);
-                    }
-                    return response;
-                } catch (e) {
-                    logger.error(`${type} failed on id: ${paramAndId.id}, due to error:\n${e}`);
-                    throw e;
-                }
-            }),
-        );
-
-        // Throw rejected promises
-        const rejected = results
-            .filter((result: { status: string }) => result.status === 'rejected')
-            .map((result: { reason: string }) => result.reason);
-        if (rejected.length > 0) {
-            throw new Error(rejected);
-        }
     }
 }
