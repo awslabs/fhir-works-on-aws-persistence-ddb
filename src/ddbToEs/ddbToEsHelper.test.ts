@@ -51,9 +51,9 @@ describe('DdbToEsHelper', () => {
                 },
             },
         };
-        test('empty set passed in', async () => {
+        test('empty array passed in', async () => {
             // TEST
-            await expect(ddbToEsHelper.createIndexAndAliasIfNotExist(new Set())).resolves.not.toThrow();
+            await expect(ddbToEsHelper.createIndexAndAliasIfNotExist([])).resolves.not.toThrow();
         });
         test('Alias already created', async () => {
             // BUILD
@@ -70,7 +70,7 @@ describe('DdbToEsHelper', () => {
                 mockExists,
             );
             // TEST
-            await ddbToEsHelper.createIndexAndAliasIfNotExist(new Set(['patient']));
+            await ddbToEsHelper.createIndexAndAliasIfNotExist([{ index: 'patient', alias: 'patient-alias' }]);
             // VALIDATE
             expect(mockExists).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -99,12 +99,61 @@ describe('DdbToEsHelper', () => {
                 mockAddIndex,
             );
             // TEST
-            await ddbToEsHelper.createIndexAndAliasIfNotExist(new Set(['organization']));
+            await ddbToEsHelper.createIndexAndAliasIfNotExist([{ index: 'organization', alias: 'organization-alias' }]);
             // VALIDATE
             expect(mockAddIndex).toHaveBeenCalledWith(
                 expect.objectContaining({
                     body: {
                         aliases: { 'organization-alias': {} },
+                        mappings: {
+                            properties: {
+                                _references: { index: true, type: 'keyword' },
+                                documentStatus: { index: true, type: 'keyword' },
+                                id: { index: true, type: 'keyword' },
+                                resourceType: { index: true, type: 'keyword' },
+                                _tenantId: { index: true, type: 'keyword' },
+                            },
+                        },
+                    },
+                    method: 'PUT',
+                    path: '/organization',
+                    querystring: {},
+                }),
+            );
+        });
+
+        test('Create index and multiple aliases for same index', async () => {
+            // BUILD
+            // esMock throws 404 for unmocked method, so there's no need to mock HEAD /patient/_alias/patient-alias here
+            esMock.add({ method: 'GET', path: '/_alias' }, () => {
+                return getAliasesBody;
+            });
+
+            const mockAddIndex = jest.fn(() => {
+                return { statusCode: 200 };
+            });
+            esMock.add(
+                {
+                    method: 'PUT',
+                    path: '/organization',
+                },
+                mockAddIndex,
+            );
+            // TEST
+            await ddbToEsHelper.createIndexAndAliasIfNotExist([
+                { index: 'organization', alias: 'organization-alias' },
+                { index: 'organization', alias: 'another-organization-alias' },
+                { index: 'organization', alias: 'yet-another-organization-alias' },
+            ]);
+            // VALIDATE
+            expect(mockAddIndex).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    body: {
+                        aliases: {
+                            'organization-alias': {},
+                            'another-organization-alias': {},
+                            'yet-another-organization-alias': {},
+                        },
                         mappings: {
                             properties: {
                                 _references: { index: true, type: 'keyword' },
@@ -140,7 +189,9 @@ describe('DdbToEsHelper', () => {
                 mockAddAlias,
             );
             // TEST
-            await ddbToEsHelper.createIndexAndAliasIfNotExist(new Set(['documentreference']));
+            await ddbToEsHelper.createIndexAndAliasIfNotExist([
+                { index: 'documentreference', alias: 'documentreference-alias' },
+            ]);
             // VALIDATE
             expect(mockAddAlias).toHaveBeenCalledWith(
                 expect.objectContaining({ path: '/documentreference/_alias/documentreference-alias' }),
