@@ -11,7 +11,6 @@ import getComponentLogger from '../loggerBuilder';
 const BINARY_RESOURCE = 'binary';
 const logger = getComponentLogger();
 const ddbToEsHelper = new DdbToEsHelper();
-// let knownResourceTypes: Set<string> = new Set();
 const knownAliases: Set<string> = new Set();
 
 function isBinaryResource(image: any): boolean {
@@ -26,8 +25,6 @@ function isBinaryResource(image: any): boolean {
 export async function handleDdbToEsEvent(event: any) {
     try {
         const idToCommand: Record<string, ESBulkCommand> = {};
-        // const resourceTypesToCreate: Set<string> = new Set();
-
         const aliasesToCreate: { alias: string; index: string }[] = [];
 
         for (let i = 0; i < event.Records.length; i += 1) {
