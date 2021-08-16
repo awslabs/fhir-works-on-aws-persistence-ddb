@@ -82,7 +82,6 @@ export default class DdbToEsHelper {
         const existingAliases: Set<string> = new Set();
 
         const { body: indices } = await this.ElasticSearch.indices.getAlias();
-        // for each index and alias found remove from set
         Object.entries(indices).forEach(([indexName, indexBody]) => {
             existingIndices.add(indexName);
             Object.keys((indexBody as any).aliases).forEach((alias: string) => {
