@@ -512,4 +512,21 @@ describe('DdbToEsHelper', () => {
             expect(ddbToEsHelper.isRemoveResource(modifyRecord)).toBeFalsy();
         });
     });
+
+    describe('generateAlias', () => {
+        it('Simple resource', function() {
+            const testResource = {
+                resourceType: 'Patient',
+            };
+            expect(ddbToEsHelper.generateAlias(testResource)).toEqual('patient-alias');
+        });
+
+        it('Resource with tenantId', function() {
+            const testResource = {
+                resourceType: 'Patient',
+                _tenantId: 'tenant1',
+            };
+            expect(ddbToEsHelper.generateAlias(testResource)).toEqual('patient-alias-tenant-tenant1');
+        });
+    });
 });
