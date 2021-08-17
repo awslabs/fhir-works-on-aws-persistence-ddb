@@ -10,7 +10,7 @@ import {
     TypeOperation,
     SystemOperation,
 } from 'fhir-works-on-aws-interface';
-import { DynamoDbUtil } from './dynamoDbUtil';
+import { buildHashKey, DynamoDbUtil } from './dynamoDbUtil';
 import DOCUMENT_STATUS from './documentStatus';
 import { DynamoDBConverter, RESOURCE_TABLE } from './dynamoDb';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
@@ -24,7 +24,11 @@ export interface ItemRequest {
 }
 
 export default class DynamoDbBundleServiceHelper {
-    static generateStagingRequests(requests: BatchReadWriteRequest[], idToVersionId: Record<string, number>) {
+    static generateStagingRequests(
+        requests: BatchReadWriteRequest[],
+        idToVersionId: Record<string, number>,
+        tenantId?: string,
+    ) {
         const deleteRequests: any = [];
         const createRequests: any = [];
         const updateRequests: any = [];
@@ -42,7 +46,13 @@ export default class DynamoDbBundleServiceHelper {
                         id = request.id;
                     }
                     const vid = 1;
-                    const Item = DynamoDbUtil.prepItemForDdbInsert(request.resource, id, vid, DOCUMENT_STATUS.PENDING);
+                    const Item = DynamoDbUtil.prepItemForDdbInsert(
+                        request.resource,
+                        id,
+                        vid,
+                        DOCUMENT_STATUS.PENDING,
+                        tenantId,
+                    );
 
                     createRequests.push({
                         Put: {
@@ -64,7 +74,13 @@ export default class DynamoDbBundleServiceHelper {
                     // When updating a resource, create a new Document for that resource
                     const { id } = request.resource;
                     const vid = (idToVersionId[id] || 0) + 1;
-                    const Item = DynamoDbUtil.prepItemForDdbInsert(request.resource, id, vid, DOCUMENT_STATUS.PENDING);
+                    const Item = DynamoDbUtil.prepItemForDdbInsert(
+                        request.resource,
+                        id,
+                        vid,
+                        DOCUMENT_STATUS.PENDING,
+                        tenantId,
+                    );
 
                     updateRequests.push({
                         Put: {
@@ -92,6 +108,7 @@ export default class DynamoDbBundleServiceHelper {
                             id,
                             vid,
                             resourceType,
+                            tenantId,
                         ),
                     );
                     newBundleEntryResponses.push({
@@ -112,7 +129,7 @@ export default class DynamoDbBundleServiceHelper {
                         Get: {
                             TableName: RESOURCE_TABLE,
                             Key: DynamoDBConverter.marshall({
-                                id,
+                                id: buildHashKey(id, tenantId),
                                 vid,
                             }),
                         },
@@ -143,7 +160,7 @@ export default class DynamoDbBundleServiceHelper {
         };
     }
 
-    static generateRollbackRequests(bundleEntryResponses: BatchReadWriteResponse[]) {
+    static generateRollbackRequests(bundleEntryResponses: BatchReadWriteResponse[], tenantId?: string) {
         let itemsToRemoveFromLock: { id: string; vid: string; resourceType: string }[] = [];
         let transactionRequests: any = [];
         bundleEntryResponses.forEach(stagingResponse => {
@@ -161,6 +178,7 @@ export default class DynamoDbBundleServiceHelper {
                         stagingResponse.resourceType,
                         stagingResponse.id,
                         stagingResponse.vid,
+                        tenantId,
                     );
                     transactionRequests = transactionRequests.concat(transactionRequest);
                     itemsToRemoveFromLock = itemsToRemoveFromLock.concat(itemToRemoveFromLock);
@@ -177,8 +195,13 @@ export default class DynamoDbBundleServiceHelper {
         return { transactionRequests, itemsToRemoveFromLock };
     }
 
-    private static generateDeleteLatestRecordAndItemToRemoveFromLock(resourceType: string, id: string, vid: string) {
-        const transactionRequest = DynamoDbParamBuilder.buildDeleteParam(id, parseInt(vid, 10));
+    private static generateDeleteLatestRecordAndItemToRemoveFromLock(
+        resourceType: string,
+        id: string,
+        vid: string,
+        tenantId?: string,
+    ) {
+        const transactionRequest = DynamoDbParamBuilder.buildDeleteParam(id, parseInt(vid, 10), tenantId);
         const itemToRemoveFromLock = {
             id,
             vid,

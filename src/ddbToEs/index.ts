@@ -9,10 +9,9 @@ import ESBulkCommand from './ESBulkCommand';
 import getComponentLogger from '../loggerBuilder';
 
 const BINARY_RESOURCE = 'binary';
-const REMOVE = 'REMOVE';
 const logger = getComponentLogger();
 const ddbToEsHelper = new DdbToEsHelper();
-let knownResourceTypes: Set<string> = new Set();
+const knownAliases: Set<string> = new Set();
 
 function isBinaryResource(image: any): boolean {
     const resourceType = image.resourceType.toLowerCase();
@@ -26,27 +25,34 @@ function isBinaryResource(image: any): boolean {
 export async function handleDdbToEsEvent(event: any) {
     try {
         const idToCommand: Record<string, ESBulkCommand> = {};
-        const resourceTypesToCreate: Set<string> = new Set();
+        const aliasesToCreate: { alias: string; index: string }[] = [];
+
         for (let i = 0; i < event.Records.length; i += 1) {
             const record = event.Records[i];
             logger.debug('EventName: ', record.eventName);
 
-            const ddbJsonImage = record.eventName === REMOVE ? record.dynamodb.OldImage : record.dynamodb.NewImage;
+            const removeResource = ddbToEsHelper.isRemoveResource(record);
+            const ddbJsonImage = removeResource ? record.dynamodb.OldImage : record.dynamodb.NewImage;
             const image = AWS.DynamoDB.Converter.unmarshall(ddbJsonImage);
+            logger.debug(image);
             // Don't index binary files
             if (isBinaryResource(image)) {
                 // eslint-disable-next-line no-continue
                 continue;
             }
-            const resourceType = image.resourceType.toLowerCase();
-            if (!knownResourceTypes.has(resourceType)) {
-                resourceTypesToCreate.add(resourceType);
+
+            const alias = {
+                alias: ddbToEsHelper.generateAlias(image),
+                index: ddbToEsHelper.generateIndexName(image),
+            };
+
+            if (!knownAliases.has(alias.alias)) {
+                aliasesToCreate.push(alias);
             }
 
-            const cmd =
-                record.eventName === REMOVE
-                    ? ddbToEsHelper.createBulkESDelete(image)
-                    : ddbToEsHelper.createBulkESUpsert(image);
+            const cmd = removeResource
+                ? ddbToEsHelper.createBulkESDelete(image)
+                : ddbToEsHelper.createBulkESUpsert(image);
 
             if (cmd) {
                 // Note this will overwrite the item if present
@@ -55,9 +61,9 @@ export async function handleDdbToEsEvent(event: any) {
                 idToCommand[cmd.id] = cmd;
             }
         }
-        await ddbToEsHelper.createIndexAndAliasIfNotExist(resourceTypesToCreate);
+        await ddbToEsHelper.createIndexAndAliasIfNotExist(aliasesToCreate);
         // update cache of all known aliases
-        knownResourceTypes = new Set([...knownResourceTypes, ...resourceTypesToCreate]);
+        aliasesToCreate.forEach(alias => knownAliases.add(alias.alias));
         await ddbToEsHelper.executeEsCmds(Object.values(idToCommand));
     } catch (e) {
         logger.error(
@@ -67,7 +73,9 @@ export async function handleDdbToEsEvent(event: any) {
                     eventName: string;
                     dynamodb: { OldImage: AWS.DynamoDB.AttributeMap; NewImage: AWS.DynamoDB.AttributeMap };
                 }) => {
-                    const image = record.eventName === REMOVE ? record.dynamodb.OldImage : record.dynamodb.NewImage;
+                    const image = ddbToEsHelper.isRemoveResource(record)
+                        ? record.dynamodb.OldImage
+                        : record.dynamodb.NewImage;
                     return `{id: ${image.id.S}, vid: ${image.vid.N}}`;
                 },
             ),
