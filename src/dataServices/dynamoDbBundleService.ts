@@ -119,7 +119,7 @@ export class DynamoDbBundleService implements Bundle {
                 success: false,
                 message: errorMessage || 'Failed to lock resources for transaction',
                 batchReadWriteResponses: [],
-                errorType: errorType || 'SYSTEM_ERROR',
+                errorType: errorType,
             };
         }
         if (this.versionedLinks) {
@@ -315,20 +315,19 @@ export class DynamoDbBundleService implements Bundle {
             });
         } catch (e) {
             logger.error('Failed to lock', e);
-            for (let i = 0; i < lockedItems.length; i += 1) {
-                // if the request in the bundle was a PUT request, we have a race condition causing conflicts when locking/unlocking resources
-                if (lockedItems[i].isOriginalUpdateItem) {
-                    throw new ResourceConflictError(
-                        lockedItems[i].resourceType,
-                        lockedItems[i].id,
-                        `Failed to lock resource due to conflict. Please try again after ${DynamoDbParamBuilder.LOCK_DURATION_IN_MS /
-                            1000} seconds.`,
-                    );
-                }
+            const err = JSON.parse(JSON.stringify(e));
+            if (err.code === 'TransactionCanceledException') {
+                return Promise.resolve({
+                    successfulLock: false,
+                    errorType: 'CONFLICT_ERROR', 
+                    errorMessage: `Failed to lock resources for transaction due to conflict. Please try again after ${DynamoDbParamBuilder.LOCK_DURATION_IN_MS /
+                        1000} seconds.`,
+                    lockedItems: itemsLockedSuccessfully,
+                })
             }
             return Promise.resolve({
                 successfulLock: false,
-                errorType: 'USER_ERROR',
+                errorType: 'SYSTEM_ERROR',
                 errorMessage: `Failed to lock resources for transaction. Please try again after ${DynamoDbParamBuilder.LOCK_DURATION_IN_MS /
                     1000} seconds.`,
                 lockedItems: itemsLockedSuccessfully,
