@@ -5,48 +5,66 @@
 
 import AWS from 'aws-sdk';
 import DdbToEsHelper from './ddbToEsHelper';
-import PromiseParamAndId from './promiseParamAndId';
+import ESBulkCommand from './ESBulkCommand';
 import getComponentLogger from '../loggerBuilder';
 
-const REMOVE = 'REMOVE';
+const BINARY_RESOURCE = 'binary';
 const logger = getComponentLogger();
 const ddbToEsHelper = new DdbToEsHelper();
+const knownAliases: Set<string> = new Set();
+
+function isBinaryResource(image: any): boolean {
+    const resourceType = image.resourceType.toLowerCase();
+    // Don't index binary files
+    return resourceType === BINARY_RESOURCE;
+}
 
 // This is a separate lambda function from the main FHIR API server lambda.
 // This lambda picks up changes from DDB by way of DDB stream, and sends those changes to ElasticSearch Service for indexing.
 // This allows the FHIR API Server to query ElasticSearch service for search requests
-
 export async function handleDdbToEsEvent(event: any) {
     try {
-        const promiseParamAndIds: PromiseParamAndId[] = [];
+        const idToCommand: Record<string, ESBulkCommand> = {};
+        const aliasesToCreate: { alias: string; index: string }[] = [];
+
         for (let i = 0; i < event.Records.length; i += 1) {
             const record = event.Records[i];
-            logger.info('EventName: ', record.eventName);
+            logger.debug('EventName: ', record.eventName);
 
-            const ddbJsonImage = record.eventName === REMOVE ? record.dynamodb.OldImage : record.dynamodb.NewImage;
+            const removeResource = ddbToEsHelper.isRemoveResource(record);
+            const ddbJsonImage = removeResource ? record.dynamodb.OldImage : record.dynamodb.NewImage;
             const image = AWS.DynamoDB.Converter.unmarshall(ddbJsonImage);
+            logger.debug(image);
             // Don't index binary files
-            if (ddbToEsHelper.isBinaryResource(image)) {
+            if (isBinaryResource(image)) {
                 // eslint-disable-next-line no-continue
                 continue;
             }
 
-            const lowercaseResourceType = image.resourceType.toLowerCase();
-            // eslint-disable-next-line no-await-in-loop
-            await ddbToEsHelper.createIndexAndAliasIfNotExist(lowercaseResourceType);
-            if (record.eventName === REMOVE) {
-                // If a user manually deletes a record from DDB, let's delete it from ES also
-                const idAndDeletePromise = ddbToEsHelper.getDeleteRecordPromiseParam(image);
-                promiseParamAndIds.push(idAndDeletePromise);
-            } else {
-                const idAndUpsertPromise = ddbToEsHelper.getUpsertRecordPromiseParam(image);
-                if (idAndUpsertPromise) {
-                    promiseParamAndIds.push(idAndUpsertPromise);
-                }
+            const alias = {
+                alias: ddbToEsHelper.generateAlias(image),
+                index: ddbToEsHelper.generateIndexName(image),
+            };
+
+            if (!knownAliases.has(alias.alias)) {
+                aliasesToCreate.push(alias);
+            }
+
+            const cmd = removeResource
+                ? ddbToEsHelper.createBulkESDelete(image)
+                : ddbToEsHelper.createBulkESUpsert(image);
+
+            if (cmd) {
+                // Note this will overwrite the item if present
+                // DDB streams guarantee in-order delivery of all mutations to each item
+                // Meaning the last record in the event stream is the "newest"
+                idToCommand[cmd.id] = cmd;
             }
         }
-
-        await ddbToEsHelper.logAndExecutePromises(promiseParamAndIds);
+        await ddbToEsHelper.createIndexAndAliasIfNotExist(aliasesToCreate);
+        // update cache of all known aliases
+        aliasesToCreate.forEach(alias => knownAliases.add(alias.alias));
+        await ddbToEsHelper.executeEsCmds(Object.values(idToCommand));
     } catch (e) {
         logger.error(
             'Synchronization failed! The resources that could be effected are: ',
@@ -55,7 +73,9 @@ export async function handleDdbToEsEvent(event: any) {
                     eventName: string;
                     dynamodb: { OldImage: AWS.DynamoDB.AttributeMap; NewImage: AWS.DynamoDB.AttributeMap };
                 }) => {
-                    const image = record.eventName === REMOVE ? record.dynamodb.OldImage : record.dynamodb.NewImage;
+                    const image = ddbToEsHelper.isRemoveResource(record)
+                        ? record.dynamodb.OldImage
+                        : record.dynamodb.NewImage;
                     return `{id: ${image.id.S}, vid: ${image.vid.N}}`;
                 },
             ),

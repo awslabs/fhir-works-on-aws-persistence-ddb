@@ -38,7 +38,7 @@ describe('getJobStatus', () => {
                 Errors: [],
             });
         });
-        await expect(stopExportJobHandler(event, null as any, null as any)).resolves.toEqual({ jobId: '1' });
+        await expect(stopExportJobHandler(event, null as any, null as any)).resolves.toEqual(event);
     });
 
     test('stop job failed', async () => {

@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [3.7.0](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.6.1...v3.7.0) (2021-08-17)
+
+
+### Features
+
+* implement multi-tenancy and group export ([#106](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/106)) ([860e27d](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/commit/860e27dac6711ff0b8998d4ab43e983304effa59)), closes [#87](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/87) [#86](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/86) [#91](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/91) [#90](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/90) [#94](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/94) [#98](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/98) [#100](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/100)
+
+### [3.6.1](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.6.0...v3.6.1) (2021-08-02)
+
+
+### Bug Fixes
+
+* change ES writes to use Bulk APIs ([#97](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/97)) ([7eee06e](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/commit/7eee06e5955bb980abd17dced35a86236ea10189))
+
 ## [3.6.0](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.5.0...v3.6.0) (2021-07-09)
 
 
