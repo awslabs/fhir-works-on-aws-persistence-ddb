@@ -514,14 +514,14 @@ describe('DdbToEsHelper', () => {
     });
 
     describe('generateAlias', () => {
-        it('Simple resource', function() {
+        it('Simple resource', () => {
             const testResource = {
                 resourceType: 'Patient',
             };
             expect(ddbToEsHelper.generateAlias(testResource)).toEqual('patient-alias');
         });
 
-        it('Resource with tenantId', function() {
+        it('Resource with tenantId', () => {
             const testResource = {
                 resourceType: 'Patient',
                 _tenantId: 'tenant1',
