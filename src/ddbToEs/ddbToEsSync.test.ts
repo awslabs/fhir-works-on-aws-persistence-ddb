@@ -15,8 +15,6 @@ DdbToEsHelper.prototype.createIndexAndAliasIfNotExist = ddbHelperCreateIndexAndA
 // @ts-ignore
 DdbToEsHelper.prototype.executeEsCmds = ddbHelperExecuteEsCmds;
 
-// jest.mock('./ddbToEsHelper');
-
 const EVENT = {
     Records: [
         {
