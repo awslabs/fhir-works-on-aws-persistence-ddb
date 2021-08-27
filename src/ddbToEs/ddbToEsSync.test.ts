@@ -4,7 +4,7 @@
  *
  */
 
-import { DdbToEsSync } from './DdbToEsSync';
+import { DdbToEsSync } from './ddbToEsSync';
 import DdbToEsHelper from './ddbToEsHelper';
 
 const ddbHelperCreateIndexAndAliasIfNotExistMock = jest.fn();

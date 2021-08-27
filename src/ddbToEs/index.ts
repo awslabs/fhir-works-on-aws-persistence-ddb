@@ -3,7 +3,7 @@
  *  SPDX-License-Identifier: Apache-2.0
  */
 
-import { DdbToEsSync } from './DdbToEsSync';
+import { DdbToEsSync } from './ddbToEsSync';
 
 const ddbToEsSync = new DdbToEsSync();
 
