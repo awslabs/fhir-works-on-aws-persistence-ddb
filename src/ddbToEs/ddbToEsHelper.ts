@@ -35,27 +35,31 @@ const formatDocument = (ddbImage: any): any => {
     return ddbImage;
 };
 
+const getDefaultESClientFromEnvVars: () => Client = () => {
+    let ES_DOMAIN_ENDPOINT = ELASTICSEARCH_DOMAIN_ENDPOINT || 'https://fake-es-endpoint.com';
+    if (IS_OFFLINE === 'true') {
+        const { ACCESS_KEY, SECRET_KEY, AWS_REGION, OFFLINE_ELASTICSEARCH_DOMAIN_ENDPOINT } = process.env;
+
+        AWS.config.update({
+            region: AWS_REGION || 'us-west-2',
+            accessKeyId: ACCESS_KEY,
+            secretAccessKey: SECRET_KEY,
+        });
+        ES_DOMAIN_ENDPOINT = OFFLINE_ELASTICSEARCH_DOMAIN_ENDPOINT || 'https://fake-es-endpoint.com';
+    }
+
+    return new Client({
+        node: ES_DOMAIN_ENDPOINT,
+        Connection: AmazonConnection,
+        Transport: AmazonTransport,
+    });
+};
+
 export default class DdbToEsHelper {
     public ElasticSearch: Client;
 
-    constructor() {
-        let ES_DOMAIN_ENDPOINT = ELASTICSEARCH_DOMAIN_ENDPOINT || 'https://fake-es-endpoint.com';
-        if (IS_OFFLINE === 'true') {
-            const { ACCESS_KEY, SECRET_KEY, AWS_REGION, OFFLINE_ELASTICSEARCH_DOMAIN_ENDPOINT } = process.env;
-
-            AWS.config.update({
-                region: AWS_REGION || 'us-west-2',
-                accessKeyId: ACCESS_KEY,
-                secretAccessKey: SECRET_KEY,
-            });
-            ES_DOMAIN_ENDPOINT = OFFLINE_ELASTICSEARCH_DOMAIN_ENDPOINT || 'https://fake-es-endpoint.com';
-        }
-
-        this.ElasticSearch = new Client({
-            node: ES_DOMAIN_ENDPOINT,
-            Connection: AmazonConnection,
-            Transport: AmazonTransport,
-        });
+    constructor({ esClient = getDefaultESClientFromEnvVars() }: { esClient?: Client } = {}) {
+        this.ElasticSearch = esClient;
     }
 
     // async createIndexAndAliasIfNotExist(resourceTypes: Set<string>) {
@@ -165,29 +169,13 @@ export default class DdbToEsHelper {
         return `${id}_${vid}`;
     }
 
-    // eslint-disable-next-line class-methods-use-this
-    generateAlias(ddbImage: any) {
-        const { resourceType, _tenantId } = ddbImage;
-        const lowercaseResourceType = resourceType.toLowerCase();
-        if (_tenantId) {
-            return `${lowercaseResourceType}-alias-tenant-${_tenantId}`;
-        }
-        return `${lowercaseResourceType}-alias`;
-    }
-
-    // eslint-disable-next-line class-methods-use-this
-    generateIndexName(ddbImage: any) {
-        const { resourceType } = ddbImage;
-        return resourceType.toLowerCase();
-    }
-
     // Getting promise params for actual deletion of the record from ES
-    createBulkESDelete(ddbResourceImage: any): ESBulkCommand {
+    createBulkESDelete(ddbResourceImage: any, alias: string): ESBulkCommand {
         const compositeId = this.generateFullId(ddbResourceImage);
         return {
             bulkCommand: [
                 {
-                    delete: { _index: this.generateAlias(ddbResourceImage), _id: compositeId },
+                    delete: { _index: alias, _id: compositeId },
                 },
             ],
             id: compositeId,
@@ -196,7 +184,7 @@ export default class DdbToEsHelper {
     }
 
     // Getting promise params for inserting a new record or editing a record
-    createBulkESUpsert(newImage: any): ESBulkCommand | null {
+    createBulkESUpsert(newImage: any, alias: string): ESBulkCommand | null {
         // We only perform operations on records with documentStatus === AVAILABLE || DELETED
         if (
             newImage[DOCUMENT_STATUS_FIELD] !== DOCUMENT_STATUS.AVAILABLE &&
@@ -213,7 +201,7 @@ export default class DdbToEsHelper {
         return {
             id: compositeId,
             bulkCommand: [
-                { update: { _index: this.generateAlias(newImage), _id: compositeId } },
+                { update: { _index: alias, _id: compositeId } },
                 { doc: formatDocument(newImage), doc_as_upsert: true },
             ],
             type,
