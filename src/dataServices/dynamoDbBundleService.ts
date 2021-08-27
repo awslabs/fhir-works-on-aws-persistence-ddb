@@ -16,7 +16,6 @@ import {
     chunkArray,
     ResourceNotFoundError,
     GenericResponse,
-    ResourceConflictError,
 } from 'fhir-works-on-aws-interface';
 import flatten from 'flat';
 import set from 'lodash/set';
@@ -137,7 +136,7 @@ export class DynamoDbBundleService implements Bundle {
                 success: false,
                 message: errorMessage || 'Failed to lock resources for transaction',
                 batchReadWriteResponses: [],
-                errorType: errorType,
+                errorType,
             };
         }
         if (this.versionedLinks) {
@@ -340,11 +339,11 @@ export class DynamoDbBundleService implements Bundle {
             if (err.code === 'TransactionCanceledException') {
                 return Promise.resolve({
                     successfulLock: false,
-                    errorType: 'CONFLICT_ERROR', 
+                    errorType: 'CONFLICT_ERROR',
                     errorMessage: `Failed to lock resources for transaction due to conflict. Please try again after ${DynamoDbParamBuilder.LOCK_DURATION_IN_MS /
                         1000} seconds.`,
                     lockedItems: itemsLockedSuccessfully,
-                })
+                });
             }
             return Promise.resolve({
                 successfulLock: false,

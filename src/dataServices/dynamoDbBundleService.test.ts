@@ -91,7 +91,7 @@ describe('atomicallyReadWriteResources', () => {
                 success: false,
                 message: 'Failed to lock resources for transaction. Please try again after 35 seconds.',
                 batchReadWriteResponses: [],
-                errorType: 'USER_ERROR',
+                errorType: 'SYSTEM_ERROR',
             };
 
             await runTest(expectedResponse);
