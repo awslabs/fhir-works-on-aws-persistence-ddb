@@ -335,8 +335,7 @@ export class DynamoDbBundleService implements Bundle {
             });
         } catch (e) {
             logger.error('Failed to lock', e);
-            const err = JSON.parse(JSON.stringify(e));
-            if (err.code === 'TransactionCanceledException') {
+            if (e.code === 'TransactionCanceledException') {
                 return Promise.resolve({
                     successfulLock: false,
                     errorType: 'CONFLICT_ERROR',
@@ -533,7 +532,7 @@ export class DynamoDbBundleService implements Bundle {
 
         const newLockedItems = this.removeLocksFromArray(lockedItems, itemsToRemoveFromLock);
 
-        // if batchReadWriteEntryResponses is empty, don't throw error here:
+        // if batchReadWriteEntryResponses is empty, don't throw error here, since there is nothing to rollback
         if (batchReadWriteEntryResponses.length === 0) {
             return newLockedItems;
         }
