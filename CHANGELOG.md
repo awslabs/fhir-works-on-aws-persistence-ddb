@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [3.8.0](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.7.0...v3.8.0) (2021-08-30)
+
+
+### Features
+
+* add config options to DdbToEsSync ([#108](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/108)) ([f9c9414](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/commit/f9c9414a326f2e458b4e1c82ad29a694facee70e))
+
+
+### Bug Fixes
+
+* reroute locking errors from server errors to conflict errors where applicable ([#102](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/102)) ([fbe19c7](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/commit/fbe19c75acaa7b8cf5777578aad83b778e93579f))
+
 ## [3.7.0](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.6.1...v3.7.0) (2021-08-17)
 
 
