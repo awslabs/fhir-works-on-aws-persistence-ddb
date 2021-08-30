@@ -335,6 +335,15 @@ export class DynamoDbBundleService implements Bundle {
             });
         } catch (e) {
             logger.error('Failed to lock', e);
+            if (e.code === 'TransactionCanceledException') {
+                return Promise.resolve({
+                    successfulLock: false,
+                    errorType: 'CONFLICT_ERROR',
+                    errorMessage: `Failed to lock resources for transaction due to conflict. Please try again after ${DynamoDbParamBuilder.LOCK_DURATION_IN_MS /
+                        1000} seconds.`,
+                    lockedItems: itemsLockedSuccessfully,
+                });
+            }
             return Promise.resolve({
                 successfulLock: false,
                 errorType: 'SYSTEM_ERROR',
@@ -523,6 +532,10 @@ export class DynamoDbBundleService implements Bundle {
 
         const newLockedItems = this.removeLocksFromArray(lockedItems, itemsToRemoveFromLock);
 
+        // if batchReadWriteEntryResponses is empty, don't throw error here, since there is nothing to rollback
+        if (batchReadWriteEntryResponses.length === 0) {
+            return newLockedItems;
+        }
         try {
             const params = {
                 TransactItems: transactionRequests,
