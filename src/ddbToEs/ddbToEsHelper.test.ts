@@ -214,14 +214,14 @@ describe('DdbToEsHelper', () => {
         };
 
         // TEST
-        const result: ESBulkCommand = ddbToEsHelper.createBulkESDelete(ddbImage);
+        const result: ESBulkCommand = ddbToEsHelper.createBulkESDelete(ddbImage, 'someAlias');
         // VALIDATE
         const expectedOutput: ESBulkCommand = {
             id: compositeId,
             type: 'delete',
             bulkCommand: [
                 {
-                    delete: { _index: `${resourceType.toLowerCase()}-alias`, _id: compositeId },
+                    delete: { _index: `someAlias`, _id: compositeId },
                 },
             ],
         };
@@ -244,13 +244,13 @@ describe('DdbToEsHelper', () => {
             const ddbImageCopy = { ...ddbImage, documentStatus: 'AVAILABLE' };
 
             // TEST
-            const result: ESBulkCommand | null = ddbToEsHelper.createBulkESUpsert(ddbImageCopy);
+            const result: ESBulkCommand | null = ddbToEsHelper.createBulkESUpsert(ddbImageCopy, 'someAlias');
             // VALIDATE
             const expectedOutput: ESBulkCommand = {
                 id: compositeId,
                 type: 'upsert-AVAILABLE',
                 bulkCommand: [
-                    { update: { _index: `${resourceType.toLowerCase()}-alias`, _id: compositeId } },
+                    { update: { _index: 'someAlias', _id: compositeId } },
                     { doc: ddbImageCopy, doc_as_upsert: true },
                 ],
             };
@@ -261,13 +261,13 @@ describe('DdbToEsHelper', () => {
             const ddbImageCopy = { ...ddbImage, documentStatus: 'DELETED' };
 
             // TEST
-            const result: ESBulkCommand | null = ddbToEsHelper.createBulkESUpsert(ddbImageCopy);
+            const result: ESBulkCommand | null = ddbToEsHelper.createBulkESUpsert(ddbImageCopy, 'someAlias');
             // VALIDATE
             const expectedOutput: ESBulkCommand = {
                 id: compositeId,
                 type: 'upsert-DELETED',
                 bulkCommand: [
-                    { update: { _index: `${resourceType.toLowerCase()}-alias`, _id: compositeId } },
+                    { update: { _index: 'someAlias', _id: compositeId } },
                     { doc: ddbImageCopy, doc_as_upsert: true },
                 ],
             };
@@ -278,7 +278,7 @@ describe('DdbToEsHelper', () => {
             const ddbImageCopy = { ...ddbImage, documentStatus: 'PENDING' };
 
             // TEST
-            const result: ESBulkCommand | null = ddbToEsHelper.createBulkESUpsert(ddbImageCopy);
+            const result: ESBulkCommand | null = ddbToEsHelper.createBulkESUpsert(ddbImageCopy, 'someAlias');
             // VALIDATE
             expect(result).toBeNull();
         });
@@ -287,7 +287,7 @@ describe('DdbToEsHelper', () => {
             const ddbImageCopy = { ...ddbImage, documentStatus: 'LOCKED' };
 
             // TEST
-            const result: ESBulkCommand | null = ddbToEsHelper.createBulkESUpsert(ddbImageCopy);
+            const result: ESBulkCommand | null = ddbToEsHelper.createBulkESUpsert(ddbImageCopy, 'someAlias');
             // VALIDATE
             expect(result).toBeNull();
         });
@@ -510,23 +510,6 @@ describe('DdbToEsHelper', () => {
             process.env.ENABLE_ES_HARD_DELETE = 'false';
             // TEST
             expect(ddbToEsHelper.isRemoveResource(modifyRecord)).toBeFalsy();
-        });
-    });
-
-    describe('generateAlias', () => {
-        it('Simple resource', () => {
-            const testResource = {
-                resourceType: 'Patient',
-            };
-            expect(ddbToEsHelper.generateAlias(testResource)).toEqual('patient-alias');
-        });
-
-        it('Resource with tenantId', () => {
-            const testResource = {
-                resourceType: 'Patient',
-                _tenantId: 'tenant1',
-            };
-            expect(ddbToEsHelper.generateAlias(testResource)).toEqual('patient-alias-tenant-tenant1');
         });
     });
 });
