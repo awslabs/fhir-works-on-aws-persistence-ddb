@@ -6,6 +6,7 @@ import AWS from '../AWS';
 import { BulkExportJob } from './types';
 
 const EXPIRATION_TIME_SECONDS = 1800;
+const EXPORT_CONTENT_TYPE = 'application/fhir+ndjson';
 const EXPORT_RESULTS_BUCKET = process.env.EXPORT_RESULTS_BUCKET || ' ';
 const EXPORT_RESULTS_SIGNER_ROLE_ARN = process.env.EXPORT_RESULTS_SIGNER_ROLE_ARN || '';
 const EXPORT_STATE_MACHINE_ARN = process.env.EXPORT_STATE_MACHINE_ARN || '';
@@ -45,6 +46,7 @@ const signExportResults = async (keys: string[]): Promise<{ key: string; url: st
                 Bucket: EXPORT_RESULTS_BUCKET,
                 Key: key,
                 Expires: EXPIRATION_TIME_SECONDS,
+                ResponseContentType: EXPORT_CONTENT_TYPE,
             }),
         })),
     );
