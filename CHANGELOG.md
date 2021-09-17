@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file. See [standa
 
 ### Bug Fixes
 
-* have bulk export return the correct type ([#112](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/112)) ([bbf22ae](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/commit/bbf22ae94bf03d843966d8b62c9aeee5410e7bf7))
+* have bulk export return the correct content type ([#112](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/112)) ([bbf22ae](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/commit/bbf22ae94bf03d843966d8b62c9aeee5410e7bf7))
 
 ## [3.8.0](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.7.0...v3.8.0) (2021-08-30)
 
