@@ -28,7 +28,7 @@
     "prepublish": "tsc"
   },
   "dependencies": {
-    "@elastic/elasticsearch": "^7.4",
+    "@elastic/elasticsearch": "7.13.0",
     "@types/aws-lambda": "^8.10.63",
     "aws-elasticsearch-connector": "^8.2.0",
     "aws-sdk": "^2.610.0",
