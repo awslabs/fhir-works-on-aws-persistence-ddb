@@ -155,18 +155,14 @@ describe('generateRollbackRequests', () => {
             deleteBundleEntryResponse,
         ]);
 
-        const expectedCreateResult = GenerateRollbackRequestsFactory.buildExpectedBundleEntryResult(
-            createBundleEntryResponse,
-        );
-        const expectedReadResult = GenerateRollbackRequestsFactory.buildExpectedBundleEntryResult(
-            readBundleEntryResponse,
-        );
-        const expectedUpdateResult = GenerateRollbackRequestsFactory.buildExpectedBundleEntryResult(
-            updateBundleEntryResponse,
-        );
-        const expectedDeleteResult = GenerateRollbackRequestsFactory.buildExpectedBundleEntryResult(
-            deleteBundleEntryResponse,
-        );
+        const expectedCreateResult =
+            GenerateRollbackRequestsFactory.buildExpectedBundleEntryResult(createBundleEntryResponse);
+        const expectedReadResult =
+            GenerateRollbackRequestsFactory.buildExpectedBundleEntryResult(readBundleEntryResponse);
+        const expectedUpdateResult =
+            GenerateRollbackRequestsFactory.buildExpectedBundleEntryResult(updateBundleEntryResponse);
+        const expectedDeleteResult =
+            GenerateRollbackRequestsFactory.buildExpectedBundleEntryResult(deleteBundleEntryResponse);
 
         let itemsToRemoveFromLock: any = [];
         itemsToRemoveFromLock = itemsToRemoveFromLock.concat(expectedCreateResult.itemsToRemoveFromLock);

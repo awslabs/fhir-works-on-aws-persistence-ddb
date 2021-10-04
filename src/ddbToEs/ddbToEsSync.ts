@@ -104,7 +104,7 @@ export class DdbToEsSync {
             if (!this.disableIndexAndAliasCreation) {
                 await this.ddbToEsHelper.createIndexAndAliasIfNotExist(aliasesToCreate);
                 // update cache of all known aliases
-                aliasesToCreate.forEach(alias => this.knownAliases.add(alias.alias));
+                aliasesToCreate.forEach((alias) => this.knownAliases.add(alias.alias));
             }
             await this.ddbToEsHelper.executeEsCmds(Object.values(idToCommand));
         } catch (e) {

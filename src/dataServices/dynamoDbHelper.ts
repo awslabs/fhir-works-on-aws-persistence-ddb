@@ -35,7 +35,7 @@ export default class DynamoDbHelper {
         try {
             result = await this.dynamoDb.query(params).promise();
         } catch (e) {
-            if (e.code === 'ConditionalCheckFailedException') {
+            if ((e as any).code === 'ConditionalCheckFailedException') {
                 throw new ResourceNotFoundError(resourceType, id);
             }
             throw e;

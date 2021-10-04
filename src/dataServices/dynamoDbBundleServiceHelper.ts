@@ -37,7 +37,7 @@ export default class DynamoDbBundleServiceHelper {
         let newLocks: ItemRequest[] = [];
         let newBundleEntryResponses: BatchReadWriteResponse[] = [];
 
-        requests.forEach(request => {
+        requests.forEach((request) => {
             switch (request.operation) {
                 case 'create': {
                     // Add create request, put it in PENDING
@@ -163,7 +163,7 @@ export default class DynamoDbBundleServiceHelper {
     static generateRollbackRequests(bundleEntryResponses: BatchReadWriteResponse[], tenantId?: string) {
         let itemsToRemoveFromLock: { id: string; vid: string; resourceType: string }[] = [];
         let transactionRequests: any = [];
-        bundleEntryResponses.forEach(stagingResponse => {
+        bundleEntryResponses.forEach((stagingResponse) => {
             switch (stagingResponse.operation) {
                 case 'create':
                 case 'update': {
@@ -171,15 +171,13 @@ export default class DynamoDbBundleServiceHelper {
                         DELETE latest record
                         and remove lock entry from lockedItems
                      */
-                    const {
-                        transactionRequest,
-                        itemToRemoveFromLock,
-                    } = this.generateDeleteLatestRecordAndItemToRemoveFromLock(
-                        stagingResponse.resourceType,
-                        stagingResponse.id,
-                        stagingResponse.vid,
-                        tenantId,
-                    );
+                    const { transactionRequest, itemToRemoveFromLock } =
+                        this.generateDeleteLatestRecordAndItemToRemoveFromLock(
+                            stagingResponse.resourceType,
+                            stagingResponse.id,
+                            stagingResponse.vid,
+                            tenantId,
+                        );
                     transactionRequests = transactionRequests.concat(transactionRequest);
                     itemsToRemoveFromLock = itemsToRemoveFromLock.concat(itemToRemoveFromLock);
                     break;

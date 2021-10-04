@@ -15,7 +15,7 @@ const isJobStatus = (x: string): x is ExportJobStatus => EXPORT_JOB_STATUS.inclu
 export const updateStatusStatusHandler: Handler<
     { globalParams: BulkExportStateMachineGlobalParameters; status: string },
     void
-> = async event => {
+> = async (event) => {
     const { globalParams, status } = event;
     if (!isJobStatus(status)) {
         throw new Error(`Invalid status "${event.status}"`);

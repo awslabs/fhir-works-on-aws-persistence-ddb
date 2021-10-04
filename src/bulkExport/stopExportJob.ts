@@ -13,7 +13,7 @@ const logger = getComponentLogger();
 export const stopExportJobHandler: Handler<
     BulkExportStateMachineGlobalParameters,
     BulkExportStateMachineGlobalParameters
-> = async event => {
+> = async (event) => {
     const { GLUE_JOB_NAME } = process.env;
     if (GLUE_JOB_NAME === undefined) {
         throw new Error('GLUE_JOB_NAME environment variable is not defined');
