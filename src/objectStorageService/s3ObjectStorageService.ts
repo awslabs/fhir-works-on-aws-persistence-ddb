@@ -120,7 +120,7 @@ const S3ObjectStorageService: ObjectStorageInterface = class {
             const results = await S3.listObjectsV2(listParams).promise();
             const contents = results.Contents || [];
             token = results.ContinuationToken;
-            const keysToDelete: any[] = contents.map(content => {
+            const keysToDelete: any[] = contents.map((content) => {
                 return { Key: content.Key };
             });
             const params = {

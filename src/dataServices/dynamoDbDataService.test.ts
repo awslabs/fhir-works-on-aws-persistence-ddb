@@ -31,11 +31,11 @@ import DynamoDbHelper from './dynamoDbHelper';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 import { ConditionalCheckFailedExceptionMock } from '../../testUtilities/ConditionalCheckFailedException';
 
-jest.mock('../bulkExport/bulkExport');
-AWSMock.setSDKInstance(AWS);
-
 // eslint-disable-next-line import/order
 import sinon = require('sinon');
+
+jest.mock('../bulkExport/bulkExport');
+AWSMock.setSDKInstance(AWS);
 
 beforeEach(() => {
     expect.hasAssertions();
@@ -411,7 +411,9 @@ describe('UPDATE', () => {
         } catch (e) {
             // CHECK
             expect(isResourceNotFoundError(e)).toEqual(true);
-            expect(e.message).toEqual(`Resource Patient/${id} is not known`);
+            if (isResourceNotFoundError(e)) {
+                expect(e.message).toEqual(`Resource Patient/${id} is not known`);
+            }
         }
     });
 
@@ -475,7 +477,9 @@ describe('UPDATE', () => {
         } catch (e) {
             // CHECK
             expect(isInvalidResourceError(e)).toEqual(true);
-            expect(e.message).toEqual(`Resource creation failed, id ${id} is not valid`);
+            if (isInvalidResourceError(e)) {
+                expect(e.message).toEqual(`Resource creation failed, id ${id} is not valid`);
+            }
         }
     });
 });

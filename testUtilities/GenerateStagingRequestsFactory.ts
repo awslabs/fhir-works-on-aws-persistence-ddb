@@ -219,12 +219,10 @@ export default class GenerateStagingRequestsFactory {
             resourceType,
         );
 
-        expectedRequest.Update.ExpressionAttributeValues[':currentTs'].N = expect.stringMatching(
-            timeFromEpochInMsRegExp,
-        );
-        expectedRequest.Update.ExpressionAttributeValues[':futureEndTs'].N = expect.stringMatching(
-            timeFromEpochInMsRegExp,
-        );
+        expectedRequest.Update.ExpressionAttributeValues[':currentTs'].N =
+            expect.stringMatching(timeFromEpochInMsRegExp);
+        expectedRequest.Update.ExpressionAttributeValues[':futureEndTs'].N =
+            expect.stringMatching(timeFromEpochInMsRegExp);
 
         const expectedLock: [] = [];
 

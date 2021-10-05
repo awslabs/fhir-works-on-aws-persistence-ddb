@@ -81,7 +81,7 @@ export class DynamoDbBundleService implements Bundle {
         this.updateCreateSupported = supportUpdateCreate;
         this.maxExecutionTimeMs = maxExecutionTimeMs || 26 * 1000;
         this.enableMultiTenancy = enableMultiTenancy;
-        this.versionedLinks = mapValues(versionedLinks, value => new Set(value));
+        this.versionedLinks = mapValues(versionedLinks, (value) => new Set(value));
     }
 
     private assertValidTenancyMode(tenantId?: string) {
@@ -219,11 +219,11 @@ export class DynamoDbBundleService implements Bundle {
     }> {
         // We don't need to put a lock on CREATE requests because there are no Documents in the DB for the CREATE
         // request yet
-        const allNonCreateRequests = requests.filter(request => {
+        const allNonCreateRequests = requests.filter((request) => {
             return request.operation !== 'create';
         });
 
-        const itemsToLock: ItemRequest[] = allNonCreateRequests.map(request => {
+        const itemsToLock: ItemRequest[] = allNonCreateRequests.map((request) => {
             return {
                 resourceType: request.resourceType,
                 id: request.id,
@@ -246,7 +246,7 @@ export class DynamoDbBundleService implements Bundle {
         const lockedItems: ItemRequest[] = [];
 
         // We need to read the items so we can find the versionId of each item
-        const itemReadPromises = itemsToLock.map(async itemToLock => {
+        const itemReadPromises = itemsToLock.map(async (itemToLock) => {
             const projectionExpression = 'id, resourceType, meta';
             try {
                 return await this.dynamoDbHelper.getMostRecentResource(
@@ -335,20 +335,22 @@ export class DynamoDbBundleService implements Bundle {
             });
         } catch (e) {
             logger.error('Failed to lock', e);
-            if (e.code === 'TransactionCanceledException') {
+            if ((e as any).code === 'TransactionCanceledException') {
                 return Promise.resolve({
                     successfulLock: false,
                     errorType: 'CONFLICT_ERROR',
-                    errorMessage: `Failed to lock resources for transaction due to conflict. Please try again after ${DynamoDbParamBuilder.LOCK_DURATION_IN_MS /
-                        1000} seconds.`,
+                    errorMessage: `Failed to lock resources for transaction due to conflict. Please try again after ${
+                        DynamoDbParamBuilder.LOCK_DURATION_IN_MS / 1000
+                    } seconds.`,
                     lockedItems: itemsLockedSuccessfully,
                 });
             }
             return Promise.resolve({
                 successfulLock: false,
                 errorType: 'SYSTEM_ERROR',
-                errorMessage: `Failed to lock resources for transaction. Please try again after ${DynamoDbParamBuilder.LOCK_DURATION_IN_MS /
-                    1000} seconds.`,
+                errorMessage: `Failed to lock resources for transaction. Please try again after ${
+                    DynamoDbParamBuilder.LOCK_DURATION_IN_MS / 1000
+                } seconds.`,
                 lockedItems: itemsLockedSuccessfully,
             });
         }
@@ -390,7 +392,7 @@ export class DynamoDbBundleService implements Bundle {
             })
             .flatMap((request: BatchReadWriteRequest) => {
                 const { resource } = request;
-                return Object.entries(flatten(resource)).map(entry => {
+                return Object.entries(flatten(resource)).map((entry) => {
                     return {
                         resource: request.resource,
                         resourceType: request.resourceType,
@@ -400,7 +402,7 @@ export class DynamoDbBundleService implements Bundle {
                 });
             })
             .filter(
-                item => item.path.endsWith('.reference') && this.versionedLinks?.[item.resourceType].has(item.path),
+                (item) => item.path.endsWith('.reference') && this.versionedLinks?.[item.resourceType].has(item.path),
             );
 
         const requestsForDDB: {
@@ -433,7 +435,7 @@ export class DynamoDbBundleService implements Bundle {
             }
         });
         const responsesFromDDB: boolean[] = await Promise.all(
-            requestsForDDB.map(async item => {
+            requestsForDDB.map(async (item) => {
                 try {
                     const itemResponse: GenericResponse = await this.dynamoDbHelper.getMostRecentResource(
                         item.resourceType,
@@ -451,7 +453,7 @@ export class DynamoDbBundleService implements Bundle {
                 }
             }),
         );
-        return responsesFromDDB.every(item => item);
+        return responsesFromDDB.every((item) => item);
     }
 
     /*
@@ -472,7 +474,7 @@ export class DynamoDbBundleService implements Bundle {
         }
         logger.info('Unlocking begins');
 
-        const updateRequests: any[] = lockedItems.map(lockedItem => {
+        const updateRequests: any[] = lockedItems.map((lockedItem) => {
             let newStatus = DOCUMENT_STATUS.AVAILABLE;
             // If the lockedItem was a result of a delete operation or if the lockedItem was the original version of an item that was UPDATED then
             // set the lockedItem's status to be "DELETED"
@@ -557,11 +559,11 @@ export class DynamoDbBundleService implements Bundle {
         locksToRemove: { id: string; vid: string; resourceType: string }[],
     ) {
         const fullIdToLockedItem: Record<string, ItemRequest> = {};
-        originalLocks.forEach(lockedItem => {
+        originalLocks.forEach((lockedItem) => {
             fullIdToLockedItem[this.generateFullId(lockedItem.id, lockedItem.vid?.toString() || '0')] = lockedItem;
         });
 
-        locksToRemove.forEach(itemToRemove => {
+        locksToRemove.forEach((itemToRemove) => {
             const fullId = this.generateFullId(itemToRemove.id, itemToRemove.vid);
             if (fullIdToLockedItem[fullId]) {
                 delete fullIdToLockedItem[fullId];
@@ -579,14 +581,8 @@ export class DynamoDbBundleService implements Bundle {
             idToVersionId[idItemLocked.id] = idItemLocked.vid || 0;
         });
 
-        const {
-            deleteRequests,
-            createRequests,
-            updateRequests,
-            readRequests,
-            newLocks,
-            newStagingResponses,
-        } = DynamoDbBundleServiceHelper.generateStagingRequests(requests, idToVersionId, tenantId);
+        const { deleteRequests, createRequests, updateRequests, readRequests, newLocks, newStagingResponses } =
+            DynamoDbBundleServiceHelper.generateStagingRequests(requests, idToVersionId, tenantId);
 
         // Order that Bundle specifies
         // https://www.hl7.org/fhir/http.html#trules

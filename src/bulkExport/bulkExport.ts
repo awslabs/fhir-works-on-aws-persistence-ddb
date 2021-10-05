@@ -15,7 +15,7 @@ const getFiles = async (prefix: string): Promise<string[]> => {
     const s3 = new AWS.S3();
 
     const listObjectsResult = await s3.listObjectsV2({ Bucket: EXPORT_RESULTS_BUCKET, Prefix: prefix }).promise();
-    return listObjectsResult.Contents!.map(x => x.Key!);
+    return listObjectsResult.Contents!.map((x) => x.Key!);
 };
 
 const signExportResults = async (keys: string[]): Promise<{ key: string; url: string }[]> => {
@@ -40,7 +40,7 @@ const signExportResults = async (keys: string[]): Promise<{ key: string; url: st
     });
 
     return Promise.all(
-        keys.map(async key => ({
+        keys.map(async (key) => ({
             key,
             url: await s3.getSignedUrlPromise('getObject', {
                 Bucket: EXPORT_RESULTS_BUCKET,

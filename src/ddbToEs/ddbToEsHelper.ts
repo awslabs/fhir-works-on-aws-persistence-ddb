@@ -69,7 +69,7 @@ export default class DdbToEsHelper {
         }
 
         const uniqAliases = uniqWith(aliases, isEqual);
-        const listOfAliases = uniqAliases.map(x => x.alias);
+        const listOfAliases = uniqAliases.map((x) => x.alias);
 
         const { body: allFound } = await this.ElasticSearch.indices.existsAlias({
             name: listOfAliases,
@@ -93,9 +93,9 @@ export default class DdbToEsHelper {
             });
         });
 
-        const missingAliases = uniqAliases.filter(x => !existingAliases.has(x.alias));
+        const missingAliases = uniqAliases.filter((x) => !existingAliases.has(x.alias));
 
-        const [aliasesWithExistingIndex, aliasesWithMissingIndex] = partition(missingAliases, x =>
+        const [aliasesWithExistingIndex, aliasesWithMissingIndex] = partition(missingAliases, (x) =>
             existingIndices.has(x.index),
         );
 
@@ -105,7 +105,7 @@ export default class DdbToEsHelper {
             const aliasesByIndex = groupBy(aliasesWithMissingIndex, 'index');
 
             Object.entries(aliasesByIndex).forEach(([index, aliasesForIndex]) => {
-                const aliasesNames = aliasesForIndex.map(x => x.alias);
+                const aliasesNames = aliasesForIndex.map((x) => x.alias);
 
                 const aliasesArg = zipObject(aliasesNames, new Array(aliasesNames.length).fill({}));
 
@@ -142,7 +142,7 @@ export default class DdbToEsHelper {
                 };
                 promises.push(this.ElasticSearch.indices.create(params));
             });
-            aliasesWithExistingIndex.forEach(alias => {
+            aliasesWithExistingIndex.forEach((alias) => {
                 // Create Alias; this block is creating aliases for existing indices
                 logger.info(`create alias ${alias.alias} for index ${alias.index}`);
                 promises.push(
@@ -216,7 +216,7 @@ export default class DdbToEsHelper {
         if (bulkCmds.length === 0) {
             return;
         }
-        const listOfIds = cmds.map(cmd => {
+        const listOfIds = cmds.map((cmd) => {
             return cmd.id;
         });
         logger.info(`Starting bulk sync operation on ids: `, listOfIds);
