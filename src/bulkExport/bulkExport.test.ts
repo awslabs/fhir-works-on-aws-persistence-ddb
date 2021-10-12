@@ -6,10 +6,12 @@ import * as AWSMock from 'aws-sdk-mock';
 import AWS from '../AWS';
 import { getBulkExportResults, startJobExecution } from './bulkExport';
 import { BulkExportJob } from './types';
+import { BulkExportS3PresignedUrlGenerator } from './bulkExportS3PresignedUrlGenerator';
 
 AWSMock.setSDKInstance(AWS);
 
 describe('getBulkExportResults', () => {
+    let bulkExportS3PresignedUrlGenerator: BulkExportS3PresignedUrlGenerator;
     beforeEach(() => {
         process.env.GLUE_JOB_NAME = 'jobName';
         AWSMock.restore();
@@ -23,6 +25,7 @@ describe('getBulkExportResults', () => {
         AWSMock.mock('S3', 'getSignedUrl', (apiCallToSign: any, params: any, callback: Function) => {
             callback(null, 'https://somePresignedUrl');
         });
+        bulkExportS3PresignedUrlGenerator = new BulkExportS3PresignedUrlGenerator();
     });
 
     test('happy case', async () => {
@@ -32,10 +35,13 @@ describe('getBulkExportResults', () => {
             });
         });
 
-        await expect(getBulkExportResults('job-1')).resolves.toEqual([
-            { type: 'Patient', url: 'https://somePresignedUrl' },
-            { type: 'Observation', url: 'https://somePresignedUrl' },
-        ]);
+        await expect(getBulkExportResults(bulkExportS3PresignedUrlGenerator, 'job-1')).resolves.toEqual({
+            requiresAccessToken: false,
+            exportedFileUrls: [
+                { type: 'Patient', url: 'https://somePresignedUrl' },
+                { type: 'Observation', url: 'https://somePresignedUrl' },
+            ],
+        });
     });
 
     test('happy case with tenantId', async () => {
@@ -46,10 +52,13 @@ describe('getBulkExportResults', () => {
             });
         });
 
-        await expect(getBulkExportResults('job-1', 'tenant1')).resolves.toEqual([
-            { type: 'Patient', url: 'https://somePresignedUrl' },
-            { type: 'Observation', url: 'https://somePresignedUrl' },
-        ]);
+        await expect(getBulkExportResults(bulkExportS3PresignedUrlGenerator, 'job-1', 'tenant1')).resolves.toEqual({
+            requiresAccessToken: false,
+            exportedFileUrls: [
+                { type: 'Patient', url: 'https://somePresignedUrl' },
+                { type: 'Observation', url: 'https://somePresignedUrl' },
+            ],
+        });
     });
 
     test('no results', async () => {
@@ -59,7 +68,10 @@ describe('getBulkExportResults', () => {
             });
         });
 
-        await expect(getBulkExportResults('job-1')).resolves.toEqual([]);
+        await expect(getBulkExportResults(bulkExportS3PresignedUrlGenerator, 'job-1')).resolves.toEqual({
+            exportedFileUrls: [],
+            requiresAccessToken: false,
+        });
     });
 
     test('filenames with unknown format', async () => {
@@ -69,7 +81,7 @@ describe('getBulkExportResults', () => {
             });
         });
 
-        await expect(getBulkExportResults('job-1')).rejects.toThrowError(
+        await expect(getBulkExportResults(bulkExportS3PresignedUrlGenerator, 'job-1')).rejects.toThrowError(
             'Could not parse the name of bulk exports result file: job-1/BadFilenameFormat$$.exe',
         );
     });

@@ -4,11 +4,9 @@
  */
 import AWS from '../AWS';
 import { BulkExportJob } from './types';
+import { BulkExportResultsUrlGenerator } from './bulkExportResultsUrlGenerator';
 
-const EXPIRATION_TIME_SECONDS = 1800;
-const EXPORT_CONTENT_TYPE = 'application/fhir+ndjson';
 const EXPORT_RESULTS_BUCKET = process.env.EXPORT_RESULTS_BUCKET || ' ';
-const EXPORT_RESULTS_SIGNER_ROLE_ARN = process.env.EXPORT_RESULTS_SIGNER_ROLE_ARN || '';
 const EXPORT_STATE_MACHINE_ARN = process.env.EXPORT_STATE_MACHINE_ARN || '';
 
 const getFiles = async (prefix: string): Promise<string[]> => {
@@ -16,40 +14,6 @@ const getFiles = async (prefix: string): Promise<string[]> => {
 
     const listObjectsResult = await s3.listObjectsV2({ Bucket: EXPORT_RESULTS_BUCKET, Prefix: prefix }).promise();
     return listObjectsResult.Contents!.map((x) => x.Key!);
-};
-
-const signExportResults = async (keys: string[]): Promise<{ key: string; url: string }[]> => {
-    if (keys.length === 0) {
-        return [];
-    }
-    const sts = new AWS.STS();
-    const assumeRoleResponse = await sts
-        .assumeRole({
-            RoleArn: EXPORT_RESULTS_SIGNER_ROLE_ARN,
-            RoleSessionName: 'signBulkExportResults',
-            DurationSeconds: EXPIRATION_TIME_SECONDS,
-        })
-        .promise();
-
-    const s3 = new AWS.S3({
-        credentials: {
-            accessKeyId: assumeRoleResponse.Credentials!.AccessKeyId,
-            secretAccessKey: assumeRoleResponse.Credentials!.SecretAccessKey,
-            sessionToken: assumeRoleResponse.Credentials!.SessionToken,
-        },
-    });
-
-    return Promise.all(
-        keys.map(async (key) => ({
-            key,
-            url: await s3.getSignedUrlPromise('getObject', {
-                Bucket: EXPORT_RESULTS_BUCKET,
-                Key: key,
-                Expires: EXPIRATION_TIME_SECONDS,
-                ResponseContentType: EXPORT_CONTENT_TYPE,
-            }),
-        })),
-    );
 };
 
 const getResourceType = (key: string, prefix: string): string => {
@@ -62,16 +26,25 @@ const getResourceType = (key: string, prefix: string): string => {
 };
 
 export const getBulkExportResults = async (
+    bulkExportResultsUrlGenerator: BulkExportResultsUrlGenerator,
     jobId: string,
     tenantId?: string,
-): Promise<{ type: string; url: string }[]> => {
+): Promise<{ requiresAccessToken: boolean; exportedFileUrls: { type: string; url: string }[] }> => {
     const prefix = tenantId ? `${tenantId}/${jobId}` : jobId;
     const keys = await getFiles(prefix);
-    const signedUrls = await signExportResults(keys);
-    return signedUrls.map(({ key, url }) => ({
-        type: getResourceType(key, prefix),
-        url,
-    }));
+
+    const resultUrls: { requiresAccessToken: boolean; urls: string[] } = await bulkExportResultsUrlGenerator.getUrls({
+        bucket: EXPORT_RESULTS_BUCKET,
+        keys,
+    });
+
+    return {
+        requiresAccessToken: resultUrls.requiresAccessToken,
+        exportedFileUrls: resultUrls.urls.map((url, i) => ({
+            url,
+            type: getResourceType(keys[i], prefix),
+        })),
+    };
 };
 
 export const startJobExecution = async (bulkExportJob: BulkExportJob): Promise<void> => {
