@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [3.9.0](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.8.2...v3.9.0) (2021-10-13)
+
+
+### Features
+
+* pass jobOwnerId param to bulk export job ([#124](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/124)) ([85a5912](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/commit/85a59129b293d858f29189dda9281fe9e7addf2e))
+* support custom bulk export results URLs ([#123](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/123)) ([37e3473](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/commit/37e34732817d5053e9a3f57d69ed16e63147c979))
+
 ### [3.8.2](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.8.1...v3.8.2) (2021-09-30)
 
 ### [3.8.1](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.8.0...v3.8.1) (2021-09-17)
