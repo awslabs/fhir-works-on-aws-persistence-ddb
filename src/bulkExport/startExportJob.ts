@@ -22,6 +22,7 @@ export const startExportJobHandler: Handler<
             JobName: GLUE_JOB_NAME,
             Arguments: {
                 '--jobId': event.jobId,
+                '--jobOwnerId': event.jobOwnerId,
                 '--exportType': event.exportType,
                 '--transactionTime': event.transactionTime,
                 '--groupId': event.groupId!,

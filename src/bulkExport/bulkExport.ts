@@ -50,6 +50,7 @@ export const getBulkExportResults = async (
 export const startJobExecution = async (bulkExportJob: BulkExportJob): Promise<void> => {
     const {
         jobId,
+        jobOwnerId,
         exportType,
         groupId,
         type,
@@ -62,6 +63,7 @@ export const startJobExecution = async (bulkExportJob: BulkExportJob): Promise<v
     } = bulkExportJob;
     const params: any = {
         jobId,
+        jobOwnerId,
         exportType,
         transactionTime,
         since,
