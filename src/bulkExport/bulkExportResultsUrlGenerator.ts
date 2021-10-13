@@ -5,5 +5,8 @@
  */
 
 export interface BulkExportResultsUrlGenerator {
-    getUrls(options: { bucket: string; keys: string[] }): Promise<{ requiresAccessToken: boolean; urls: string[] }>;
+    getUrls(options: {
+        exportBucket: string;
+        s3Keys: string[];
+    }): Promise<{ requiresAccessToken: boolean; urls: string[] }>;
 }

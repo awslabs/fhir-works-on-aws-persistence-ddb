@@ -19,7 +19,7 @@ export class BulkExportS3PresignedUrlGenerator implements BulkExportResultsUrlGe
         this.stsClient = new AWS.STS();
     }
 
-    async getUrls({ keys, bucket }: { bucket: string; keys: string[] }) {
+    async getUrls({ s3Keys, exportBucket }: { exportBucket: string; s3Keys: string[] }) {
         const assumeRoleResponse = await this.stsClient
             .assumeRole({
                 RoleArn: EXPORT_RESULTS_SIGNER_ROLE_ARN,
@@ -37,9 +37,9 @@ export class BulkExportS3PresignedUrlGenerator implements BulkExportResultsUrlGe
         });
 
         const urls: string[] = await Promise.all(
-            keys.map(async (key) =>
+            s3Keys.map(async (key) =>
                 s3.getSignedUrlPromise('getObject', {
-                    Bucket: bucket,
+                    Bucket: exportBucket,
                     Key: key,
                     Expires: EXPIRATION_TIME_SECONDS,
                     ResponseContentType: EXPORT_CONTENT_TYPE,

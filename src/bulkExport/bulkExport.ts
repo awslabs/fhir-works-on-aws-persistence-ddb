@@ -34,8 +34,8 @@ export const getBulkExportResults = async (
     const keys = await getFiles(prefix);
 
     const resultUrls: { requiresAccessToken: boolean; urls: string[] } = await bulkExportResultsUrlGenerator.getUrls({
-        bucket: EXPORT_RESULTS_BUCKET,
-        keys,
+        exportBucket: EXPORT_RESULTS_BUCKET,
+        s3Keys: keys,
     });
 
     return {
