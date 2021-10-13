@@ -40,6 +40,8 @@ import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 import DynamoDbHelper from './dynamoDbHelper';
 import { getBulkExportResults, startJobExecution } from '../bulkExport/bulkExport';
 import { BulkExportJob } from '../bulkExport/types';
+import { BulkExportResultsUrlGenerator } from '../bulkExport/bulkExportResultsUrlGenerator';
+import { BulkExportS3PresignedUrlGenerator } from '../bulkExport/bulkExportS3PresignedUrlGenerator';
 
 export class DynamoDbDataService implements Persistence, BulkDataAccess {
     private readonly MAXIMUM_SYSTEM_LEVEL_CONCURRENT_REQUESTS = 2;
@@ -56,10 +58,23 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
 
     private readonly dynamoDb: DynamoDB;
 
+    private readonly bulkExportResultsUrlGenerator: BulkExportResultsUrlGenerator;
+
+    /**
+     * @param dynamoDb - instance of the aws-sdk DynamoDB client
+     * @param supportUpdateCreate - Enables update as create. See https://www.hl7.org/fhir/http.html#upsert
+     * @param options
+     * @param options.enableMultiTenancy - whether or not to enable multi-tenancy. When enabled a tenantId is required for all requests.
+     * @param options.bulkExportResultsUrlGenerator - optionally provide an implementation of bulkExportResultsUrlGenerator to override how the bulk export results URLs are generated.
+     * This can be useful if you want to serve export results from a file server instead of directly from s3.
+     */
     constructor(
         dynamoDb: DynamoDB,
         supportUpdateCreate: boolean = false,
-        { enableMultiTenancy = false }: { enableMultiTenancy?: boolean } = {},
+        {
+            enableMultiTenancy = false,
+            bulkExportResultsUrlGenerator = new BulkExportS3PresignedUrlGenerator(),
+        }: { enableMultiTenancy?: boolean; bulkExportResultsUrlGenerator?: BulkExportResultsUrlGenerator } = {},
     ) {
         this.dynamoDbHelper = new DynamoDbHelper(dynamoDb);
         this.transactionService = new DynamoDbBundleService(dynamoDb, supportUpdateCreate, undefined, {
@@ -68,6 +83,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
         this.dynamoDb = dynamoDb;
         this.updateCreateSupported = supportUpdateCreate;
         this.enableMultiTenancy = enableMultiTenancy;
+        this.bulkExportResultsUrlGenerator = bulkExportResultsUrlGenerator;
     }
 
     private assertValidTenancyMode(tenantId?: string) {
@@ -306,12 +322,16 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
             errorMessage = '',
         } = item;
 
-        const exportedFileUrls = jobStatus === 'completed' ? await getBulkExportResults(jobId, tenantId) : [];
+        const results: { requiresAccessToken?: boolean; exportedFileUrls: { type: string; url: string }[] } =
+            jobStatus === 'completed'
+                ? await getBulkExportResults(this.bulkExportResultsUrlGenerator, jobId, tenantId)
+                : { requiresAccessToken: undefined, exportedFileUrls: [] };
 
         const getExportStatusResponse: GetExportStatusResponse = {
             jobOwnerId,
             jobStatus,
-            exportedFileUrls,
+            requiresAccessToken: results.requiresAccessToken,
+            exportedFileUrls: results.exportedFileUrls,
             transactionTime,
             exportType,
             outputFormat,
