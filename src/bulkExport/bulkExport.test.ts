@@ -93,6 +93,7 @@ describe('startJobExecution', () => {
     });
 
     const jobId = 'job-1';
+    const jobOwnerId = 'owner-1';
     const exportType = 'system';
     const transactionTime = '2020-10-10T00:00:00.000Z';
     const since = '2020-10-09T00:00:00.000Z';
@@ -107,7 +108,7 @@ describe('startJobExecution', () => {
         const job: BulkExportJob = {
             jobId,
             jobStatus: 'in-progress',
-            jobOwnerId: 'owner-1',
+            jobOwnerId,
             exportType,
             transactionTime,
             outputFormat,
@@ -116,6 +117,7 @@ describe('startJobExecution', () => {
 
         const expectedInput = {
             jobId,
+            jobOwnerId,
             exportType,
             transactionTime,
             since,
@@ -143,7 +145,7 @@ describe('startJobExecution', () => {
         const job: BulkExportJob = {
             jobId,
             jobStatus: 'in-progress',
-            jobOwnerId: 'owner-1',
+            jobOwnerId,
             exportType,
             transactionTime,
             outputFormat,
@@ -153,6 +155,7 @@ describe('startJobExecution', () => {
 
         const expectedInput = {
             jobId,
+            jobOwnerId,
             exportType,
             transactionTime,
             since,

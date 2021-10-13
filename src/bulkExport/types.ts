@@ -20,6 +20,7 @@ export interface BulkExportStateMachineExecutionParameters {
  */
 export interface BulkExportStateMachineGlobalParameters {
     jobId: string;
+    jobOwnerId: string;
     exportType: ExportType;
     transactionTime: string;
     groupId?: string;

@@ -14,6 +14,8 @@ import DynamoDbParamBuilder from '../dataServices/dynamoDbParamBuilder';
 
 AWSMock.setSDKInstance(AWS);
 
+const jobOwnerId = 'owner-1';
+
 describe('getJobStatus', () => {
     beforeEach(() => {
         process.env.GLUE_JOB_NAME = 'jobName';
@@ -23,6 +25,7 @@ describe('getJobStatus', () => {
     test('completed job', async () => {
         const event: BulkExportStateMachineGlobalParameters = {
             jobId: '1',
+            jobOwnerId,
             exportType: 'system',
             transactionTime: '',
             executionParameters: {
@@ -47,6 +50,7 @@ describe('getJobStatus', () => {
         });
         await expect(getJobStatusHandler(event, null as any, null as any)).resolves.toEqual({
             jobId: '1',
+            jobOwnerId,
             exportType: 'system',
             transactionTime: '',
             executionParameters: {
@@ -60,6 +64,7 @@ describe('getJobStatus', () => {
     test('completed job in multi-tenancy mode', async () => {
         const event: BulkExportStateMachineGlobalParameters = {
             jobId: '1',
+            jobOwnerId,
             tenantId: 'tenant1',
             exportType: 'system',
             transactionTime: '',
@@ -87,6 +92,7 @@ describe('getJobStatus', () => {
         });
         await expect(getJobStatusHandler(event, null as any, null as any)).resolves.toEqual({
             jobId: '1',
+            jobOwnerId,
             tenantId: 'tenant1',
             exportType: 'system',
             transactionTime: '',
@@ -102,6 +108,7 @@ describe('getJobStatus', () => {
     test('failed job', async () => {
         const event: BulkExportStateMachineGlobalParameters = {
             jobId: '1',
+            jobOwnerId,
             exportType: 'system',
             transactionTime: '',
             executionParameters: {
@@ -125,6 +132,7 @@ describe('getJobStatus', () => {
         });
         await expect(getJobStatusHandler(event, null as any, null as any)).resolves.toEqual({
             jobId: '1',
+            jobOwnerId,
             exportType: 'system',
             transactionTime: '',
             executionParameters: {
@@ -138,6 +146,7 @@ describe('getJobStatus', () => {
     test('canceled job', async () => {
         const event: BulkExportStateMachineGlobalParameters = {
             jobId: '1',
+            jobOwnerId,
             exportType: 'system',
             transactionTime: '',
             executionParameters: {
@@ -161,6 +170,7 @@ describe('getJobStatus', () => {
         });
         await expect(getJobStatusHandler(event, null as any, null as any)).resolves.toEqual({
             jobId: '1',
+            jobOwnerId,
             exportType: 'system',
             transactionTime: '',
             executionParameters: {
@@ -175,6 +185,7 @@ describe('getJobStatus', () => {
         delete process.env.GLUE_JOB_NAME;
         const event: BulkExportStateMachineGlobalParameters = {
             jobId: '1',
+            jobOwnerId,
             exportType: 'system',
             transactionTime: '',
             executionParameters: {
@@ -189,6 +200,7 @@ describe('getJobStatus', () => {
     test('missing glueJobRunId ', async () => {
         const event: BulkExportStateMachineGlobalParameters = {
             jobId: '1',
+            jobOwnerId,
             exportType: 'system',
             transactionTime: '',
         };

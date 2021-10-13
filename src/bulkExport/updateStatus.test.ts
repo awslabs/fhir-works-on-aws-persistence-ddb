@@ -13,9 +13,12 @@ import DynamoDbParamBuilder from '../dataServices/dynamoDbParamBuilder';
 
 AWSMock.setSDKInstance(AWS);
 
+const jobOwnerId = 'owner-1';
+
 describe('updateStatus', () => {
     const event: BulkExportStateMachineGlobalParameters = {
         jobId: '1',
+        jobOwnerId,
         exportType: 'system',
         transactionTime: '',
         executionParameters: {

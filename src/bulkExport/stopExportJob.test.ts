@@ -9,6 +9,8 @@ import { stopExportJobHandler } from './stopExportJob';
 
 AWSMock.setSDKInstance(AWS);
 
+const jobOwnerId = 'owner-1';
+
 describe('getJobStatus', () => {
     const glueJobName = 'jobName';
     const glueJobRunId = 'jr_1';
@@ -20,6 +22,7 @@ describe('getJobStatus', () => {
     test('stop job successfully', async () => {
         const event: BulkExportStateMachineGlobalParameters = {
             jobId: '1',
+            jobOwnerId,
             exportType: 'system',
             transactionTime: '',
             executionParameters: {
@@ -44,6 +47,7 @@ describe('getJobStatus', () => {
     test('stop job failed', async () => {
         const event: BulkExportStateMachineGlobalParameters = {
             jobId: '1',
+            jobOwnerId,
             exportType: 'system',
             transactionTime: '',
             executionParameters: {
@@ -75,6 +79,7 @@ describe('getJobStatus', () => {
         delete process.env.GLUE_JOB_NAME;
         const event: BulkExportStateMachineGlobalParameters = {
             jobId: '1',
+            jobOwnerId,
             exportType: 'system',
             transactionTime: '',
             executionParameters: {
@@ -89,6 +94,7 @@ describe('getJobStatus', () => {
     test('missing glueJobRunId ', async () => {
         const event: BulkExportStateMachineGlobalParameters = {
             jobId: '1',
+            jobOwnerId,
             exportType: 'system',
             transactionTime: '',
             executionParameters: {},

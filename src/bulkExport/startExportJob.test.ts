@@ -9,6 +9,8 @@ import { startExportJobHandler } from './startExportJob';
 
 AWSMock.setSDKInstance(AWS);
 
+const jobOwnerId = 'owner-1';
+
 describe('getJobStatus', () => {
     beforeEach(() => {
         process.env.GLUE_JOB_NAME = 'jobName';
@@ -18,6 +20,7 @@ describe('getJobStatus', () => {
     test('start job', async () => {
         const event: BulkExportStateMachineGlobalParameters = {
             jobId: '1',
+            jobOwnerId,
             exportType: 'system',
             transactionTime: '',
         };
@@ -29,6 +32,7 @@ describe('getJobStatus', () => {
         });
         await expect(startExportJobHandler(event, null as any, null as any)).resolves.toEqual({
             jobId: '1',
+            jobOwnerId,
             exportType: 'system',
             transactionTime: '',
             executionParameters: {
@@ -40,6 +44,7 @@ describe('getJobStatus', () => {
     test('start job in multi-tenancy mode', async () => {
         const event: BulkExportStateMachineGlobalParameters = {
             jobId: '1',
+            jobOwnerId,
             tenantId: 'tenant1',
             exportType: 'system',
             transactionTime: '',
@@ -52,6 +57,7 @@ describe('getJobStatus', () => {
         });
         await expect(startExportJobHandler(event, null as any, null as any)).resolves.toEqual({
             jobId: '1',
+            jobOwnerId,
             exportType: 'system',
             transactionTime: '',
             tenantId: 'tenant1',
@@ -64,6 +70,7 @@ describe('getJobStatus', () => {
     test('glue exception', async () => {
         const event: BulkExportStateMachineGlobalParameters = {
             jobId: '1',
+            jobOwnerId,
             exportType: 'system',
             transactionTime: '',
         };
@@ -78,6 +85,7 @@ describe('getJobStatus', () => {
         delete process.env.GLUE_JOB_NAME;
         const event: BulkExportStateMachineGlobalParameters = {
             jobId: '1',
+            jobOwnerId,
             exportType: 'system',
             transactionTime: '',
         };
