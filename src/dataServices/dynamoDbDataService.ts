@@ -32,7 +32,7 @@ import {
 } from 'fhir-works-on-aws-interface';
 import DynamoDB, { ItemList } from 'aws-sdk/clients/dynamodb';
 import { difference } from 'lodash';
-import { DynamoDBConverter } from './dynamoDb';
+import { DynamoDBConverter, RESOURCE_TABLE } from './dynamoDb';
 import DOCUMENT_STATUS from './documentStatus';
 import { DynamoDbBundleService } from './dynamoDbBundleService';
 import { DynamoDbUtil } from './dynamoDbUtil';
@@ -383,6 +383,26 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
                     : process.env.PATIENT_COMPARTMENT_V3;
         }
         return exportJob;
+    }
+
+    async getActiveSubscriptions(params: { tenantId?: string }): Promise<Record<string, any>[]> {
+        this.assertValidTenancyMode(params.tenantId);
+        let keyCondition = '_subscriptionStatus = :active';
+        if (params.tenantId) {
+            keyCondition += ` AND id beginsWith ${params.tenantId}`;
+        }
+        const subscriptionQuery = {
+            TableName: RESOURCE_TABLE,
+            IndexName: 'activeSubscriptions',
+            KeyConditionExpression: keyCondition,
+        };
+        const queryResponse = await this.dynamoDb.query(subscriptionQuery).promise();
+        const subscriptions: Record<string, any>[] = [];
+        queryResponse.Items?.forEach((response) => {
+            const item = DynamoDBConverter.unmarshall(response);
+            subscriptions.push((item.id, item));
+        });
+        return subscriptions;
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
