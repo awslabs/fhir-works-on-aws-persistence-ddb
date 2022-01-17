@@ -283,7 +283,7 @@ describe('prepItemForDdbInsert', () => {
     };
     test('_subscriptionStatus is present', () => {
         const actualItem = DynamoDbUtil.prepItemForDdbInsert(
-            clone(resource),
+            resource,
             id,
             vid,
             DOCUMENT_STATUS.AVAILABLE,

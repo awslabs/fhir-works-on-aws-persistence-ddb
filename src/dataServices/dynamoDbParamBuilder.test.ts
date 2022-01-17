@@ -445,3 +445,28 @@ describe('buildUpdateExportRequestJobStatus', () => {
         expect(actualParam).toEqual(clonedExpectedParam);
     });
 });
+
+describe('buildGetActiveSubscriptions', () => {
+    const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
+    const expectedParam = {
+        TableName: '',
+        IndexName: 'activeSubscriptions',
+        KeyConditionExpression: '_subscriptionStatus = :active',
+        ExpressionAttributeValues: {
+            ':active': { S: 'active' },
+        },
+    };
+    test('Param without tenantId', () => {
+        const actualParam = DynamoDbParamBuilder.buildGetActiveSubscriptions();
+        expect(actualParam).toEqual(expectedParam);
+    });
+
+    test('tenantId present', () => {
+        const actualParam = DynamoDbParamBuilder.buildGetActiveSubscriptions('tenant1');
+
+        const clonedExpectedParam: any = cloneDeep(expectedParam);
+        clonedExpectedParam.KeyConditionExpression = '_subscriptionStatus = :active AND id beginsWith tenant1'
+
+        expect(actualParam).toEqual(clonedExpectedParam);
+    });
+});

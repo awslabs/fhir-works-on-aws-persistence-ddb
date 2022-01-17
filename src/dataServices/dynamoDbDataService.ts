@@ -387,20 +387,12 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
 
     async getActiveSubscriptions(params: { tenantId?: string }): Promise<Record<string, any>[]> {
         this.assertValidTenancyMode(params.tenantId);
-        let keyCondition = '_subscriptionStatus = :active';
-        if (params.tenantId) {
-            keyCondition += ` AND id beginsWith ${params.tenantId}`;
-        }
-        const subscriptionQuery = {
-            TableName: RESOURCE_TABLE,
-            IndexName: 'activeSubscriptions',
-            KeyConditionExpression: keyCondition,
-        };
+        const subscriptionQuery = DynamoDbParamBuilder.buildGetActiveSubscriptions(params.tenantId);
         const queryResponse = await this.dynamoDb.query(subscriptionQuery).promise();
         const subscriptions: Record<string, any>[] = [];
         queryResponse.Items?.forEach((response) => {
             const item = DynamoDBConverter.unmarshall(response);
-            subscriptions.push((item.id, item));
+            subscriptions.push({[item.id]: item});
         });
         return subscriptions;
     }
