@@ -282,13 +282,7 @@ describe('prepItemForDdbInsert', () => {
         status: 'active',
     };
     test('_subscriptionStatus is present', () => {
-        const actualItem = DynamoDbUtil.prepItemForDdbInsert(
-            resource,
-            id,
-            vid,
-            DOCUMENT_STATUS.AVAILABLE,
-            'tenant1',
-        );
+        const actualItem = DynamoDbUtil.prepItemForDdbInsert(resource, id, vid, DOCUMENT_STATUS.AVAILABLE, 'tenant1');
 
         expect(actualItem).toMatchInlineSnapshot(
             {

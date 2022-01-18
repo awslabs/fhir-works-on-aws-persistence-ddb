@@ -209,18 +209,22 @@ export default class DynamoDbParamBuilder {
     }
 
     static buildGetActiveSubscriptions(tenantId?: string) {
-        let keyCondition = '_subscriptionStatus = :active';
-        if (tenantId) {
-            keyCondition += ` AND id beginsWith ${tenantId}`;
-        }
         const params = {
             TableName: RESOURCE_TABLE,
             IndexName: 'activeSubscriptions',
-            KeyConditionExpression: keyCondition,
+            KeyConditionExpression: '_subscriptionStatus = :active',
             ExpressionAttributeValues: DynamoDBConverter.marshall({
                 ':active': 'active',
             }),
+            ExclusiveStartKey: DynamoDBConverter.marshall({}),
         };
+        if (tenantId) {
+            params.KeyConditionExpression += ' AND id beginsWith :tenantId';
+            params.ExpressionAttributeValues = DynamoDBConverter.marshall({
+                ':active': 'active',
+                ':tenantId': tenantId,
+            });
+        }
         return params;
     }
 }

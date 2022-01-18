@@ -32,7 +32,7 @@ import {
 } from 'fhir-works-on-aws-interface';
 import DynamoDB, { ItemList } from 'aws-sdk/clients/dynamodb';
 import { difference } from 'lodash';
-import { DynamoDBConverter, RESOURCE_TABLE } from './dynamoDb';
+import { DynamoDBConverter } from './dynamoDb';
 import DOCUMENT_STATUS from './documentStatus';
 import { DynamoDbBundleService } from './dynamoDbBundleService';
 import { DynamoDbUtil } from './dynamoDbUtil';
@@ -388,12 +388,19 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
     async getActiveSubscriptions(params: { tenantId?: string }): Promise<Record<string, any>[]> {
         this.assertValidTenancyMode(params.tenantId);
         const subscriptionQuery = DynamoDbParamBuilder.buildGetActiveSubscriptions(params.tenantId);
-        const queryResponse = await this.dynamoDb.query(subscriptionQuery).promise();
+        let queryResponse = await this.dynamoDb.query(subscriptionQuery).promise();
         const subscriptions: Record<string, any>[] = [];
-        queryResponse.Items?.forEach((response) => {
-            const item = DynamoDBConverter.unmarshall(response);
-            subscriptions.push({[item.id]: item});
-        });
+        do {
+            queryResponse.Items?.forEach((response) => {
+                const item = DynamoDBConverter.unmarshall(response);
+                subscriptions.push({ [item.id]: item });
+            });
+            if (queryResponse.LastEvaluatedKey) {
+                subscriptionQuery.ExclusiveStartKey = queryResponse.LastEvaluatedKey;
+                // eslint-disable-next-line no-await-in-loop
+                queryResponse = await this.dynamoDb.query(subscriptionQuery).promise();
+            }
+        } while (queryResponse.LastEvaluatedKey);
         return subscriptions;
     }
 
