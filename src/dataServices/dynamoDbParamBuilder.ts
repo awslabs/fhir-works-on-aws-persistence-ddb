@@ -212,11 +212,13 @@ export default class DynamoDbParamBuilder {
         const params = {
             TableName: RESOURCE_TABLE,
             IndexName: 'activeSubscriptions',
-            KeyConditionExpression: '_subscriptionStatus = :active',
+            KeyConditionExpression: '#subscriptionStatus = :active',
             ExpressionAttributeValues: DynamoDBConverter.marshall({
                 ':active': 'active',
             }),
-            ExclusiveStartKey: DynamoDBConverter.marshall({}),
+            ExpressionAttributeNames: {
+                '#subscriptionStatus': '_subscriptionStatus',
+            },
         };
         if (tenantId) {
             params.KeyConditionExpression += ' AND id beginsWith :tenantId';

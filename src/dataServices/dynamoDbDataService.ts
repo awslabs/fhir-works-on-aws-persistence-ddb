@@ -388,19 +388,24 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
     async getActiveSubscriptions(params: { tenantId?: string }): Promise<Record<string, any>[]> {
         this.assertValidTenancyMode(params.tenantId);
         const subscriptionQuery = DynamoDbParamBuilder.buildGetActiveSubscriptions(params.tenantId);
-        let queryResponse = await this.dynamoDb.query(subscriptionQuery).promise();
+        let queryResponse;
         const subscriptions: Record<string, any>[] = [];
         do {
+            // eslint-disable-next-line no-await-in-loop
+            queryResponse = await this.dynamoDb.query(subscriptionQuery).promise();
             queryResponse.Items?.forEach((response) => {
                 const item = DynamoDBConverter.unmarshall(response);
-                subscriptions.push({ [item.id]: item });
+                subscriptions.push(item);
             });
             if (queryResponse.LastEvaluatedKey) {
-                subscriptionQuery.ExclusiveStartKey = queryResponse.LastEvaluatedKey;
-                // eslint-disable-next-line no-await-in-loop
-                queryResponse = await this.dynamoDb.query(subscriptionQuery).promise();
+                // To allow subscriptionQuery.ExclusiveStartKey = queryResponse.LastEvaluatedKey,
+                // as otherwise there is an error with syntax
+                Object.defineProperty(subscriptionQuery, 'ExclusiveStartKey', {
+                    value: queryResponse.LastEvaluatedKey,
+                });
             }
         } while (queryResponse.LastEvaluatedKey);
+        console.log('subscriptions', subscriptions);
         return subscriptions;
     }
 

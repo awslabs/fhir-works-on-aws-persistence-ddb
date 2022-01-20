@@ -978,18 +978,16 @@ describe('getActiveSubscriptions', async () => {
     expect(subscriptions).toMatchInlineSnapshot(`
         Array [
           Object {
-            "example": Object {
-              "contact": Array [
-                Object {
-                  "system": "phone",
-                  "value": "ext 4123",
-                },
-              ],
-              "end": "2021-01-01T00:00:00Z",
-              "id": "example",
-              "resourceType": "Subscription",
-              "status": "requested",
-            },
+            "contact": Array [
+              Object {
+                "system": "phone",
+                "value": "ext 4123",
+              },
+            ],
+            "end": "2021-01-01T00:00:00Z",
+            "id": "example",
+            "resourceType": "Subscription",
+            "status": "requested",
           },
         ]
     `);

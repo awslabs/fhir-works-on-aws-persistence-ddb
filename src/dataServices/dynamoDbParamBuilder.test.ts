@@ -450,11 +450,13 @@ describe('buildGetActiveSubscriptions', () => {
     const expectedParam = {
         TableName: '',
         IndexName: 'activeSubscriptions',
-        KeyConditionExpression: '_subscriptionStatus = :active',
+        KeyConditionExpression: '#subscriptionStatus = :active',
         ExpressionAttributeValues: {
             ':active': { S: 'active' },
         },
-        ExclusiveStartKey: {},
+        ExpressionAttributeNames: {
+            '#subscriptionStatus': '_subscriptionStatus',
+        },
     };
     test('Param without tenantId', () => {
         const actualParam = DynamoDbParamBuilder.buildGetActiveSubscriptions();
@@ -463,14 +465,23 @@ describe('buildGetActiveSubscriptions', () => {
 
     test('tenantId present', () => {
         const actualParam = DynamoDbParamBuilder.buildGetActiveSubscriptions('tenant1');
-
-        const clonedExpectedParam: any = cloneDeep(expectedParam);
-        clonedExpectedParam.KeyConditionExpression = '_subscriptionStatus = :active AND id beginsWith :tenantId';
-        clonedExpectedParam.ExpressionAttributeValues = {
-            ':active': { S: 'active' },
-            ':tenantId': { S: 'tenant1' },
-        };
-
-        expect(actualParam).toEqual(clonedExpectedParam);
+        expect(actualParam).toMatchInlineSnapshot(`
+              Object {
+                "ExpressionAttributeNames": Object {
+                  "#subscriptionStatus": "_subscriptionStatus",
+                },
+                "ExpressionAttributeValues": Object {
+                  ":active": Object {
+                    "S": "active",
+                  },
+                  ":tenantId": Object {
+                    "S": "tenant1",
+                  },
+                },
+                "IndexName": "activeSubscriptions",
+                "KeyConditionExpression": "#subscriptionStatus = :active AND id beginsWith :tenantId",
+                "TableName": "",
+              }
+        `);
     });
 });
