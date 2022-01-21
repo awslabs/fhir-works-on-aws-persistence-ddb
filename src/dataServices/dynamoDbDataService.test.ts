@@ -948,3 +948,47 @@ each(['cancelExport', 'getExportStatus']).test('%s:Unable to find job', async (t
         );
     }
 });
+
+test('getActiveSubscriptions', async () => {
+    // Build
+    const subResource = {
+        Items: [
+            DynamoDBConverter.marshall({
+                resourceType: 'Subscription',
+                id: 'example',
+                status: 'requested',
+                contact: [
+                    {
+                        system: 'phone',
+                        value: 'ext 4123',
+                    },
+                ],
+                end: '2021-01-01T00:00:00Z',
+            }),
+        ],
+    };
+    AWSMock.mock('DynamoDB', 'query', async (params: QueryInput, callback: Function) => {
+        callback(null, subResource);
+    });
+
+    const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
+    // Operate
+    const subscriptions = await dynamoDbDataService.getActiveSubscriptions({});
+    // Check
+    expect(subscriptions).toMatchInlineSnapshot(`
+        Array [
+          Object {
+            "contact": Array [
+              Object {
+                "system": "phone",
+                "value": "ext 4123",
+              },
+            ],
+            "end": "2021-01-01T00:00:00Z",
+            "id": "example",
+            "resourceType": "Subscription",
+            "status": "requested",
+          },
+        ]
+    `);
+});

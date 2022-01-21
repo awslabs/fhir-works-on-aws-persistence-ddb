@@ -385,6 +385,26 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
         return exportJob;
     }
 
+    async getActiveSubscriptions(params: { tenantId?: string }): Promise<Record<string, any>[]> {
+        this.assertValidTenancyMode(params.tenantId);
+        const subscriptionQuery = DynamoDbParamBuilder.buildGetActiveSubscriptions(params.tenantId);
+        let queryResponse;
+        const subscriptions: Record<string, any>[] = [];
+        do {
+            // eslint-disable-next-line no-await-in-loop
+            queryResponse = await this.dynamoDb.query(subscriptionQuery).promise();
+            queryResponse.Items?.forEach((response) => {
+                const item = DynamoDBConverter.unmarshall(response);
+                subscriptions.push(item);
+            });
+            if (queryResponse.LastEvaluatedKey) {
+                subscriptionQuery.ExclusiveStartKey = queryResponse.LastEvaluatedKey;
+            }
+        } while (queryResponse.LastEvaluatedKey);
+        console.log('subscriptions', subscriptions);
+        return subscriptions;
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     conditionalCreateResource(request: CreateResourceRequest, queryParams: any): Promise<GenericResponse> {
         throw new Error('Method not implemented.');

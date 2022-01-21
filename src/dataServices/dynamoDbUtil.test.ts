@@ -272,3 +272,43 @@ describe('prepItemForDdbInsert', () => {
         );
     });
 });
+
+describe('prepItemForDdbInsert', () => {
+    const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
+    const vid = 1;
+    const resource = {
+        resourceType: 'Subscription',
+        id: 'example',
+        status: 'active',
+    };
+    test('_subscriptionStatus is present', () => {
+        const actualItem = DynamoDbUtil.prepItemForDdbInsert(resource, id, vid, DOCUMENT_STATUS.AVAILABLE, 'tenant1');
+
+        expect(actualItem).toMatchInlineSnapshot(
+            {
+                lockEndTs: expect.any(Number),
+                meta: {
+                    lastUpdated: expect.stringMatching(utcTimeRegExp),
+                },
+            },
+            `
+            Object {
+              "_id": "8cafa46d-08b4-4ee4-b51b-803e20ae8126",
+              "_references": Array [],
+              "_subscriptionStatus": "active",
+              "_tenantId": "tenant1",
+              "documentStatus": "AVAILABLE",
+              "id": "tenant1|8cafa46d-08b4-4ee4-b51b-803e20ae8126",
+              "lockEndTs": Any<Number>,
+              "meta": Object {
+                "lastUpdated": StringMatching /\\\\d\\{4\\}-\\\\d\\{2\\}-\\\\d\\{2\\}T\\\\d\\{2\\}:\\\\d\\{2\\}:\\\\d\\{2\\}\\.\\\\d\\+Z/,
+                "versionId": "1",
+              },
+              "resourceType": "Subscription",
+              "status": "active",
+              "vid": 1,
+            }
+        `,
+        );
+    });
+});
