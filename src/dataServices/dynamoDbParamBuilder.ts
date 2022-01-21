@@ -4,6 +4,7 @@
  */
 
 import { ExportJobStatus, InitiateExportRequest } from 'fhir-works-on-aws-interface';
+import { QueryInput } from 'aws-sdk/clients/dynamodb';
 import {
     DynamoDBConverter,
     EXPORT_REQUEST_TABLE,
@@ -208,7 +209,7 @@ export default class DynamoDbParamBuilder {
         return params;
     }
 
-    static buildGetActiveSubscriptions(tenantId?: string) {
+    static buildGetActiveSubscriptions(tenantId?: string): QueryInput {
         const params = {
             TableName: RESOURCE_TABLE,
             IndexName: 'activeSubscriptions',

@@ -949,7 +949,7 @@ each(['cancelExport', 'getExportStatus']).test('%s:Unable to find job', async (t
     }
 });
 
-describe('getActiveSubscriptions', async () => {
+test('getActiveSubscriptions', async () => {
     // Build
     const subResource = {
         Items: [
