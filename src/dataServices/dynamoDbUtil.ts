@@ -77,9 +77,10 @@ export class DynamoDbUtil {
         const activeSubscription =
             documentStatus === DOCUMENT_STATUS.AVAILABLE &&
             resource.resourceType === 'Subscription' &&
-            resource.status === 'active';
+            (resource.status === 'active' || resource.status === 'requested');
         if (activeSubscription) {
             item[SUBSCRIPTION_FIELD] = 'active';
+            item.status = 'active';
         }
 
         if (tenantId) {
