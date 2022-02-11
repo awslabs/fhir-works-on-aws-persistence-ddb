@@ -75,7 +75,7 @@ export class DynamoDbUtil {
         item[LOCK_END_TS_FIELD] = Date.now();
 
         const activeSubscription =
-            documentStatus === DOCUMENT_STATUS.AVAILABLE &&
+            documentStatus === (DOCUMENT_STATUS.AVAILABLE || DOCUMENT_STATUS.PENDING) &&
             resource.resourceType === 'Subscription' &&
             (resource.status === 'active' || resource.status === 'requested');
         if (activeSubscription) {
