@@ -222,7 +222,7 @@ export default class DynamoDbParamBuilder {
             },
         };
         if (tenantId) {
-            params.KeyConditionExpression += ' AND id beginsWith :tenantId';
+            params.KeyConditionExpression += ' AND begins_with(id,:tenantId)';
             params.ExpressionAttributeValues = DynamoDBConverter.marshall({
                 ':active': 'active',
                 ':tenantId': tenantId,

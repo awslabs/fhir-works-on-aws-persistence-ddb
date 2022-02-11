@@ -466,22 +466,22 @@ describe('buildGetActiveSubscriptions', () => {
     test('tenantId present', () => {
         const actualParam = DynamoDbParamBuilder.buildGetActiveSubscriptions('tenant1');
         expect(actualParam).toMatchInlineSnapshot(`
-              Object {
-                "ExpressionAttributeNames": Object {
-                  "#subscriptionStatus": "_subscriptionStatus",
+            Object {
+              "ExpressionAttributeNames": Object {
+                "#subscriptionStatus": "_subscriptionStatus",
+              },
+              "ExpressionAttributeValues": Object {
+                ":active": Object {
+                  "S": "active",
                 },
-                "ExpressionAttributeValues": Object {
-                  ":active": Object {
-                    "S": "active",
-                  },
-                  ":tenantId": Object {
-                    "S": "tenant1",
-                  },
+                ":tenantId": Object {
+                  "S": "tenant1",
                 },
-                "IndexName": "activeSubscriptions",
-                "KeyConditionExpression": "#subscriptionStatus = :active AND id beginsWith :tenantId",
-                "TableName": "",
-              }
+              },
+              "IndexName": "activeSubscriptions",
+              "KeyConditionExpression": "#subscriptionStatus = :active AND begins_with(id,:tenantId)",
+              "TableName": "",
+            }
         `);
     });
 });
