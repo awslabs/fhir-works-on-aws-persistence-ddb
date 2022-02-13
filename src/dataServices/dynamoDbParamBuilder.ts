@@ -41,6 +41,7 @@ export default class DynamoDbParamBuilder {
         }
         let updateExpression = `set ${DOCUMENT_STATUS_FIELD} = :newStatus, ${LOCK_END_TS_FIELD} = :futureEndTs`;
         let conditionExpression = `resourceType = :resourceType`;
+        let expressionAttributeNames = undefined;
         let expressionAttributeValues: Record<string, any> = {
             ':newStatus': newStatus,
             ':futureEndTs': futureEndTs,
@@ -60,12 +61,13 @@ export default class DynamoDbParamBuilder {
             };
         }
         if (resourceType === 'Subscription') {
-            updateExpression = `${updateExpression}, ${SUBSCRIPTION_FIELD} = :subscriptionStatus`;
-            const subscriptionStatus =
-                newStatus === DOCUMENT_STATUS.PENDING_DELETE || newStatus === DOCUMENT_STATUS.DELETED
-                    ? undefined
-                    : 'active';
-            expressionAttributeValues[':subscriptionStatus'] = subscriptionStatus;
+            if (newStatus === DOCUMENT_STATUS.PENDING_DELETE || newStatus === DOCUMENT_STATUS.DELETED) {
+                updateExpression = `${updateExpression} REMOVE #subscriptionStatus`;
+            } else {
+                updateExpression = `${updateExpression}, #subscriptionStatus = :subscriptionStatus`;
+                expressionAttributeValues[':subscriptionStatus'] = 'active';
+            }
+            expressionAttributeNames = { '#subscriptionStatus': `${SUBSCRIPTION_FIELD}` };
         }
 
         const params: any = {
@@ -76,11 +78,14 @@ export default class DynamoDbParamBuilder {
                     vid,
                 }),
                 UpdateExpression: updateExpression,
+                ExpressionAttributeNames: expressionAttributeNames,
                 ExpressionAttributeValues: DynamoDBConverter.marshall(expressionAttributeValues),
                 ConditionExpression: conditionExpression,
             },
         };
-
+        
+        console.log(params);
+        
         return params;
     }
 
