@@ -84,8 +84,6 @@ export default class DynamoDbParamBuilder {
             },
         };
         
-        console.log(params);
-        
         return params;
     }
 
