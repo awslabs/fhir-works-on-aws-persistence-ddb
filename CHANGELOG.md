@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [3.9.1](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.9.0...v3.9.1) (2022-02-17)
+
+
+### Bug Fixes
+
+* update code coverage action to not run on feat branches ([#136](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/136)) ([a6f8a52](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/commit/a6f8a52dd7979d9b3e906bcfac0110e2abedd633))
+
 ## [3.9.0](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.8.2...v3.9.0) (2021-10-13)
 
 
