@@ -401,7 +401,6 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
                 subscriptionQuery.ExclusiveStartKey = queryResponse.LastEvaluatedKey;
             }
         } while (queryResponse.LastEvaluatedKey);
-        console.log('subscriptions', subscriptions);
         return subscriptions;
     }
 
