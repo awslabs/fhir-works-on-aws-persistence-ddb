@@ -41,7 +41,7 @@ export default class DynamoDbParamBuilder {
         }
         let updateExpression = `set ${DOCUMENT_STATUS_FIELD} = :newStatus, ${LOCK_END_TS_FIELD} = :futureEndTs`;
         let conditionExpression = `resourceType = :resourceType`;
-        let expressionAttributeNames = undefined;
+        let expressionAttributeNames;
         let expressionAttributeValues: Record<string, any> = {
             ':newStatus': newStatus,
             ':futureEndTs': futureEndTs,
@@ -78,12 +78,15 @@ export default class DynamoDbParamBuilder {
                     vid,
                 }),
                 UpdateExpression: updateExpression,
-                ExpressionAttributeNames: expressionAttributeNames,
                 ExpressionAttributeValues: DynamoDBConverter.marshall(expressionAttributeValues),
                 ConditionExpression: conditionExpression,
             },
         };
-        
+
+        if (expressionAttributeNames) {
+            params.ExpressionAttributeNames = expressionAttributeNames;
+        }
+
         return params;
     }
 
