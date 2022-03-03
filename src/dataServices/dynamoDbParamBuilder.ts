@@ -4,13 +4,20 @@
  */
 
 import { ExportJobStatus, InitiateExportRequest } from 'fhir-works-on-aws-interface';
+import { QueryInput } from 'aws-sdk/clients/dynamodb';
 import {
     DynamoDBConverter,
     EXPORT_REQUEST_TABLE,
     EXPORT_REQUEST_TABLE_JOB_STATUS_INDEX,
     RESOURCE_TABLE,
 } from './dynamoDb';
-import { buildHashKey, DOCUMENT_STATUS_FIELD, DynamoDbUtil, LOCK_END_TS_FIELD } from './dynamoDbUtil';
+import {
+    buildHashKey,
+    DOCUMENT_STATUS_FIELD,
+    DynamoDbUtil,
+    LOCK_END_TS_FIELD,
+    SUBSCRIPTION_FIELD,
+} from './dynamoDbUtil';
 import DOCUMENT_STATUS from './documentStatus';
 import { BulkExportJob } from '../bulkExport/types';
 
@@ -32,27 +39,17 @@ export default class DynamoDbParamBuilder {
         if (newStatus === DOCUMENT_STATUS.LOCKED) {
             futureEndTs = currentTs + this.LOCK_DURATION_IN_MS;
         }
-
-        const params: any = {
-            Update: {
-                TableName: RESOURCE_TABLE,
-                Key: DynamoDBConverter.marshall({
-                    id: buildHashKey(id, tenantId),
-                    vid,
-                }),
-                UpdateExpression: `set ${DOCUMENT_STATUS_FIELD} = :newStatus, ${LOCK_END_TS_FIELD} = :futureEndTs`,
-                ExpressionAttributeValues: DynamoDBConverter.marshall({
-                    ':newStatus': newStatus,
-                    ':futureEndTs': futureEndTs,
-                    ':resourceType': resourceType,
-                }),
-                ConditionExpression: `resourceType = :resourceType`,
-            },
+        let updateExpression = `set ${DOCUMENT_STATUS_FIELD} = :newStatus, ${LOCK_END_TS_FIELD} = :futureEndTs`;
+        let conditionExpression = `resourceType = :resourceType`;
+        let expressionAttributeNames;
+        let expressionAttributeValues: Record<string, any> = {
+            ':newStatus': newStatus,
+            ':futureEndTs': futureEndTs,
+            ':resourceType': resourceType,
         };
-
         if (oldStatus) {
-            params.Update.ConditionExpression = `resourceType = :resourceType AND (${DOCUMENT_STATUS_FIELD} = :oldStatus OR (${LOCK_END_TS_FIELD} < :currentTs AND (${DOCUMENT_STATUS_FIELD} = :lockStatus OR ${DOCUMENT_STATUS_FIELD} = :pendingStatus OR ${DOCUMENT_STATUS_FIELD} = :pendingDeleteStatus)))`;
-            params.Update.ExpressionAttributeValues = DynamoDBConverter.marshall({
+            conditionExpression = `resourceType = :resourceType AND (${DOCUMENT_STATUS_FIELD} = :oldStatus OR (${LOCK_END_TS_FIELD} < :currentTs AND (${DOCUMENT_STATUS_FIELD} = :lockStatus OR ${DOCUMENT_STATUS_FIELD} = :pendingStatus OR ${DOCUMENT_STATUS_FIELD} = :pendingDeleteStatus)))`;
+            expressionAttributeValues = {
                 ':newStatus': newStatus,
                 ':oldStatus': oldStatus,
                 ':lockStatus': DOCUMENT_STATUS.LOCKED,
@@ -61,7 +58,33 @@ export default class DynamoDbParamBuilder {
                 ':currentTs': currentTs,
                 ':futureEndTs': futureEndTs,
                 ':resourceType': resourceType,
-            });
+            };
+        }
+        if (resourceType === 'Subscription') {
+            if (newStatus === DOCUMENT_STATUS.PENDING_DELETE || newStatus === DOCUMENT_STATUS.DELETED) {
+                updateExpression = `${updateExpression} REMOVE #subscriptionStatus`;
+            } else {
+                updateExpression = `${updateExpression}, #subscriptionStatus = :subscriptionStatus`;
+                expressionAttributeValues[':subscriptionStatus'] = 'active';
+            }
+            expressionAttributeNames = { '#subscriptionStatus': `${SUBSCRIPTION_FIELD}` };
+        }
+
+        const params: any = {
+            Update: {
+                TableName: RESOURCE_TABLE,
+                Key: DynamoDBConverter.marshall({
+                    id: buildHashKey(id, tenantId),
+                    vid,
+                }),
+                UpdateExpression: updateExpression,
+                ExpressionAttributeValues: DynamoDBConverter.marshall(expressionAttributeValues),
+                ConditionExpression: conditionExpression,
+            },
+        };
+
+        if (expressionAttributeNames) {
+            params.ExpressionAttributeNames = expressionAttributeNames;
         }
 
         return params;
@@ -205,6 +228,28 @@ export default class DynamoDbParamBuilder {
             }),
         };
 
+        return params;
+    }
+
+    static buildGetActiveSubscriptions(tenantId?: string): QueryInput {
+        const params = {
+            TableName: RESOURCE_TABLE,
+            IndexName: 'activeSubscriptions',
+            KeyConditionExpression: '#subscriptionStatus = :active',
+            ExpressionAttributeValues: DynamoDBConverter.marshall({
+                ':active': 'active',
+            }),
+            ExpressionAttributeNames: {
+                '#subscriptionStatus': '_subscriptionStatus',
+            },
+        };
+        if (tenantId) {
+            params.KeyConditionExpression += ' AND begins_with(id,:tenantId)';
+            params.ExpressionAttributeValues = DynamoDBConverter.marshall({
+                ':active': 'active',
+                ':tenantId': tenantId,
+            });
+        }
         return params;
     }
 }

@@ -14,6 +14,7 @@ export const VID_FIELD = 'vid';
 export const REFERENCES_FIELD = '_references';
 export const TENANT_ID_FIELD = '_tenantId';
 export const INTERNAL_ID_FIELD = '_id';
+export const SUBSCRIPTION_FIELD = '_subscriptionStatus';
 
 export const buildHashKey = (id: string, tenantId?: string): string => {
     if (tenantId) {
@@ -30,6 +31,7 @@ export class DynamoDbUtil {
         delete cleanedItem[LOCK_END_TS_FIELD];
         delete cleanedItem[VID_FIELD];
         delete cleanedItem[REFERENCES_FIELD];
+        delete cleanedItem[SUBSCRIPTION_FIELD];
 
         // Return id instead of full id (this is only a concern in results from ES)
         const id = item.id.split(SEPARATOR)[0];
@@ -71,6 +73,15 @@ export class DynamoDbUtil {
 
         item[DOCUMENT_STATUS_FIELD] = documentStatus;
         item[LOCK_END_TS_FIELD] = Date.now();
+
+        const activeSubscription =
+            (documentStatus === DOCUMENT_STATUS.AVAILABLE || documentStatus === DOCUMENT_STATUS.PENDING) &&
+            resource.resourceType === 'Subscription' &&
+            (resource.status === 'active' || resource.status === 'requested');
+        if (activeSubscription) {
+            item[SUBSCRIPTION_FIELD] = 'active';
+            item.status = 'active';
+        }
 
         if (tenantId) {
             item[TENANT_ID_FIELD] = tenantId;

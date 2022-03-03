@@ -178,6 +178,11 @@ export class S3DataService implements Persistence {
         throw new Error('Method not implemented.');
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async getActiveSubscriptions(params: { tenantId?: string }): Promise<Record<string, any>[]> {
+        throw new Error('Method not implemented.');
+    }
+
     private getPathName(id: string, versionId: string, contentType: string, tenantId: string = '') {
         const fileExtension = mime.extension(contentType);
         const filename = `${id}${SEPARATOR}${versionId}.${fileExtension}`;
