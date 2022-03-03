@@ -9,11 +9,6 @@ All notable changes to this project will be documented in this file. See [standa
 
 * add support for FHIR Subscriptions ([#138](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/138)) ([f73ed96](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/commit/f73ed96ffb0f4ca9886a96e9049530ce9a008040)), closes [#131](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/131) [#132](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/132) [#135](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/135) [#139](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/139) [#140](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/140)
 
-
-### Bug Fixes
-
-* update code coverage action to not run on feat branches ([#136](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/136)) ([a6f8a52](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/commit/a6f8a52dd7979d9b3e906bcfac0110e2abedd633))
-
 ## [3.9.0](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.8.2...v3.9.0) (2021-10-13)
 
 
