@@ -509,7 +509,9 @@ describe('sortBatchRequests', () => {
                         gender: { S: 'male' },
                         id: { S: 'write' },
                         lockEndTs: { N: expect.stringMatching(timeFromEpochInMsRegExp) },
-                        meta: { M: { lastUpdated: { S: expect.stringMatching(utcTimeRegExp) }, versionId: { S: '1' } } },
+                        meta: {
+                            M: { lastUpdated: { S: expect.stringMatching(utcTimeRegExp) }, versionId: { S: '1' } },
+                        },
                         resourceType: { S: 'Patient' },
                         vid: { N: '1' },
                     },
@@ -539,7 +541,9 @@ describe('sortBatchRequests', () => {
                             gender: { S: 'male' },
                             id: { S: 'read' },
                             lockEndTs: { N: expect.stringMatching(timeFromEpochInMsRegExp) },
-                            meta: { M: { lastUpdated: { S: expect.stringMatching(utcTimeRegExp) }, versionId: { S: '2' } } },
+                            meta: {
+                                M: { lastUpdated: { S: expect.stringMatching(utcTimeRegExp) }, versionId: { S: '2' } },
+                            },
                             resourceType: { S: 'Patient' },
                             vid: { N: '2' },
                         },
