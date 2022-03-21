@@ -93,10 +93,38 @@ export class DynamoDbBundleService implements Bundle {
         }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async batch(request: BatchRequest): Promise<BundleResponse> {
         this.assertValidTenancyMode(request.tenantId);
-        throw new Error('Batch operation is not supported.');
+        const { requests, tenantId } = request;
+        if (requests.length === 0) {
+            return {
+                success: true,
+                message: 'No requests to process',
+                batchReadWriteResponses: [],
+            };
+        }
+        const { deleteRequests, createRequests, updateRequests, batchReadWriteResponses } =
+            await DynamoDbBundleServiceHelper.sortBatchRequests(requests, new DynamoDbHelper(this.dynamoDb), tenantId);
+        try {
+            // loop through all requests and send in batches of MAX allowed requests
+            await DynamoDbBundleServiceHelper.processBatchDeleteRequests(deleteRequests, this.dynamoDb);
+            await DynamoDbBundleServiceHelper.processBatchWriteRequests(createRequests, this.dynamoDb);
+            await DynamoDbBundleServiceHelper.processBatchUpdateRequests(updateRequests, this.dynamoDb);
+
+            logger.info('Successfully completed batch items');
+            return {
+                success: true,
+                message: 'Successfully processed bundle',
+                batchReadWriteResponses,
+            };
+        } catch (e) {
+            logger.info('Failed to process batch items', e);
+            return {
+                success: false,
+                message: `failed to process bundle ${e}`,
+                batchReadWriteResponses: [],
+            };
+        }
     }
 
     async transaction(request: TransactionRequest): Promise<BundleResponse> {

@@ -2,12 +2,18 @@
  *  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  *  SPDX-License-Identifier: Apache-2.0
  */
-
+import * as AWSMock from 'aws-sdk-mock';
+import AWS from 'aws-sdk';
 import { BatchReadWriteRequest, BatchReadWriteResponse } from 'fhir-works-on-aws-interface';
+import sinon = require('sinon');
+import { QueryInput } from 'aws-sdk/clients/dynamodb';
 import DynamoDbBundleServiceHelper from './dynamoDbBundleServiceHelper';
 import { DynamoDBConverter } from './dynamoDb';
 import GenerateStagingRequestsFactory from '../../testUtilities/GenerateStagingRequestsFactory';
 import GenerateRollbackRequestsFactory from '../../testUtilities/GenerateRollbackRequestsFactory';
+import DynamoDbHelper from './dynamoDbHelper';
+
+AWSMock.setSDKInstance(AWS);
 
 describe('generateStagingRequests', () => {
     test('CREATE', () => {
@@ -288,5 +294,162 @@ describe('populateBundleEntryResponseWithReadResult', () => {
         ];
 
         expect(actualResult).toEqual(expectedResult);
+    });
+});
+
+describe('processBatchRequests', () => {
+    test('successfully deleted a resource', async () => {
+        const operation = [
+            {
+                Statement: `
+                UPDATE "resource-table"
+                SET "documentStatus" = 'DELETED'
+                WHERE "id" = 'abcd1234' AND "vid" = 1
+            `,
+            },
+        ];
+        AWSMock.mock('DynamoDB', 'batchExecuteStatement', (params: QueryInput, callback: Function) => {
+            callback(null, {
+                Responses: [[{ TableName: 'resource-db-dev' }]],
+            });
+        });
+
+        // nothing is returned in the array if everything is successful
+        await expect(
+            DynamoDbBundleServiceHelper.processBatchDeleteRequests(operation, new AWS.DynamoDB()),
+        ).resolves.toBeUndefined();
+    });
+
+    test('successfully created a resource', async () => {
+        const operation = [
+            {
+                PutRequest: {
+                    Item: DynamoDBConverter.marshall({
+                        id: 'abc123',
+                        vid: '1',
+                        documentStatus: 'AVAILABLE',
+                        resource: {},
+                    }),
+                },
+            },
+        ];
+        AWSMock.mock('DynamoDB', 'batchWriteItem', (params: QueryInput, callback: Function) => {
+            callback(null, {
+                UnprocessedItems: {},
+            });
+        });
+
+        // nothing is returned in the array if everything is successful
+        await expect(
+            DynamoDbBundleServiceHelper.processBatchWriteRequests(operation, new AWS.DynamoDB()),
+        ).resolves.toBeUndefined();
+    });
+
+    test('successfully created a resource', async () => {
+        const operation = [
+            [
+                {
+                    PutRequest: {
+                        Item: DynamoDBConverter.marshall({
+                            id: 'abc123',
+                            vid: '1',
+                            documentStatus: 'AVAILABLE',
+                            resource: {},
+                        }),
+                    },
+                },
+                {
+                    Statement: `
+                UPDATE "resource-table"
+                SET "documentStatus" = 'DELETED'
+                WHERE "id" = 'abcd1234' AND "vid" = 1
+            `,
+                },
+            ],
+        ];
+        AWSMock.mock('DynamoDB', 'batchWriteItem', (params: QueryInput, callback: Function) => {
+            callback(null, {
+                UnprocessedItems: {},
+            });
+        });
+
+        AWSMock.mock('DynamoDB', 'batchExecuteStatement', (params: QueryInput, callback: Function) => {
+            callback(null, {
+                Responses: [[{ TableName: 'resource-db-dev' }]],
+            });
+        });
+
+        // nothing is returned in the array if everything is successful
+        await expect(
+            DynamoDbBundleServiceHelper.processBatchUpdateRequests(operation, new AWS.DynamoDB()),
+        ).resolves.toBeUndefined();
+    });
+});
+
+describe('sortBatchRequests', () => {
+    test('CRUD operations', async () => {
+        const readResource = {
+            message: 'Resource found',
+            resource: {
+                meta: { lastUpdated: '2022-03-10T05:12:51.543Z', versionId: 1 },
+                resourceType: 'Patient',
+                id: 'read',
+            },
+        };
+        const writeResource = {
+            resourceType: 'Patient',
+            active: true,
+            gender: 'male',
+            birthDate: '1974-12-25',
+            id: 'write',
+        };
+        const updateResource = {
+            resourceType: 'Patient',
+            active: true,
+            id: 'read',
+            gender: 'male',
+            birthDate: '1974-12-25',
+            vid: 1,
+        };
+        const operations: BatchReadWriteRequest[] = [
+            {
+                operation: 'read',
+                resource: '/Patient/read',
+                fullUrl: '',
+                resourceType: 'Patient',
+                id: 'read',
+            },
+            {
+                operation: 'delete',
+                resource: '/Patient/read',
+                fullUrl: '',
+                resourceType: 'Patient',
+                id: 'read',
+            },
+            {
+                operation: 'update',
+                resource: updateResource,
+                resourceType: 'Patient',
+                id: 'read',
+            },
+            {
+                operation: 'create',
+                resource: writeResource,
+                fullUrl: '',
+                resourceType: 'Patient',
+                id: 'write',
+            },
+        ];
+
+        sinon
+            .stub(DynamoDbHelper.prototype, 'getMostRecentUserReadableResource')
+            .withArgs('Patient', 'read', undefined)
+            .returns(Promise.resolve(readResource));
+
+        const actualResponse = await DynamoDbBundleServiceHelper.sortBatchRequests(
+            operations,
+            new DynamoDbHelper(new AWS.DynamoDB()),
+        );
+        expect(actualResponse).toMatchSnapshot();
     });
 });

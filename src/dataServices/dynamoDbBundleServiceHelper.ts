@@ -10,10 +10,13 @@ import {
     TypeOperation,
     SystemOperation,
 } from 'fhir-works-on-aws-interface';
-import { buildHashKey, DynamoDbUtil } from './dynamoDbUtil';
+import { DynamoDB } from 'aws-sdk';
+import { buildHashKey, DOCUMENT_STATUS_FIELD, DynamoDbUtil } from './dynamoDbUtil';
 import DOCUMENT_STATUS from './documentStatus';
 import { DynamoDBConverter, RESOURCE_TABLE } from './dynamoDb';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
+import { MAX_BATCH_WRITE_ITEMS } from '../constants';
+import DynamoDbHelper from './dynamoDbHelper';
 
 export interface ItemRequest {
     id: string;
@@ -252,5 +255,232 @@ export default class DynamoDbBundleServiceHelper {
         }
 
         return { stagingResponse, itemLocked };
+    }
+
+    static async sortBatchRequests(
+        requests: BatchReadWriteRequest[],
+        dynamoDbHelper: DynamoDbHelper,
+        tenantId?: string,
+    ) {
+        console.log(requests);
+        const deleteRequests: any = [];
+        const createRequests: any = [];
+        const updateRequests: any = [];
+
+        const batchReadWriteResponses: BatchReadWriteResponse[] = [];
+        requests.forEach(async (request) => {
+            let vid = 0;
+            let { id } = request;
+            const { resourceType, operation } = request;
+            let item;
+            // we need to query to get the VersionID of the resource for non-create operations
+            if (operation === 'create') {
+                vid = 1;
+                id = request.id ? request.id : uuidv4();
+            } else {
+                try {
+                    item = await dynamoDbHelper.getMostRecentUserReadableResource(resourceType, id, tenantId);
+                    console.log('retrieved item:', item);
+                    vid = Number(item.resource?.meta.versionId);
+                } catch (e: any) {
+                    console.log(`Failed to find resource ${id}`);
+                    batchReadWriteResponses.push({
+                        id,
+                        vid: '',
+                        operation,
+                        resourceType,
+                        resource: {},
+                        lastModified: '',
+                    });
+                    return;
+                }
+            }
+            switch (operation) {
+                case 'create': {
+                    item = DynamoDbUtil.prepItemForDdbInsert(
+                        request.resource,
+                        id,
+                        vid,
+                        DOCUMENT_STATUS.AVAILABLE,
+                        tenantId,
+                    );
+
+                    createRequests.push({
+                        PutRequest: {
+                            Item: DynamoDBConverter.marshall(item),
+                        },
+                    });
+
+                    batchReadWriteResponses.push({
+                        id,
+                        vid: item.meta.versionId,
+                        operation: request.operation,
+                        lastModified: item.meta.lastUpdated,
+                        resourceType: request.resource.resourceType,
+                        resource: request.resource,
+                    });
+                    break;
+                }
+                case 'update': {
+                    // increment the vid
+                    vid += 1;
+                    item = DynamoDbUtil.prepItemForDdbInsert(
+                        { ...item?.resource, ...request.resource },
+                        id,
+                        vid,
+                        DOCUMENT_STATUS.AVAILABLE,
+                        tenantId,
+                    );
+                    // we need to delete the old verison, and create a new version
+                    updateRequests.push([
+                        {
+                            PutRequest: {
+                                Item: DynamoDBConverter.marshall(item),
+                            },
+                        },
+                        {
+                            Statement: `
+                                UPDATE "${RESOURCE_TABLE}"
+                                SET "${DOCUMENT_STATUS_FIELD}" = '${DOCUMENT_STATUS.DELETED}'
+                                WHERE "id" = '${buildHashKey(id, tenantId)}' AND "vid" = ${vid - 1}
+                            `,
+                        },
+                    ]);
+                    batchReadWriteResponses.push({
+                        id: request.resource.id,
+                        vid: vid.toString(),
+                        operation: request.operation,
+                        lastModified: item.meta.lastUpdated,
+                        resourceType: request.resource.resourceType,
+                        resource: request.resource,
+                    });
+                    break;
+                }
+                case 'delete': {
+                    deleteRequests.push({
+                        Statement: `
+                            UPDATE "${RESOURCE_TABLE}"
+                            SET "${DOCUMENT_STATUS_FIELD}" = '${DOCUMENT_STATUS.DELETED}'
+                            WHERE "id" = '${buildHashKey(id, tenantId)}' AND "vid" = ${vid}
+                        `,
+                    });
+
+                    batchReadWriteResponses.push({
+                        id,
+                        vid: vid?.toString(),
+                        operation: request.operation,
+                        lastModified: new Date().toISOString(),
+                        resource: {},
+                        resourceType: request.resourceType,
+                    });
+                    break;
+                }
+                case 'read': {
+                    batchReadWriteResponses.push({
+                        id,
+                        vid: vid?.toString(),
+                        operation: request.operation,
+                        lastModified: '',
+                        resource: item?.resource,
+                        resourceType: request.resourceType,
+                    });
+                    break;
+                }
+                default:
+                    break;
+            }
+        });
+        // we cannot do deleteRequests nor updateRequests in a batchwriteitem call, since we use the update api instead of delete
+        // hence, we will separate these requests and use batchexecuteStatement to update items in a batch (and
+        // we know there are no conflicts since there will only be updates running)
+        return {
+            deleteRequests,
+            createRequests,
+            updateRequests,
+            batchReadWriteResponses,
+        };
+    }
+
+    static async processBatchDeleteRequests(deleteRequests: any[], dynamoDb: DynamoDB) {
+        for (let i = 0; i < deleteRequests.length; i += MAX_BATCH_WRITE_ITEMS) {
+            const upperLimit = Math.min(i + MAX_BATCH_WRITE_ITEMS, deleteRequests.length);
+            const batch = deleteRequests.slice(i, upperLimit);
+            // eslint-disable-next-line no-await-in-loop
+            await dynamoDb
+                .batchExecuteStatement({
+                    Statements: [...batch],
+                })
+                .promise();
+        }
+    }
+
+    static async processBatchWriteRequests(writeRequests: any[], dynamoDb: DynamoDB) {
+        for (let i = 0; i < writeRequests.length; i += MAX_BATCH_WRITE_ITEMS) {
+            const upperLimit = Math.min(i + MAX_BATCH_WRITE_ITEMS, writeRequests.length);
+            const batch = writeRequests.slice(i, upperLimit);
+            // eslint-disable-next-line no-await-in-loop
+            await dynamoDb
+                .batchWriteItem({
+                    RequestItems: {
+                        [RESOURCE_TABLE]: [...batch],
+                    },
+                })
+                .promise();
+        }
+    }
+
+    static async processBatchUpdateRequests(updateRequests: any[], dynamoDb: DynamoDB) {
+        const editRequests = updateRequests.map((updateReq) => {
+            return updateReq[0];
+        });
+        const deleteRequests = updateRequests.map((updateReq) => {
+            return updateReq[1];
+        });
+        for (let i = 0; i < editRequests.length; i += MAX_BATCH_WRITE_ITEMS) {
+            const upperLimit = Math.min(i + MAX_BATCH_WRITE_ITEMS, editRequests.length);
+            const batch = editRequests.slice(i, upperLimit);
+            // eslint-disable-next-line no-await-in-loop
+            await dynamoDb
+                .batchWriteItem({
+                    RequestItems: {
+                        [RESOURCE_TABLE]: [...batch],
+                    },
+                })
+                .promise();
+        }
+        for (let i = 0; i < deleteRequests.length; i += MAX_BATCH_WRITE_ITEMS) {
+            const upperLimit = Math.min(i + MAX_BATCH_WRITE_ITEMS, deleteRequests.length);
+            const batch = deleteRequests.slice(i, upperLimit);
+            // eslint-disable-next-line no-await-in-loop
+            await dynamoDb
+                .batchExecuteStatement({
+                    Statements: [...batch],
+                })
+                .promise();
+        }
+    }
+
+    static populateBatchResponseWithReadResult(bundleEntryResponses: BatchReadWriteResponse[], readResult: any[]) {
+        let index = 0;
+        const updatedReadResponses = bundleEntryResponses;
+        bundleEntryResponses.forEach((readResponse, i) => {
+            // The first readResult will be the response to the first READ
+            if (readResponse.operation === 'read') {
+                let item = readResult[index];
+                if (item === undefined) {
+                    return;
+                }
+                item = DynamoDBConverter.unmarshall(item);
+                item = DynamoDbUtil.cleanItem(item);
+
+                // eslint-disable-next-line no-param-reassign
+                readResponse.resource = item;
+                // eslint-disable-next-line no-param-reassign
+                readResponse.lastModified = item?.meta?.lastUpdated ? item.meta.lastUpdated : '';
+                updatedReadResponses[i] = readResponse;
+                index += 1;
+            }
+        });
+        return updatedReadResponses;
     }
 }
