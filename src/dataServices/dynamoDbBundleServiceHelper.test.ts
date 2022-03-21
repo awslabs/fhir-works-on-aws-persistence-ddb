@@ -14,6 +14,8 @@ import GenerateRollbackRequestsFactory from '../../testUtilities/GenerateRollbac
 import DynamoDbHelper from './dynamoDbHelper';
 
 AWSMock.setSDKInstance(AWS);
+const utcTimeRegExp = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d+)?Z/;
+const timeFromEpochInMsRegExp = /\d{13}/;
 
 describe('generateStagingRequests', () => {
     test('CREATE', () => {
@@ -441,6 +443,118 @@ describe('sortBatchRequests', () => {
             },
         ];
 
+        const expectedBatchReadWriteResponses = [
+            {
+                id: 'write',
+                lastModified: expect.stringMatching(utcTimeRegExp),
+                operation: 'create',
+                resource: {
+                    active: true,
+                    birthDate: '1974-12-25',
+                    gender: 'male',
+                    id: 'write',
+                    resourceType: 'Patient',
+                },
+                resourceType: 'Patient',
+                vid: '1',
+            },
+            {
+                id: 'read',
+                lastModified: '',
+                operation: 'read',
+                resource: {
+                    id: 'read',
+                    meta: {
+                        lastUpdated: expect.stringMatching(utcTimeRegExp),
+                        versionId: 1,
+                    },
+                    resourceType: 'Patient',
+                },
+                resourceType: 'Patient',
+                vid: '1',
+            },
+            {
+                id: 'read',
+                lastModified: expect.stringMatching(utcTimeRegExp),
+                operation: 'delete',
+                resource: {},
+                resourceType: 'Patient',
+                vid: '1',
+            },
+            {
+                id: 'read',
+                lastModified: expect.stringMatching(utcTimeRegExp),
+                operation: 'update',
+                resource: {
+                    active: true,
+                    birthDate: '1974-12-25',
+                    gender: 'male',
+                    id: 'read',
+                    resourceType: 'Patient',
+                    vid: 1,
+                },
+                resourceType: 'Patient',
+                vid: '2',
+            },
+        ];
+
+        const expectedCreateRequests = [
+            {
+                PutRequest: {
+                    Item: {
+                        _references: { L: [] },
+                        active: { BOOL: true },
+                        birthDate: { S: '1974-12-25' },
+                        documentStatus: { S: 'AVAILABLE' },
+                        gender: { S: 'male' },
+                        id: { S: 'write' },
+                        lockEndTs: { N: expect.stringMatching(timeFromEpochInMsRegExp) },
+                        meta: { M: { lastUpdated: { S: expect.stringMatching(utcTimeRegExp) }, versionId: { S: '1' } } },
+                        resourceType: { S: 'Patient' },
+                        vid: { N: '1' },
+                    },
+                },
+            },
+        ];
+
+        const expectedDeleteRequests = [
+            {
+                Statement: `
+                            UPDATE ""
+                            SET "documentStatus" = 'DELETED'
+                            WHERE "id" = 'read' AND "vid" = 1
+                        `,
+            },
+        ];
+
+        const expectedUpdateRequests = [
+            [
+                {
+                    PutRequest: {
+                        Item: {
+                            _references: { L: [] },
+                            active: { BOOL: true },
+                            birthDate: { S: '1974-12-25' },
+                            documentStatus: { S: 'AVAILABLE' },
+                            gender: { S: 'male' },
+                            id: { S: 'read' },
+                            lockEndTs: { N: expect.stringMatching(timeFromEpochInMsRegExp) },
+                            meta: { M: { lastUpdated: { S: expect.stringMatching(utcTimeRegExp) }, versionId: { S: '2' } } },
+                            resourceType: { S: 'Patient' },
+                            vid: { N: '2' },
+                        },
+                    },
+                },
+                {
+                    Statement: `
+                                UPDATE ""
+                                SET "documentStatus" = 'DELETED'
+                                WHERE "id" = 'read' AND "vid" = 1
+                            `,
+                },
+            ],
+        ];
+
         sinon
             .stub(DynamoDbHelper.prototype, 'getMostRecentUserReadableResource')
             .withArgs('Patient', 'read', undefined)
@@ -450,6 +564,9 @@ describe('sortBatchRequests', () => {
             operations,
             new DynamoDbHelper(new AWS.DynamoDB()),
         );
-        expect(actualResponse).toMatchSnapshot();
+        expect(actualResponse.batchReadWriteResponses).toMatchObject(expectedBatchReadWriteResponses);
+        expect(actualResponse.deleteRequests).toMatchObject(expectedDeleteRequests);
+        expect(actualResponse.createRequests).toMatchObject(expectedCreateRequests);
+        expect(actualResponse.updateRequests).toMatchObject(expectedUpdateRequests);
     });
 });
