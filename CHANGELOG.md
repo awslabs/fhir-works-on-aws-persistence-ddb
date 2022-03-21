@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [3.10.1](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.10.0...v3.10.1) (2022-03-07)
+
+
+### Bug Fixes
+
+* fix update query for Subscriptions ([#142](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/142)) ([3c41f05](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/commit/3c41f0534fb5cf99ce0ecce7ca27b34793154226))
+
 ## [3.10.0](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.9.0...v3.10.0) (2022-03-03)
 
 

@@ -84,7 +84,7 @@ export default class DynamoDbParamBuilder {
         };
 
         if (expressionAttributeNames) {
-            params.ExpressionAttributeNames = expressionAttributeNames;
+            params.Update.ExpressionAttributeNames = expressionAttributeNames;
         }
 
         return params;

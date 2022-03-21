@@ -128,6 +128,64 @@ describe('buildUpdateDocumentStatusParam', () => {
         expect(actualParam).toEqual(getExpectedParamForUpdateWithoutOldStatus(DOCUMENT_STATUS.LOCKED, id, vid));
     });
 
+    test('Update Subscription', () => {
+        const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
+        const vid = 1;
+        const actualParam = DynamoDbParamBuilder.buildUpdateDocumentStatusParam(
+            null,
+            DOCUMENT_STATUS.AVAILABLE,
+            id,
+            vid,
+            'Subscription',
+        );
+
+        expect(actualParam).toMatchInlineSnapshot(
+            {
+                Update: {
+                    ExpressionAttributeValues: {
+                        ':futureEndTs': {
+                            N: expect.stringMatching(timeFromEpochInMsRegExp),
+                        },
+                    },
+                },
+            },
+            `
+            Object {
+              "Update": Object {
+                "ConditionExpression": "resourceType = :resourceType",
+                "ExpressionAttributeNames": Object {
+                  "#subscriptionStatus": "_subscriptionStatus",
+                },
+                "ExpressionAttributeValues": Object {
+                  ":futureEndTs": Object {
+                    "N": StringMatching /\\\\d\\{13\\}/,
+                  },
+                  ":newStatus": Object {
+                    "S": "AVAILABLE",
+                  },
+                  ":resourceType": Object {
+                    "S": "Subscription",
+                  },
+                  ":subscriptionStatus": Object {
+                    "S": "active",
+                  },
+                },
+                "Key": Object {
+                  "id": Object {
+                    "S": "8cafa46d-08b4-4ee4-b51b-803e20ae8126",
+                  },
+                  "vid": Object {
+                    "N": "1",
+                  },
+                },
+                "TableName": "",
+                "UpdateExpression": "set documentStatus = :newStatus, lockEndTs = :futureEndTs, #subscriptionStatus = :subscriptionStatus",
+              },
+            }
+        `,
+        );
+    });
+
     test('Update status correctly when there is NO requirement for what the old status needs to be', () => {
         const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
         const vid = 1;
