@@ -267,6 +267,7 @@ export default class DynamoDbBundleServiceHelper {
         const updateRequests: any[] = [];
 
         const batchReadWriteResponses: BatchReadWriteResponse[] = [];
+        // eslint-disable-next-line no-restricted-syntax
         for (const request of requests) {
             let vid = 0;
             let { id } = request;
