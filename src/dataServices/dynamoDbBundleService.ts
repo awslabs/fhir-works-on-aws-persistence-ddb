@@ -103,26 +103,31 @@ export class DynamoDbBundleService implements Bundle {
                 batchReadWriteResponses: [],
             };
         }
-        const { deleteRequests, createRequests, updateRequests, batchReadWriteResponses } =
-            await DynamoDbBundleServiceHelper.sortBatchRequests(requests, new DynamoDbHelper(this.dynamoDb), tenantId);
+        const batchRequests = await DynamoDbBundleServiceHelper.sortBatchRequests(
+            requests,
+            new DynamoDbHelper(this.dynamoDb),
+            tenantId,
+        );
         try {
             // loop through all requests and send in batches of MAX allowed requests
-            await DynamoDbBundleServiceHelper.processBatchDeleteRequests(deleteRequests, this.dynamoDb);
-            await DynamoDbBundleServiceHelper.processBatchWriteRequests(createRequests, this.dynamoDb);
-            await DynamoDbBundleServiceHelper.processBatchUpdateRequests(updateRequests, this.dynamoDb);
+            batchRequests.batchReadWriteResponses = await DynamoDbBundleServiceHelper.processBatchEditRequests(
+                batchRequests.editRequests,
+                batchRequests.batchReadWriteResponses,
+                this.dynamoDb,
+            );
 
             logger.info('Successfully completed batch items');
             return {
                 success: true,
                 message: 'Successfully processed bundle',
-                batchReadWriteResponses,
+                batchReadWriteResponses: batchRequests.batchReadWriteResponses,
             };
         } catch (e) {
             logger.info('Failed to process batch items', e);
             return {
                 success: false,
                 message: `failed to process bundle ${e}`,
-                batchReadWriteResponses: [],
+                batchReadWriteResponses: batchRequests.batchReadWriteResponses,
             };
         }
     }
