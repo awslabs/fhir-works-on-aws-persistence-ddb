@@ -267,6 +267,7 @@ export default class DynamoDbBundleServiceHelper {
         const updateRequests: any[] = [];
 
         const batchReadWriteResponses: BatchReadWriteResponse[] = [];
+        let index = 0;
         // eslint-disable-next-line no-restricted-syntax
         for (const request of requests) {
             let vid = 0;
@@ -305,8 +306,10 @@ export default class DynamoDbBundleServiceHelper {
                     );
 
                     createRequests.push({
-                        Statement: `INSERT INTO "${RESOURCE_TABLE}" VALUE ${this.convertToPartiQLString(item)}`,
-                        id,
+                        PutRequest: {
+                            Item: DynamoDBConverter.marshall(item),
+                        },
+                        index,
                     });
 
                     batchReadWriteResponses.push({
@@ -334,8 +337,10 @@ export default class DynamoDbBundleServiceHelper {
                     );
                     // we create a new version of the resource with an incremented vid
                     updateRequests.push({
-                        Statement: `INSERT INTO "${RESOURCE_TABLE}" VALUE ${this.convertToPartiQLString(item)}`,
-                        id,
+                        PutRequest: {
+                            Item: DynamoDBConverter.marshall(item),
+                        },
+                        index,
                     });
                     batchReadWriteResponses.push({
                         id,
@@ -357,7 +362,7 @@ export default class DynamoDbBundleServiceHelper {
                             SET "${DOCUMENT_STATUS_FIELD}" = '${DOCUMENT_STATUS.DELETED}'
                             WHERE "id" = '${buildHashKey(id, tenantId)}' AND "vid" = ${vid}
                         `,
-                        id,
+                        index,
                     });
 
                     batchReadWriteResponses.push({
@@ -387,12 +392,14 @@ export default class DynamoDbBundleServiceHelper {
                 default:
                     break;
             }
+            index += 1;
         }
         // we cannot do deleteRequests nor updateRequests in a batchwriteitem call, since we use the update api instead of delete
         // hence, we will separate these requests and use batchexecuteStatement to update items in a batch (and
         // we know there are no conflicts since there will only be updates running)
         return {
-            editRequests: [...deleteRequests, ...createRequests, ...updateRequests],
+            deleteRequests,
+            writeRequests: [...createRequests, ...updateRequests],
             batchReadWriteResponses,
         };
     }
@@ -407,6 +414,38 @@ export default class DynamoDbBundleServiceHelper {
             const upperLimit = Math.min(i + MAX_BATCH_WRITE_ITEMS, editRequests.length);
             const batch = editRequests.slice(i, upperLimit);
             const statements = batch.map((x) => {
+                return { PutRequest: x.PutRequest };
+            });
+            // eslint-disable-next-line no-await-in-loop
+            const batchExecuteResponse = await dynamoDb
+                .batchWriteItem({
+                    RequestItems: {
+                        [RESOURCE_TABLE]: [...statements],
+                    },
+                })
+                .promise();
+            batchExecuteResponse.UnprocessedItems?.[RESOURCE_TABLE].forEach((item, index) => {
+                console.log('Unable to process request: ', item);
+                // get the position of the batch element at index in the larger batchReadWriteResponses array
+                updatedResponses[batch[index].index] = {
+                    ...batchReadWriteResponses[batch[index].index],
+                    vid: '', // indicate the request failed
+                };
+            });
+        }
+        return updatedResponses;
+    }
+
+    static async processBatchDeleteRequests(
+        deleteRequests: any[],
+        batchReadWriteResponses: BatchReadWriteResponse[],
+        dynamoDb: DynamoDB,
+    ) {
+        const updatedResponses = batchReadWriteResponses;
+        for (let i = 0; i < deleteRequests.length; i += MAX_BATCH_WRITE_ITEMS) {
+            const upperLimit = Math.min(i + MAX_BATCH_WRITE_ITEMS, deleteRequests.length);
+            const batch = deleteRequests.slice(i, upperLimit);
+            const statements = batch.map((x) => {
                 return { Statement: x.Statement };
             });
             // eslint-disable-next-line no-await-in-loop
@@ -415,52 +454,17 @@ export default class DynamoDbBundleServiceHelper {
                     Statements: [...statements],
                 })
                 .promise();
-            batchExecuteResponse?.Responses?.forEach((response, index) => {
+            batchExecuteResponse.Responses?.forEach((response, index) => {
                 if (response.Error) {
                     console.log('Unable to process request: ', response.Error);
-                    const indexOfFailure = batchReadWriteResponses.findIndex((x) => x.id === batch[index].id);
-                    if (index !== -1) {
-                        updatedResponses[indexOfFailure] = {
-                            ...batchReadWriteResponses[indexOfFailure],
-                            vid: '',
-                        };
-                    }
+                    // get the position of the batch element at index in the larger batchReadWriteResponses array
+                    updatedResponses[batch[index].index] = {
+                        ...batchReadWriteResponses[batch[index].index],
+                        vid: '', // indicate the request failed
+                    };
                 }
             });
         }
         return updatedResponses;
-    }
-
-    // ExecuteStatement requires objects to be in the form a PartiQL tuple
-    // this means strings must be single quotes
-    static convertToPartiQLString(value: any) {
-        let objString = '';
-        if (typeof value === 'object') {
-            if (Array.isArray(value)) {
-                objString += '[';
-                value.forEach((_, index) => {
-                    objString += `${this.convertToPartiQLString(value[index])}`;
-                    if (index !== value.length - 1) {
-                        objString += ',';
-                    }
-                });
-                objString += ']';
-            } else {
-                const lastKey = Object.keys(value).pop();
-                objString += '{';
-                Object.keys(value).forEach((key) => {
-                    objString += `'${key}':${this.convertToPartiQLString(value[key])}`;
-                    if (key !== lastKey) {
-                        objString += ',';
-                    }
-                });
-                objString += '}';
-            }
-        } else if (typeof value === 'string') {
-            objString += `'${value.replace(/'/g, "''")}'`;
-        } else if (typeof value === 'number' || typeof value === 'boolean') {
-            objString += `${value}`;
-        }
-        return objString;
     }
 }

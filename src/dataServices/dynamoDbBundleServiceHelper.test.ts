@@ -299,25 +299,133 @@ describe('populateBundleEntryResponseWithReadResult', () => {
 });
 
 describe('processBatchRequests', () => {
-    test('successfully deleted/updated a resource', async () => {
-        const operation = [
-            {
-                Statement: `UPDATE "resource-table" SET "documentStatus" = 'DELETED' WHERE "id" = 'abcd1234' AND "vid" = 1`,
+    const writeOperations = [
+        {
+            PutRequest: {
+                Item: DynamoDBConverter.marshall({
+                    id: 'create',
+                    vid: 1,
+                }),
             },
-            {
-                Statement: `INSERT INTO "resource-table" VALUE {'resourceType':'Patient','text':{'status':'generated','div':'<div xmlns="http://www.w3.org/1999/xhtml">Some narrative</div>'},'active':true,'name':{'0':{'use':'official','family':'Chalmers','given':{'0':'Peter','1':'James'}}},'gender':'male','birthDate':'1974-12-25','id':'e1164858-004d-4be1-afc6-98d0d2cd594b','vid':7,'meta':{'versionId':'1','lastUpdated':'2022-03-22T01:03:07.087Z'},'documentStatus':'AVAILABLE','lockEndTs':1647910987088,'_references':{}}`,
+            index: 0,
+        },
+        {
+            PutRequest: {
+                Item: DynamoDBConverter.marshall({
+                    id: 'update',
+                    vid: 2,
+                }),
             },
-        ];
+            index: 1,
+        },
+    ];
+    const deleteOperation = [
+        {
+            Statement: `UPDATE "resource-table" SET "documentStatus" = 'DELETED' WHERE "id" = 'abcd1234' AND "vid" = 1`,
+            index: 0,
+        },
+    ];
+
+    afterEach(() => {
+        AWSMock.restore();
+    });
+    test('successfully deleted a resource', async () => {
         AWSMock.mock('DynamoDB', 'batchExecuteStatement', (params: QueryInput, callback: Function) => {
             callback(null, {
-                Responses: [[{ TableName: 'resource-table' }], [{ TableName: 'resource-table' }]],
+                Responses: [[{ TableName: 'resource-table' }]],
             });
         });
 
         // nothing is returned in the array if everything is successful
         await expect(
-            DynamoDbBundleServiceHelper.processBatchEditRequests(operation, [], new AWS.DynamoDB()),
+            DynamoDbBundleServiceHelper.processBatchDeleteRequests(deleteOperation, [], new AWS.DynamoDB()),
         ).resolves.toEqual([]);
+    });
+
+    test('failed to delete a resource', async () => {
+        const batchResponse: BatchReadWriteResponse[] = [
+            {
+                id: 'delete',
+                vid: '1',
+                operation: 'delete',
+                resourceType: 'Patient',
+                resource: {},
+                lastModified: '',
+            },
+        ];
+        AWSMock.mock('DynamoDB', 'batchExecuteStatement', (params: QueryInput, callback: Function) => {
+            callback(null, {
+                Responses: [
+                    {
+                        Error: {
+                            Message: 'Failed to Delete Resource',
+                        },
+                    },
+                ],
+            });
+        });
+
+        // vid is invalid to indicate failed operation
+        await expect(
+            DynamoDbBundleServiceHelper.processBatchDeleteRequests(deleteOperation, batchResponse, new AWS.DynamoDB()),
+        ).resolves.toMatchObject([
+            {
+                ...batchResponse[0],
+                vid: '',
+            },
+        ]);
+    });
+
+    test('successfully created/updated a resource', async () => {
+        AWSMock.mock('DynamoDB', 'batchWriteItem', (params: QueryInput, callback: Function) => {
+            callback(null, {});
+        });
+
+        await expect(
+            DynamoDbBundleServiceHelper.processBatchEditRequests(writeOperations, [], new AWS.DynamoDB()),
+        ).resolves.toEqual([]);
+    });
+
+    test('failed to create/update a resource', async () => {
+        AWSMock.mock('DynamoDB', 'batchWriteItem', (params: QueryInput, callback: Function) => {
+            callback(null, {
+                UnprocessedItems: {
+                    '': [...writeOperations],
+                },
+            });
+        });
+
+        const batchResponses: BatchReadWriteResponse[] = [
+            {
+                id: 'create',
+                vid: '1',
+                operation: 'create',
+                resourceType: 'Patient',
+                resource: {},
+                lastModified: '',
+            },
+            {
+                id: 'update',
+                vid: '2',
+                operation: 'update',
+                resourceType: 'Patient',
+                resource: {},
+                lastModified: '',
+            },
+        ];
+
+        await expect(
+            DynamoDbBundleServiceHelper.processBatchEditRequests(writeOperations, batchResponses, new AWS.DynamoDB()),
+        ).resolves.toMatchObject([
+            {
+                ...batchResponses[0],
+                vid: '',
+            },
+            {
+                ...batchResponses[1],
+                vid: '',
+            },
+        ]);
     });
 });
 
@@ -433,18 +541,24 @@ describe('sortBatchRequests', () => {
                             SET "documentStatus" = 'DELETED'
                             WHERE "id" = 'read' AND "vid" = 1
                         `,
-                id: readResource.resource.id,
+                index: 1,
             },
         ];
 
         const expectedCreateRequests = [
             {
-                id: writeResource.id,
+                PutRequest: {
+                    Item: DynamoDBConverter.marshall(writeResource),
+                },
+                index: 3,
             },
         ];
         const expectedUpdateRequests = [
             {
-                id: readResource.resource.id,
+                PutRequest: {
+                    Item: DynamoDBConverter.marshall(readResource),
+                },
+                index: 2,
             },
         ];
 
@@ -455,10 +569,7 @@ describe('sortBatchRequests', () => {
 
         const actualResponse = await DynamoDbBundleServiceHelper.sortBatchRequests(operations, ddbHelper);
         expect(actualResponse.batchReadWriteResponses).toMatchObject(expectedBatchReadWriteResponses);
-        expect(actualResponse.editRequests).toMatchObject([
-            ...expectedDeleteRequests,
-            ...expectedCreateRequests,
-            ...expectedUpdateRequests,
-        ]);
+        expect(actualResponse.deleteRequests).toMatchObject(expectedDeleteRequests);
+        expect(actualResponse.writeRequests).toMatchObject([...expectedCreateRequests, ...expectedUpdateRequests]);
     });
 });

@@ -110,8 +110,14 @@ export class DynamoDbBundleService implements Bundle {
         );
         try {
             // loop through all requests and send in batches of MAX allowed requests
+            batchRequests.batchReadWriteResponses = await DynamoDbBundleServiceHelper.processBatchDeleteRequests(
+                batchRequests.deleteRequests,
+                batchRequests.batchReadWriteResponses,
+                this.dynamoDb,
+            );
+
             batchRequests.batchReadWriteResponses = await DynamoDbBundleServiceHelper.processBatchEditRequests(
-                batchRequests.editRequests,
+                batchRequests.writeRequests,
                 batchRequests.batchReadWriteResponses,
                 this.dynamoDb,
             );
