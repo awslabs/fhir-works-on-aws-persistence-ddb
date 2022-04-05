@@ -267,9 +267,10 @@ export default class DynamoDbBundleServiceHelper {
         const updateRequests: any[] = [];
 
         const batchReadWriteResponses: BatchReadWriteResponse[] = [];
-        let index = 0;
+        let originalRequestIndex = -1;
         // eslint-disable-next-line no-restricted-syntax
         for (const request of requests) {
+            originalRequestIndex += 1;
             let vid = 0;
             let { id } = request;
             const { resourceType, operation } = request;
@@ -287,12 +288,15 @@ export default class DynamoDbBundleServiceHelper {
                     console.log(`Failed to find resource ${id}`);
                     batchReadWriteResponses.push({
                         id,
-                        vid: '',
+                        vid: `${vid}`,
                         operation,
                         resourceType,
                         resource: {},
                         lastModified: '',
+                        error: '404 Not Found',
                     });
+                    // eslint-disable-next-line no-continue
+                    continue;
                 }
             }
             switch (operation) {
@@ -309,9 +313,8 @@ export default class DynamoDbBundleServiceHelper {
                         PutRequest: {
                             Item: DynamoDBConverter.marshall(item),
                         },
-                        index,
+                        index: originalRequestIndex,
                     });
-
                     batchReadWriteResponses.push({
                         id,
                         vid: item.meta.versionId,
@@ -323,9 +326,6 @@ export default class DynamoDbBundleServiceHelper {
                     break;
                 }
                 case 'update': {
-                    if (vid === 0) {
-                        break;
-                    }
                     // increment the vid
                     vid += 1;
                     item = DynamoDbUtil.prepItemForDdbInsert(
@@ -340,7 +340,7 @@ export default class DynamoDbBundleServiceHelper {
                         PutRequest: {
                             Item: DynamoDBConverter.marshall(item),
                         },
-                        index,
+                        index: originalRequestIndex,
                     });
                     batchReadWriteResponses.push({
                         id,
@@ -353,18 +353,14 @@ export default class DynamoDbBundleServiceHelper {
                     break;
                 }
                 case 'delete': {
-                    if (vid === 0) {
-                        break;
-                    }
                     deleteRequests.push({
                         Statement: `
                             UPDATE "${RESOURCE_TABLE}"
                             SET "${DOCUMENT_STATUS_FIELD}" = '${DOCUMENT_STATUS.DELETED}'
                             WHERE "id" = '${buildHashKey(id, tenantId)}' AND "vid" = ${vid}
                         `,
-                        index,
+                        index: originalRequestIndex,
                     });
-
                     batchReadWriteResponses.push({
                         id,
                         vid: vid.toString(),
@@ -376,9 +372,6 @@ export default class DynamoDbBundleServiceHelper {
                     break;
                 }
                 case 'read': {
-                    if (vid === 0) {
-                        break;
-                    }
                     batchReadWriteResponses.push({
                         id,
                         vid: vid.toString(),
@@ -392,7 +385,6 @@ export default class DynamoDbBundleServiceHelper {
                 default:
                     break;
             }
-            index += 1;
         }
         // we cannot do deleteRequests nor updateRequests in a batchwriteitem call, since we use the update api instead of delete
         // hence, we will separate these requests and use batchexecuteStatement to update items in a batch (and
@@ -424,12 +416,12 @@ export default class DynamoDbBundleServiceHelper {
                     },
                 })
                 .promise();
-            batchExecuteResponse.UnprocessedItems?.[RESOURCE_TABLE].forEach((item, index) => {
+            batchExecuteResponse.UnprocessedItems?.[RESOURCE_TABLE].forEach((item, unprocessedItemIndex) => {
                 console.log('Unable to process request: ', item);
                 // get the position of the batch element at index in the larger batchReadWriteResponses array
-                updatedResponses[batch[index].index] = {
-                    ...batchReadWriteResponses[batch[index].index],
-                    vid: '', // indicate the request failed
+                updatedResponses[batch[unprocessedItemIndex].index] = {
+                    ...batchReadWriteResponses[batch[unprocessedItemIndex].index],
+                    error: `400 Bad Request`, // indicate the request failed due to large size of request
                 };
             });
         }
@@ -460,7 +452,7 @@ export default class DynamoDbBundleServiceHelper {
                     // get the position of the batch element at index in the larger batchReadWriteResponses array
                     updatedResponses[batch[index].index] = {
                         ...batchReadWriteResponses[batch[index].index],
-                        vid: '', // indicate the request failed
+                        error: `${response.Error.Code} ${response.Error.Message}`, // indicate the request failed
                     };
                 }
             });

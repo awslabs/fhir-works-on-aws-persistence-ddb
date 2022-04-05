@@ -318,11 +318,24 @@ describe('processBatchRequests', () => {
             },
             index: 1,
         },
+        {
+            PutRequest: {
+                Item: DynamoDBConverter.marshall({
+                    id: 'createSuccess',
+                    vid: 1,
+                }),
+            },
+            index: 2,
+        },
     ];
-    const deleteOperation = [
+    const deleteOperations = [
         {
             Statement: `UPDATE "resource-table" SET "documentStatus" = 'DELETED' WHERE "id" = 'abcd1234' AND "vid" = 1`,
             index: 0,
+        },
+        {
+            Statement: `UPDATE "resource-table" SET "documentStatus" = 'DELETED' WHERE "id" = 'abc123' AND "vid" = 1`,
+            index: 1,
         },
     ];
 
@@ -338,7 +351,7 @@ describe('processBatchRequests', () => {
 
         // nothing is returned in the array if everything is successful
         await expect(
-            DynamoDbBundleServiceHelper.processBatchDeleteRequests(deleteOperation, [], new AWS.DynamoDB()),
+            DynamoDbBundleServiceHelper.processBatchDeleteRequests(deleteOperations, [], new AWS.DynamoDB()),
         ).resolves.toEqual([]);
     });
 
@@ -352,26 +365,41 @@ describe('processBatchRequests', () => {
                 resource: {},
                 lastModified: '',
             },
+            {
+                id: 'deleteSuccess',
+                vid: '1',
+                operation: 'delete',
+                resourceType: 'Patient',
+                resource: {},
+                lastModified: '',
+            },
         ];
         AWSMock.mock('DynamoDB', 'batchExecuteStatement', (params: QueryInput, callback: Function) => {
             callback(null, {
                 Responses: [
                     {
                         Error: {
+                            Code: 400,
                             Message: 'Failed to Delete Resource',
                         },
+                    },
+                    {
+                        Item: {},
                     },
                 ],
             });
         });
 
-        // vid is invalid to indicate failed operation
+        // ensure responses are in same order as requests.
         await expect(
-            DynamoDbBundleServiceHelper.processBatchDeleteRequests(deleteOperation, batchResponse, new AWS.DynamoDB()),
+            DynamoDbBundleServiceHelper.processBatchDeleteRequests(deleteOperations, batchResponse, new AWS.DynamoDB()),
         ).resolves.toMatchObject([
             {
                 ...batchResponse[0],
-                vid: '',
+                error: '400 Failed to Delete Resource',
+            },
+            {
+                ...batchResponse[1],
             },
         ]);
     });
@@ -390,7 +418,7 @@ describe('processBatchRequests', () => {
         AWSMock.mock('DynamoDB', 'batchWriteItem', (params: QueryInput, callback: Function) => {
             callback(null, {
                 UnprocessedItems: {
-                    '': [...writeOperations],
+                    '': [writeOperations[0], writeOperations[1]],
                 },
             });
         });
@@ -412,18 +440,30 @@ describe('processBatchRequests', () => {
                 resource: {},
                 lastModified: '',
             },
+            {
+                id: 'createSuccess',
+                vid: '1',
+                operation: 'create',
+                resourceType: 'Patient',
+                resource: {},
+                lastModified: '',
+            },
         ];
 
+        // make sure they are in the correct order
         await expect(
             DynamoDbBundleServiceHelper.processBatchEditRequests(writeOperations, batchResponses, new AWS.DynamoDB()),
         ).resolves.toMatchObject([
             {
                 ...batchResponses[0],
-                vid: '',
+                error: '400 Bad Request',
             },
             {
                 ...batchResponses[1],
-                vid: '',
+                error: '400 Bad Request',
+            },
+            {
+                ...batchResponses[2],
             },
         ]);
     });
