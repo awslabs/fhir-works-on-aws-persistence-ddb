@@ -416,7 +416,7 @@ export default class DynamoDbBundleServiceHelper {
                     },
                 })
                 .promise();
-            batchExecuteResponse.UnprocessedItems?.[RESOURCE_TABLE].forEach((item, unprocessedItemIndex) => {
+            batchExecuteResponse.UnprocessedItems?.[RESOURCE_TABLE]?.forEach((item, unprocessedItemIndex) => {
                 console.log('Unable to process request: ', item);
                 // get the position of the batch element at index in the larger batchReadWriteResponses array
                 updatedResponses[batch[unprocessedItemIndex].index] = {
