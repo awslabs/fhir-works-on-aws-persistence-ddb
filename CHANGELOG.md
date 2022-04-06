@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [3.11.0](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.10.1...v3.11.0) (2022-04-06)
+
+
+### Features
+
+* add Batch Bundle support ([#144](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/144)) ([dc17145](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/commit/dc17145ebd73eba2c6fe9fe519263f92617ce493))
+
 ### [3.10.1](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.10.0...v3.10.1) (2022-03-07)
 
 
