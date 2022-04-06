@@ -10,10 +10,13 @@ import {
     TypeOperation,
     SystemOperation,
 } from 'fhir-works-on-aws-interface';
-import { buildHashKey, DynamoDbUtil } from './dynamoDbUtil';
+import { DynamoDB } from 'aws-sdk';
+import { buildHashKey, DOCUMENT_STATUS_FIELD, DynamoDbUtil } from './dynamoDbUtil';
 import DOCUMENT_STATUS from './documentStatus';
 import { DynamoDBConverter, RESOURCE_TABLE } from './dynamoDb';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
+import { MAX_BATCH_WRITE_ITEMS } from '../constants';
+import DynamoDbHelper from './dynamoDbHelper';
 
 export interface ItemRequest {
     id: string;
@@ -252,5 +255,208 @@ export default class DynamoDbBundleServiceHelper {
         }
 
         return { stagingResponse, itemLocked };
+    }
+
+    static async sortBatchRequests(
+        requests: BatchReadWriteRequest[],
+        dynamoDbHelper: DynamoDbHelper,
+        tenantId?: string,
+    ) {
+        const deleteRequests: any[] = [];
+        const createRequests: any[] = [];
+        const updateRequests: any[] = [];
+
+        const batchReadWriteResponses: BatchReadWriteResponse[] = [];
+        let originalRequestIndex = -1;
+        // eslint-disable-next-line no-restricted-syntax
+        for (const request of requests) {
+            originalRequestIndex += 1;
+            let vid = 0;
+            let { id } = request;
+            const { resourceType, operation } = request;
+            let item;
+            // we need to query to get the VersionID of the resource for non-create operations
+            if (operation === 'create') {
+                vid = 1;
+                id = request.id ? request.id : uuidv4();
+            } else {
+                try {
+                    // eslint-disable-next-line no-await-in-loop
+                    item = await dynamoDbHelper.getMostRecentUserReadableResource(resourceType, id, tenantId);
+                    vid = Number(item.resource?.meta.versionId);
+                } catch (e: any) {
+                    console.log(`Failed to find resource ${id}`);
+                    batchReadWriteResponses.push({
+                        id,
+                        vid: `${vid}`,
+                        operation,
+                        resourceType,
+                        resource: {},
+                        lastModified: '',
+                        error: '404 Not Found',
+                    });
+                    // eslint-disable-next-line no-continue
+                    continue;
+                }
+            }
+            switch (operation) {
+                case 'create': {
+                    item = DynamoDbUtil.prepItemForDdbInsert(
+                        request.resource,
+                        id,
+                        vid,
+                        DOCUMENT_STATUS.AVAILABLE,
+                        tenantId,
+                    );
+
+                    createRequests.push({
+                        PutRequest: {
+                            Item: DynamoDBConverter.marshall(item),
+                        },
+                        originalRequestIndex,
+                    });
+                    batchReadWriteResponses.push({
+                        id,
+                        vid: item.meta.versionId,
+                        operation: request.operation,
+                        lastModified: item.meta.lastUpdated,
+                        resourceType,
+                        resource: item,
+                    });
+                    break;
+                }
+                case 'update': {
+                    // increment the vid
+                    vid += 1;
+                    item = DynamoDbUtil.prepItemForDdbInsert(
+                        { ...item?.resource, ...request.resource },
+                        id,
+                        vid,
+                        DOCUMENT_STATUS.AVAILABLE,
+                        tenantId,
+                    );
+                    // we create a new version of the resource with an incremented vid
+                    updateRequests.push({
+                        PutRequest: {
+                            Item: DynamoDBConverter.marshall(item),
+                        },
+                        originalRequestIndex,
+                    });
+                    batchReadWriteResponses.push({
+                        id,
+                        vid: vid.toString(),
+                        operation: request.operation,
+                        lastModified: item.meta.lastUpdated,
+                        resourceType,
+                        resource: {},
+                    });
+                    break;
+                }
+                case 'delete': {
+                    deleteRequests.push({
+                        Statement: `
+                            UPDATE "${RESOURCE_TABLE}"
+                            SET "${DOCUMENT_STATUS_FIELD}" = '${DOCUMENT_STATUS.DELETED}'
+                            WHERE "id" = '${buildHashKey(id, tenantId)}' AND "vid" = ${vid}
+                        `,
+                        originalRequestIndex,
+                    });
+                    batchReadWriteResponses.push({
+                        id,
+                        vid: vid.toString(),
+                        operation: request.operation,
+                        lastModified: new Date().toISOString(),
+                        resource: {},
+                        resourceType: request.resourceType,
+                    });
+                    break;
+                }
+                case 'read': {
+                    batchReadWriteResponses.push({
+                        id,
+                        vid: vid.toString(),
+                        operation: request.operation,
+                        lastModified: '',
+                        resource: item?.resource,
+                        resourceType: request.resourceType,
+                    });
+                    break;
+                }
+                default:
+                    break;
+            }
+        }
+        // we cannot do deleteRequests nor updateRequests in a batchwriteitem call, since we use the update api instead of delete
+        // hence, we will separate these requests and use batchexecuteStatement to update items in a batch (and
+        // we know there are no conflicts since there will only be updates running)
+        return {
+            deleteRequests,
+            writeRequests: [...createRequests, ...updateRequests],
+            batchReadWriteResponses,
+        };
+    }
+
+    static async processBatchEditRequests(
+        editRequests: any[],
+        batchReadWriteResponses: BatchReadWriteResponse[],
+        dynamoDb: DynamoDB,
+    ) {
+        const updatedResponses = batchReadWriteResponses;
+        for (let i = 0; i < editRequests.length; i += MAX_BATCH_WRITE_ITEMS) {
+            const upperLimit = Math.min(i + MAX_BATCH_WRITE_ITEMS, editRequests.length);
+            const batch = editRequests.slice(i, upperLimit);
+            const statements = batch.map((x) => {
+                return { PutRequest: x.PutRequest };
+            });
+            // eslint-disable-next-line no-await-in-loop
+            const batchExecuteResponse = await dynamoDb
+                .batchWriteItem({
+                    RequestItems: {
+                        [RESOURCE_TABLE]: [...statements],
+                    },
+                })
+                .promise();
+            batchExecuteResponse.UnprocessedItems?.[RESOURCE_TABLE]?.forEach((item, unprocessedItemIndex) => {
+                console.log('Unable to process request: ', item);
+                // get the position of the batch element at index in the larger batchReadWriteResponses array
+                updatedResponses[batch[unprocessedItemIndex].originalRequestIndex] = {
+                    ...batchReadWriteResponses[batch[unprocessedItemIndex].originalRequestIndex],
+                    error: `400 Bad Request`, // indicate the request failed due to large size of request
+                };
+            });
+        }
+        return updatedResponses;
+    }
+
+    static async processBatchDeleteRequests(
+        deleteRequests: any[],
+        batchReadWriteResponses: BatchReadWriteResponse[],
+        dynamoDb: DynamoDB,
+    ) {
+        const updatedResponses = batchReadWriteResponses;
+        for (let i = 0; i < deleteRequests.length; i += MAX_BATCH_WRITE_ITEMS) {
+            const upperLimit = Math.min(i + MAX_BATCH_WRITE_ITEMS, deleteRequests.length);
+            const batch = deleteRequests.slice(i, upperLimit);
+            const statements = batch.map((x) => {
+                return { Statement: x.Statement };
+            });
+            // eslint-disable-next-line no-await-in-loop
+            const batchExecuteResponse = await dynamoDb
+                .batchExecuteStatement({
+                    Statements: [...statements],
+                })
+                .promise();
+            batchExecuteResponse.Responses?.forEach((response, index) => {
+                if (response.Error) {
+                    console.log('Unable to process request: ', response.Error);
+                    // get the position of the batch element at index in the larger batchReadWriteResponses array
+                    updatedResponses[batch[index].originalRequestIndex] = {
+                        ...batchReadWriteResponses[batch[index].originalRequestIndex],
+                        error: `${response.Error.Code} ${response.Error.Message}`, // indicate the request failed
+                    };
+                }
+            });
+        }
+        return updatedResponses;
     }
 }

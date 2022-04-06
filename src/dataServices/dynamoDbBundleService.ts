@@ -46,7 +46,9 @@ export class DynamoDbBundleService implements Bundle {
 
     readonly enableMultiTenancy: boolean;
 
-    private static readonly dynamoDbMaxBatchSize = 25;
+    private static readonly dynamoDbMaxTransactionBundleSize = 25;
+
+    private readonly maxBatchSize: Number;
 
     private readonly versionedLinks: Record<string, Set<string>> | undefined;
 
@@ -65,6 +67,7 @@ export class DynamoDbBundleService implements Bundle {
      * says: for resource type ExplanationOfBenefit, make sure the careTeam.reference url points to the current
      * version of the practitioner resource.
      * For example, that would mean the reference would be corrected to: `{fhirURl}/Practitioner/1234/_history/<vid>`; instead of the default: `{fhirURl}/Practitioner/1234`
+     * @param options.maxBatchSize This is to allow for customization of the default max size of a Batch Bundle. By default, this is 750.
      * */
     // Allow Mocking DDB
     constructor(
@@ -74,7 +77,8 @@ export class DynamoDbBundleService implements Bundle {
         {
             enableMultiTenancy = false,
             versionedLinks,
-        }: { enableMultiTenancy?: boolean; versionedLinks?: Record<string, string[]> } = {},
+            maxBatchSize = 750,
+        }: { enableMultiTenancy?: boolean; versionedLinks?: Record<string, string[]>; maxBatchSize?: Number } = {},
     ) {
         this.dynamoDbHelper = new DynamoDbHelper(dynamoDb);
         this.dynamoDb = dynamoDb;
@@ -82,6 +86,7 @@ export class DynamoDbBundleService implements Bundle {
         this.maxExecutionTimeMs = maxExecutionTimeMs || 26 * 1000;
         this.enableMultiTenancy = enableMultiTenancy;
         this.versionedLinks = mapValues(versionedLinks, (value) => new Set(value));
+        this.maxBatchSize = maxBatchSize;
     }
 
     private assertValidTenancyMode(tenantId?: string) {
@@ -93,10 +98,58 @@ export class DynamoDbBundleService implements Bundle {
         }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async batch(request: BatchRequest): Promise<BundleResponse> {
         this.assertValidTenancyMode(request.tenantId);
-        throw new Error('Batch operation is not supported.');
+        const { requests, tenantId } = request;
+        if (requests.length === 0) {
+            return {
+                success: true,
+                message: 'No requests to process',
+                batchReadWriteResponses: [],
+            };
+        }
+        if (requests.length > this.maxBatchSize) {
+            return {
+                success: false,
+                errorType: 'USER_ERROR',
+                message: `The number of requests exceeds the maximum allowed number of requests (${this.maxBatchSize}). This limit can be configured in the deployment package.`,
+                batchReadWriteResponses: [],
+            };
+        }
+        const batchRequests = await DynamoDbBundleServiceHelper.sortBatchRequests(
+            requests,
+            new DynamoDbHelper(this.dynamoDb),
+            tenantId,
+        );
+        try {
+            // loop through all requests and send in batches of MAX allowed requests
+            batchRequests.batchReadWriteResponses = await DynamoDbBundleServiceHelper.processBatchDeleteRequests(
+                batchRequests.deleteRequests,
+                batchRequests.batchReadWriteResponses,
+                this.dynamoDb,
+            );
+
+            batchRequests.batchReadWriteResponses = await DynamoDbBundleServiceHelper.processBatchEditRequests(
+                batchRequests.writeRequests,
+                batchRequests.batchReadWriteResponses,
+                this.dynamoDb,
+            );
+
+            logger.info('Successfully completed batch items');
+            return {
+                success: true,
+                message: 'Successfully processed bundle',
+                batchReadWriteResponses: batchRequests.batchReadWriteResponses,
+            };
+        } catch (e) {
+            logger.info('Failed to process batch items', e);
+            return {
+                success: false,
+                message: `failed to process bundle ${e}`,
+                errorType: 'SYSTEM_ERROR',
+                batchReadWriteResponses: batchRequests.batchReadWriteResponses,
+            };
+        }
     }
 
     async transaction(request: TransactionRequest): Promise<BundleResponse> {
@@ -231,8 +284,8 @@ export class DynamoDbBundleService implements Bundle {
             };
         });
 
-        if (itemsToLock.length > DynamoDbBundleService.dynamoDbMaxBatchSize) {
-            const message = `Cannot lock more than ${DynamoDbBundleService.dynamoDbMaxBatchSize} items`;
+        if (itemsToLock.length > DynamoDbBundleService.dynamoDbMaxTransactionBundleSize) {
+            const message = `Cannot lock more than ${DynamoDbBundleService.dynamoDbMaxTransactionBundleSize} items`;
             logger.error(message);
             return Promise.resolve({
                 successfulLock: false,
