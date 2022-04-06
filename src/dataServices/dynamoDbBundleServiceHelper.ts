@@ -313,7 +313,7 @@ export default class DynamoDbBundleServiceHelper {
                         PutRequest: {
                             Item: DynamoDBConverter.marshall(item),
                         },
-                        index: originalRequestIndex,
+                        originalRequestIndex,
                     });
                     batchReadWriteResponses.push({
                         id,
@@ -340,7 +340,7 @@ export default class DynamoDbBundleServiceHelper {
                         PutRequest: {
                             Item: DynamoDBConverter.marshall(item),
                         },
-                        index: originalRequestIndex,
+                        originalRequestIndex,
                     });
                     batchReadWriteResponses.push({
                         id,
@@ -359,7 +359,7 @@ export default class DynamoDbBundleServiceHelper {
                             SET "${DOCUMENT_STATUS_FIELD}" = '${DOCUMENT_STATUS.DELETED}'
                             WHERE "id" = '${buildHashKey(id, tenantId)}' AND "vid" = ${vid}
                         `,
-                        index: originalRequestIndex,
+                        originalRequestIndex,
                     });
                     batchReadWriteResponses.push({
                         id,
@@ -419,8 +419,8 @@ export default class DynamoDbBundleServiceHelper {
             batchExecuteResponse.UnprocessedItems?.[RESOURCE_TABLE]?.forEach((item, unprocessedItemIndex) => {
                 console.log('Unable to process request: ', item);
                 // get the position of the batch element at index in the larger batchReadWriteResponses array
-                updatedResponses[batch[unprocessedItemIndex].index] = {
-                    ...batchReadWriteResponses[batch[unprocessedItemIndex].index],
+                updatedResponses[batch[unprocessedItemIndex].originalRequestIndex] = {
+                    ...batchReadWriteResponses[batch[unprocessedItemIndex].originalRequestIndex],
                     error: `400 Bad Request`, // indicate the request failed due to large size of request
                 };
             });
@@ -450,8 +450,8 @@ export default class DynamoDbBundleServiceHelper {
                 if (response.Error) {
                     console.log('Unable to process request: ', response.Error);
                     // get the position of the batch element at index in the larger batchReadWriteResponses array
-                    updatedResponses[batch[index].index] = {
-                        ...batchReadWriteResponses[batch[index].index],
+                    updatedResponses[batch[index].originalRequestIndex] = {
+                        ...batchReadWriteResponses[batch[index].originalRequestIndex],
                         error: `${response.Error.Code} ${response.Error.Message}`, // indicate the request failed
                     };
                 }

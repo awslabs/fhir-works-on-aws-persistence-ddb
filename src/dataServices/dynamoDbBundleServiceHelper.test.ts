@@ -307,7 +307,7 @@ describe('processBatchRequests', () => {
                     vid: 1,
                 }),
             },
-            index: 0,
+            originalRequestIndex: 0,
         },
         {
             PutRequest: {
@@ -316,7 +316,7 @@ describe('processBatchRequests', () => {
                     vid: 2,
                 }),
             },
-            index: 1,
+            originalRequestIndex: 1,
         },
         {
             PutRequest: {
@@ -325,17 +325,17 @@ describe('processBatchRequests', () => {
                     vid: 1,
                 }),
             },
-            index: 2,
+            originalRequestIndex: 2,
         },
     ];
     const deleteOperations = [
         {
             Statement: `UPDATE "resource-table" SET "documentStatus" = 'DELETED' WHERE "id" = 'abcd1234' AND "vid" = 1`,
-            index: 0,
+            originalRequestIndex: 0,
         },
         {
             Statement: `UPDATE "resource-table" SET "documentStatus" = 'DELETED' WHERE "id" = 'abc123' AND "vid" = 1`,
-            index: 1,
+            originalRequestIndex: 1,
         },
     ];
 
@@ -581,7 +581,7 @@ describe('sortBatchRequests', () => {
                             SET "documentStatus" = 'DELETED'
                             WHERE "id" = 'read' AND "vid" = 1
                         `,
-                index: 1,
+                originalRequestIndex: 1,
             },
         ];
 
@@ -590,7 +590,7 @@ describe('sortBatchRequests', () => {
                 PutRequest: {
                     Item: DynamoDBConverter.marshall(writeResource),
                 },
-                index: 3,
+                originalRequestIndex: 3,
             },
         ];
         const expectedUpdateRequests = [
@@ -598,7 +598,7 @@ describe('sortBatchRequests', () => {
                 PutRequest: {
                     Item: DynamoDBConverter.marshall(readResource),
                 },
-                index: 2,
+                originalRequestIndex: 2,
             },
         ];
 
