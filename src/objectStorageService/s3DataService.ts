@@ -90,7 +90,15 @@ export class S3DataService implements Persistence {
         }
 
         const updatedResource = { ...resource };
-        updatedResource.presignedPutUrl = presignedPutUrlResponse.message;
+        // eslint-disable-next-line no-underscore-dangle
+        updatedResource._data = {
+            extension: [
+                {
+                    url: 'presignedPutUrl',
+                    valueString: presignedPutUrlResponse.message,
+                },
+            ],
+        };
         return {
             success: true,
             message: 'Resource created',
@@ -120,7 +128,15 @@ export class S3DataService implements Persistence {
         }
 
         const updatedResource = { ...resource };
-        updatedResource.presignedPutUrl = presignedPutUrlResponse.message;
+        // eslint-disable-next-line no-underscore-dangle
+        updatedResource._data = {
+            extension: [
+                {
+                    url: 'presignedPutUrl',
+                    valueString: presignedPutUrlResponse.message,
+                },
+            ],
+        };
         return {
             success: true,
             message: 'Resource updated',
@@ -208,8 +224,15 @@ export class S3DataService implements Persistence {
 
         const binary = dbResponse.resource;
         // Add binary content to message
-        binary.presignedGetUrl = presignedGetUrlResponse.message;
-
+        // eslint-disable-next-line no-underscore-dangle
+        binary._data = {
+            extension: [
+                {
+                    url: 'presignedGetUrl',
+                    valueString: presignedGetUrlResponse.message,
+                },
+            ],
+        };
         return { message: 'Item found', resource: binary };
     }
 }

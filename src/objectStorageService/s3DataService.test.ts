@@ -68,7 +68,14 @@ describe('SUCCESS CASES: Testing create, read, update, delete of resources; vers
             resource: {
                 resourceType: 'Binary',
                 contentType: 'application/pdf',
-                presignedPutUrl: 'https://VALID_S3_PUT_URL.com/tenant1/id_1.pdf/VALID_TEMP_CREDENTIAL',
+                _data: {
+                    extension: [
+                        {
+                            url: 'presignedPutUrl',
+                            valueString: 'https://VALID_S3_PUT_URL.com/tenant1/id_1.pdf/VALID_TEMP_CREDENTIAL',
+                        },
+                    ],
+                },
             },
         });
 
@@ -91,7 +98,14 @@ describe('SUCCESS CASES: Testing create, read, update, delete of resources; vers
             resource: {
                 resourceType: 'Binary',
                 contentType: 'application/pdf',
-                presignedGetUrl: 'https://VALID_S3_GET_URL.com/tenant1/id_1.pdf/VALID_TEMP_CREDENTIAL',
+                _data: {
+                    extension: [
+                        {
+                            url: 'presignedGetUrl',
+                            valueString: 'https://VALID_S3_GET_URL.com/tenant1/id_1.pdf/VALID_TEMP_CREDENTIAL',
+                        },
+                    ],
+                },
             },
         });
 
@@ -120,7 +134,14 @@ describe('SUCCESS CASES: Testing create, read, update, delete of resources; vers
             resource: {
                 resourceType: 'Binary',
                 contentType: 'image/jpeg',
-                presignedPutUrl: 'https://VALID_S3_PUT_URL.com/tenant1/id_2.jpeg/VALID_TEMP_CREDENTIAL',
+                _data: {
+                    extension: [
+                        {
+                            url: 'presignedPutUrl',
+                            valueString: 'https://VALID_S3_PUT_URL.com/tenant1/id_2.jpeg/VALID_TEMP_CREDENTIAL',
+                        },
+                    ],
+                },
             },
         });
 
@@ -189,7 +210,14 @@ describe('SUCCESS CASES: Testing create, read, update, delete of resources; vers
             resource: {
                 resourceType: 'Binary',
                 contentType: 'application/pdf',
-                presignedPutUrl: 'https://VALID_S3_PUT_URL.com/id_1.pdf/VALID_TEMP_CREDENTIAL',
+                _data: {
+                    extension: [
+                        {
+                            url: 'presignedPutUrl',
+                            valueString: 'https://VALID_S3_PUT_URL.com/id_1.pdf/VALID_TEMP_CREDENTIAL',
+                        },
+                    ],
+                },
             },
         });
 
@@ -212,7 +240,14 @@ describe('SUCCESS CASES: Testing create, read, update, delete of resources; vers
             resource: {
                 resourceType: 'Binary',
                 contentType: 'application/pdf',
-                presignedGetUrl: 'https://VALID_S3_GET_URL.com/id_1.pdf/VALID_TEMP_CREDENTIAL',
+                _data: {
+                    extension: [
+                        {
+                            url: 'presignedGetUrl',
+                            valueString: 'https://VALID_S3_GET_URL.com/id_1.pdf/VALID_TEMP_CREDENTIAL',
+                        },
+                    ],
+                },
             },
         });
 
@@ -240,7 +275,14 @@ describe('SUCCESS CASES: Testing create, read, update, delete of resources; vers
             resource: {
                 resourceType: 'Binary',
                 contentType: 'image/jpeg',
-                presignedPutUrl: 'https://VALID_S3_PUT_URL.com/id_2.jpeg/VALID_TEMP_CREDENTIAL',
+                _data: {
+                    extension: [
+                        {
+                            url: 'presignedPutUrl',
+                            valueString: 'https://VALID_S3_PUT_URL.com/id_2.jpeg/VALID_TEMP_CREDENTIAL',
+                        },
+                    ],
+                },
             },
         });
 
@@ -306,7 +348,14 @@ describe('SUCCESS CASES: Testing create, read, update, delete of resources; vers
             resource: {
                 resourceType: 'Binary',
                 contentType: 'image/jpeg',
-                presignedPutUrl: 'https://VALID_S3_PUT_URL.com/id_1.jpeg/VALID_TEMP_CREDENTIAL',
+                _data: {
+                    extension: [
+                        {
+                            url: 'presignedPutUrl',
+                            valueString: 'https://VALID_S3_PUT_URL.com/id_1.jpeg/VALID_TEMP_CREDENTIAL',
+                        },
+                    ],
+                },
             },
         });
 
@@ -334,7 +383,14 @@ describe('SUCCESS CASES: Testing create, read, update, delete of resources; vers
             resource: {
                 resourceType: 'Binary',
                 contentType: 'image/jpeg',
-                presignedPutUrl: 'https://VALID_S3_PUT_URL.com/id_2.jpeg/VALID_TEMP_CREDENTIAL',
+                _data: {
+                    extension: [
+                        {
+                            url: 'presignedPutUrl',
+                            valueString: 'https://VALID_S3_PUT_URL.com/id_2.jpeg/VALID_TEMP_CREDENTIAL',
+                        },
+                    ],
+                },
             },
         });
 
