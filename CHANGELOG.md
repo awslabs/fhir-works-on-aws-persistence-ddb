@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [3.12.0](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.11.0...v3.12.0) (2022-08-21)
+
+
+### Features
+
+* Issue 674 added support for up to 100 items in a FHIR transaction ([#153](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/issues/153)) ([32242ce](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/commit/32242ce1fa6315229b00efd67928384466ac3d5e))
+
 ## [3.11.0](https://github.com/awslabs/fhir-works-on-aws-persistence-ddb/compare/v3.10.1...v3.11.0) (2022-04-06)
 
 
