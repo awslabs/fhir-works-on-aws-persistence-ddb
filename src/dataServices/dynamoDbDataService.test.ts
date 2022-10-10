@@ -6,7 +6,13 @@
 // eslint-disable-next-line import/no-extraneous-dependencies
 import * as AWSMock from 'aws-sdk-mock';
 
-import { GetItemInput, PutItemInput, QueryInput, UpdateItemInput } from 'aws-sdk/clients/dynamodb';
+import {
+    GetItemInput,
+    PutItemInput,
+    QueryInput,
+    UpdateItemInput,
+    TransactWriteItemsInput,
+} from 'aws-sdk/clients/dynamodb';
 import AWS from 'aws-sdk';
 import isEqual from 'lodash/isEqual';
 // eslint-disable-next-line import/no-extraneous-dependencies
@@ -522,8 +528,17 @@ describe('DELETE', () => {
             });
         });
 
+        // LOCK items (Success)
+        AWSMock.mock('DynamoDB', 'transactWriteItems', (params: TransactWriteItemsInput, callback: Function) => {
+            callback(null, {});
+        });
+
         sinon
             .stub(DynamoDbHelper.prototype, 'getMostRecentUserReadableResource')
+            .returns(Promise.resolve({ message: 'Resource found', resource }));
+
+        sinon
+            .stub(DynamoDbHelper.prototype, 'getMostRecentResource')
             .returns(Promise.resolve({ message: 'Resource found', resource }));
 
         const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());

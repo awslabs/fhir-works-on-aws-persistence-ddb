@@ -20,6 +20,7 @@ import {
     InitiateExportRequest,
     InvalidResourceError,
     isResourceNotFoundError,
+    isResourceDeletedError,
     PatchResourceRequest,
     Persistence,
     ReadResourceRequest,
@@ -29,6 +30,7 @@ import {
     UnauthorizedError,
     UpdateResourceRequest,
     vReadResourceRequest,
+    ResourceDeletedError,
 } from 'fhir-works-on-aws-interface';
 import DynamoDB, { ItemList } from 'aws-sdk/clients/dynamodb';
 import { difference } from 'lodash';
@@ -42,6 +44,7 @@ import { getBulkExportResults, startJobExecution } from '../bulkExport/bulkExpor
 import { BulkExportJob } from '../bulkExport/types';
 import { BulkExportResultsUrlGenerator } from '../bulkExport/bulkExportResultsUrlGenerator';
 import { BulkExportS3PresignedUrlGenerator } from '../bulkExport/bulkExportS3PresignedUrlGenerator';
+import { FWOA_CODESYSTEM_SYSTEM, FWOA_CODESYSTEM_DELETE_HISTORY_CODE } from '../constants';
 
 export class DynamoDbDataService implements Persistence, BulkDataAccess {
     private readonly MAXIMUM_SYSTEM_LEVEL_CONCURRENT_REQUESTS = 2;
@@ -107,7 +110,8 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
     async vReadResource(request: vReadResourceRequest): Promise<GenericResponse> {
         this.assertValidTenancyMode(request.tenantId);
         const { resourceType, id, vid, tenantId } = request;
-        const params = DynamoDbParamBuilder.buildGetItemParam(id, parseInt(vid, 10), tenantId);
+        const versionId = parseInt(vid, 10);
+        const params = DynamoDbParamBuilder.buildGetItemParam(id, versionId, tenantId);
         const result = await this.dynamoDb.getItem(params).promise();
         if (result.Item === undefined) {
             throw new ResourceVersionNotFoundError(resourceType, id, vid);
@@ -116,6 +120,16 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
         if (item.resourceType !== resourceType) {
             throw new ResourceVersionNotFoundError(resourceType, id, vid);
         }
+        if (
+            item.documentStatus === DOCUMENT_STATUS.DELETED &&
+            item?.meta?.tag.length > 0 &&
+            item.meta.tag.some((tag: any) => {
+                return tag.system === FWOA_CODESYSTEM_SYSTEM && tag.code === FWOA_CODESYSTEM_DELETE_HISTORY_CODE;
+            })
+        ) {
+            throw new ResourceDeletedError(resourceType, id, versionId.toString());
+        }
+
         item = DynamoDbUtil.cleanItem(item);
         return {
             message: 'Resource found',
@@ -165,7 +179,55 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
 
         const { versionId } = itemServiceResponse.resource.meta;
 
-        return this.deleteVersionedResource(resourceType, id, parseInt(versionId, 10), tenantId);
+        // need to insert a DELETE history entry that represents the DELETE itself and not just our documentStatus
+        // vread and future support for _history should look like the following for create,delete,recreates
+        // versionId 1 = POST create|PUT upsert resource instance
+        // versionId 2 = HTTP 410 indicating DELETE operation
+        // versionId 3 = PUT recreate resource instance
+        const updateResourceResponse = await this.updateResource({
+            id,
+            resourceType,
+            resource: {
+                id,
+                resourceType,
+                meta: {
+                    versionId: versionId + 1,
+                    lastUpdated: new Date().toISOString(),
+                    tag: [
+                        {
+                            system: FWOA_CODESYSTEM_SYSTEM,
+                            code: FWOA_CODESYSTEM_DELETE_HISTORY_CODE,
+                            display: 'Internal FWoA code to indicate a DELETE history/vread entry'
+                        },
+                    ],
+                },
+            },
+            tenantId,
+        });
+
+        if (updateResourceResponse.success) {
+            const deleteVersionedResourceResponse = await this.deleteVersionedResource(
+                resourceType,
+                id,
+                parseInt(versionId, 10) + 1,
+                tenantId,
+            );
+            if (!deleteVersionedResourceResponse.success) {
+                // rollback the DELETE history entry
+                await this.dynamoDb
+                    .deleteItem(DynamoDbParamBuilder.buildDeleteParam(id, versionId + 1, tenantId))
+                    .promise();
+            } else {
+                return {
+                    success: deleteVersionedResourceResponse.success,
+                    message: `Successfully deleted ResourceType: ${resourceType}, Id: ${id}, VersionId: ${versionId}`,
+                };
+            }
+        }
+        return {
+            success: false,
+            message: `Failed to create a DELETE versionId for ResourceType: ${resourceType}, Id: ${id}, VersionId: ${versionId}`,
+        };
     }
 
     async deleteVersionedResource(resourceType: string, id: string, vid: number, tenantId?: string) {
@@ -194,7 +256,9 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
             if (this.updateCreateSupported && isResourceNotFoundError(e)) {
                 return this.createResourceWithId(resourceType, resource, id, tenantId);
             }
-            throw e;
+            if (!isResourceDeletedError(e)) {
+                throw e;
+            }
         }
         const resourceClone = clone(resource);
         const batchRequest: BatchReadWriteRequest = {

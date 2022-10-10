@@ -4,7 +4,7 @@
  */
 
 import DynamoDB, { ItemList } from 'aws-sdk/clients/dynamodb';
-import { GenericResponse, ResourceNotFoundError } from 'fhir-works-on-aws-interface';
+import { GenericResponse, ResourceNotFoundError, ResourceDeletedError } from 'fhir-works-on-aws-interface';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
 import { DynamoDBConverter } from './dynamoDb';
 import DOCUMENT_STATUS from './documentStatus';
@@ -56,7 +56,14 @@ export default class DynamoDbHelper {
         projectionExpression?: string,
         tenantId?: string,
     ): Promise<GenericResponse> {
+        if (projectionExpression !== undefined && projectionExpression.indexOf('documentStatus') === -1){
+            // need documentStatus so we can check DELETED state
+            projectionExpression = `${projectionExpression}, documentStatus`
+        }
         let item = (await this.getMostRecentResources(resourceType, id, 1, projectionExpression, tenantId))[0];
+        if (item.documentStatus === DOCUMENT_STATUS.DELETED) {
+            throw new ResourceDeletedError(resourceType, id, (item.meta as any).versionId as string);
+        }
         item = DynamoDbUtil.cleanItem(item);
 
         return {
@@ -76,7 +83,7 @@ export default class DynamoDbHelper {
         const items = await this.getMostRecentResources(resourceType, id, 2, undefined, tenantId);
         const latestItemDocStatus: DOCUMENT_STATUS = <DOCUMENT_STATUS>items[0][DOCUMENT_STATUS_FIELD];
         if (latestItemDocStatus === DOCUMENT_STATUS.DELETED) {
-            throw new ResourceNotFoundError(resourceType, id);
+            throw new ResourceDeletedError(resourceType, id, (items[0].meta as any).versionId as string);
         }
         let item: any = {};
         // Latest version that are in LOCKED/PENDING_DELETE/AVAILABLE are valid to be read from

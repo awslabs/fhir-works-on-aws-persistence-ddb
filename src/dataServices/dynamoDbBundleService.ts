@@ -14,8 +14,9 @@ import {
     BatchReadWriteErrorType,
     Bundle,
     chunkArray,
-    ResourceNotFoundError,
     GenericResponse,
+    isResourceDeletedError,
+    isResourceNotFoundError,
 } from 'fhir-works-on-aws-interface';
 import flatten from 'flat';
 import { chunk, set } from 'lodash';
@@ -165,7 +166,7 @@ export class DynamoDbBundleService implements Bundle {
 
         // 1. Put a lock on all requests
         const lockItemsResponse = await this.lockItems(requests, tenantId);
-        const { successfulLock } = lockItemsResponse;
+        const { successfulLock, recreatedItems } = lockItemsResponse;
         let { lockedItems } = lockItemsResponse;
 
         let elapsedTimeInMs = this.getElapsedTime(startTime);
@@ -220,7 +221,7 @@ export class DynamoDbBundleService implements Bundle {
         }
 
         // 2.  Stage resources
-        const stageItemResponse = await this.stageItems(requests, lockedItems, tenantId);
+        const stageItemResponse = await this.stageItems(requests, lockedItems, recreatedItems, tenantId);
         const { batchReadWriteResponses } = stageItemResponse;
         const successfullyStageItems = stageItemResponse.success;
         lockedItems = stageItemResponse.lockedItems;
@@ -269,7 +270,9 @@ export class DynamoDbBundleService implements Bundle {
         errorType?: BatchReadWriteErrorType;
         errorMessage?: string;
         lockedItems: ItemRequest[];
+        recreatedItems: ItemRequest[];
     }> {
+        const recreatedItems: ItemRequest[] = [];
         // We don't need to put a lock on CREATE requests because there are no Documents in the DB for the CREATE
         // request yet
         const allNonCreateRequests = requests.filter((request) => {
@@ -292,6 +295,7 @@ export class DynamoDbBundleService implements Bundle {
                 errorType: 'SYSTEM_ERROR',
                 errorMessage: message,
                 lockedItems: [],
+                recreatedItems,
             });
         }
 
@@ -300,8 +304,8 @@ export class DynamoDbBundleService implements Bundle {
 
         // We need to read the items so we can find the versionId of each item
         const itemReadPromises = itemsToLock.map(async (itemToLock) => {
-            const projectionExpression = 'id, resourceType, meta';
             try {
+                const projectionExpression = 'id, resourceType, meta';
                 return await this.dynamoDbHelper.getMostRecentResource(
                     itemToLock.resourceType,
                     itemToLock.id,
@@ -309,7 +313,7 @@ export class DynamoDbBundleService implements Bundle {
                     tenantId,
                 );
             } catch (e) {
-                if (e instanceof ResourceNotFoundError) {
+                if (isResourceNotFoundError(e) || (isResourceDeletedError(e) && itemToLock.operation === 'update')) {
                     return e;
                 }
                 throw e;
@@ -322,7 +326,7 @@ export class DynamoDbBundleService implements Bundle {
             const itemResponse = itemResponses[i];
             // allow for update as create scenario
             if (
-                itemResponse instanceof ResourceNotFoundError &&
+                isResourceNotFoundError(itemResponse) &&
                 !(itemsToLock[i].operation === 'update' && this.updateCreateSupported)
             ) {
                 idItemsFailedToRead.push(`${itemsToLock[i].resourceType}/${itemsToLock[i].id}`);
@@ -334,16 +338,28 @@ export class DynamoDbBundleService implements Bundle {
                 errorType: 'USER_ERROR',
                 errorMessage: `Failed to find resources: ${idItemsFailedToRead}`,
                 lockedItems: [],
+                recreatedItems,
             });
         }
 
         const addLockRequests = [];
         for (let i = 0; i < itemResponses.length; i += 1) {
             const itemResponse = itemResponses[i];
-            if (itemResponse instanceof ResourceNotFoundError) {
+            if (isResourceNotFoundError(itemResponse)) {
+                // eslint-disable-next-line no-continue
+                continue;
+            } else if (isResourceDeletedError(itemResponse)) {
+                recreatedItems.push({
+                    id: itemResponse.id,
+                    vid: Number.parseInt(itemResponse.versionId, 10),
+                    resourceType: itemResponse.resourceType,
+                    operation: 'update',
+                    isOriginalUpdateItem: true,
+                });
                 // eslint-disable-next-line no-continue
                 continue;
             }
+
             const { resourceType, id, meta } = itemResponse.resource;
 
             const vid = parseInt(meta.versionId, 10);
@@ -392,6 +408,7 @@ export class DynamoDbBundleService implements Bundle {
             return Promise.resolve({
                 successfulLock: true,
                 lockedItems: itemsLockedSuccessfully,
+                recreatedItems,
             });
         } catch (e) {
             logger.error('Failed to lock', e);
@@ -403,6 +420,7 @@ export class DynamoDbBundleService implements Bundle {
                         DynamoDbParamBuilder.LOCK_DURATION_IN_MS / 1000
                     } seconds.`,
                     lockedItems: itemsLockedSuccessfully,
+                    recreatedItems,
                 });
             }
             return Promise.resolve({
@@ -412,6 +430,7 @@ export class DynamoDbBundleService implements Bundle {
                     DynamoDbParamBuilder.LOCK_DURATION_IN_MS / 1000
                 } seconds.`,
                 lockedItems: itemsLockedSuccessfully,
+                recreatedItems,
             });
         }
     }
@@ -638,11 +657,16 @@ export class DynamoDbBundleService implements Bundle {
         return Object.values(fullIdToLockedItem);
     }
 
-    private async stageItems(requests: BatchReadWriteRequest[], lockedItems: ItemRequest[], tenantId?: string) {
+    private async stageItems(
+        requests: BatchReadWriteRequest[],
+        lockedItems: ItemRequest[],
+        recreatedItems: ItemRequest[],
+        tenantId?: string,
+    ) {
         logger.info('Start Staging of Items');
 
         const idToVersionId: Record<string, number> = {};
-        lockedItems.forEach((idItemLocked: ItemRequest) => {
+        lockedItems.concat(recreatedItems).forEach((idItemLocked: ItemRequest) => {
             idToVersionId[idItemLocked.id] = idItemLocked.vid || 0;
         });
 

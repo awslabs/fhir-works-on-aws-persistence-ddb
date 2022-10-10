@@ -820,6 +820,7 @@ describe('atomicallyReadWriteResources', () => {
             if (isLockSuccessful) {
                 expect(actualResponse).toStrictEqual({
                     lockedItems: [],
+                    recreatedItems: [],
                     successfulLock: true,
                 });
             } else {
@@ -827,6 +828,7 @@ describe('atomicallyReadWriteResources', () => {
                     errorMessage: `Failed to find resources: Patient/${id}`,
                     errorType: 'USER_ERROR',
                     lockedItems: [],
+                    recreatedItems: [],
                     successfulLock: false,
                 });
             }
