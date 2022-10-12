@@ -9,6 +9,7 @@ import {
     BatchReadWriteResponse,
     TypeOperation,
     SystemOperation,
+    isResourceDeletedError,
 } from 'fhir-works-on-aws-interface';
 import { DynamoDB } from 'aws-sdk';
 import { buildHashKey, DOCUMENT_STATUS_FIELD, DynamoDbUtil } from './dynamoDbUtil';
@@ -340,18 +341,37 @@ export default class DynamoDbBundleServiceHelper {
                     item = await dynamoDbHelper.getMostRecentUserReadableResource(resourceType, id, tenantId);
                     vid = Number(item.resource?.meta.versionId);
                 } catch (e: any) {
-                    console.log(`Failed to find resource ${id}`);
-                    batchReadWriteResponses.push({
-                        id,
-                        vid: `${vid}`,
-                        operation,
-                        resourceType,
-                        resource: {},
-                        lastModified: '',
-                        error: '404 Not Found',
-                    });
-                    // eslint-disable-next-line no-continue
-                    continue;
+                    if (isResourceDeletedError(e)) {
+                        if (request.operation === 'delete') {
+                            // idempotent DELETE call; just return 2xx
+                            batchReadWriteResponses.push({
+                                id,
+                                vid: `${e.versionId}`,
+                                operation,
+                                resourceType,
+                                resource: {},
+                                lastModified: new Date().toISOString(),
+                            });
+                            // eslint-disable-next-line no-continue
+                            continue;
+                        } else if (request.operation === 'update') {
+                            // recreate
+                            vid = Number.parseInt(e.versionId, 10);
+                        }
+                    } else {
+                        console.log(`Failed to find resource ${id}`);
+                        batchReadWriteResponses.push({
+                            id,
+                            vid: `${vid}`,
+                            operation,
+                            resourceType,
+                            resource: {},
+                            lastModified: '',
+                            error: '404 Not Found',
+                        });
+                        // eslint-disable-next-line no-continue
+                        continue;
+                    }
                 }
             }
             switch (operation) {
@@ -408,6 +428,42 @@ export default class DynamoDbBundleServiceHelper {
                     break;
                 }
                 case 'delete': {
+                    // need to insert a DELETE history entry that represents the DELETE itself and not just our documentStatus
+                    // vread and future support for _history should look like the following for create,delete,recreates
+                    // versionId 1 = POST create|PUT upsert resource instance
+                    // versionId 2 = HTTP 410 indicating DELETE operation
+                    // versionId 3 = PUT recreate resource instance
+                    const deleteVid = vid + 1;
+                    const deleteItem = DynamoDbUtil.prepItemForDdbInsert(
+                        {
+                            id,
+                            resourceType,
+                            meta: {
+                                versionId: deleteVid,
+                                lastUpdated: new Date().toISOString(),
+                                tag: [
+                                    {
+                                        system: FWOA_CODESYSTEM_SYSTEM,
+                                        code: FWOA_CODESYSTEM_DELETE_HISTORY_CODE,
+                                        display: 'Internal FWoA code to indicate a DELETE history/vread entry',
+                                    },
+                                ],
+                            },
+                        },
+                        id,
+                        deleteVid,
+                        DOCUMENT_STATUS.DELETED,
+                        tenantId,
+                    );
+
+                    // we create a new version of the resource with an incremented vid
+                    updateRequests.push({
+                        PutRequest: {
+                            Item: DynamoDBConverter.marshall(deleteItem),
+                        },
+                        originalRequestIndex,
+                    });
+
                     deleteRequests.push({
                         Statement: `
                             UPDATE "${RESOURCE_TABLE}"

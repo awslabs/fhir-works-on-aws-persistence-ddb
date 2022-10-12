@@ -12,6 +12,8 @@ import { DynamoDBConverter } from './dynamoDb';
 import GenerateStagingRequestsFactory from '../../testUtilities/GenerateStagingRequestsFactory';
 import GenerateRollbackRequestsFactory from '../../testUtilities/GenerateRollbackRequestsFactory';
 import DynamoDbHelper from './dynamoDbHelper';
+import { FWOA_CODESYSTEM_SYSTEM, FWOA_CODESYSTEM_DELETE_HISTORY_CODE } from '../constants';
+import { timeFromEpochInMsRegExp } from '../../testUtilities/regExpressions';
 
 AWSMock.setSDKInstance(AWS);
 const utcTimeRegExp = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d+)?Z/;
@@ -105,12 +107,15 @@ describe('generateStagingRequests', () => {
         const expectedResult = {
             createRequests: [GenerateStagingRequestsFactory.getCreate().expectedRequest],
             readRequests: [GenerateStagingRequestsFactory.getRead().expectedRequest],
-            updateRequests: [GenerateStagingRequestsFactory.getUpdate().expectedRequest, GenerateStagingRequestsFactory.getDelete().expectedRequest[1]],
+            updateRequests: [
+                GenerateStagingRequestsFactory.getUpdate().expectedRequest,
+                GenerateStagingRequestsFactory.getDelete().expectedRequest[1],
+            ],
             deleteRequests: [GenerateStagingRequestsFactory.getDelete().expectedRequest[0]],
             newLocks: [
                 GenerateStagingRequestsFactory.getCreate().expectedLock,
                 GenerateStagingRequestsFactory.getUpdate().expectedLock,
-                GenerateStagingRequestsFactory.getDelete().expectedLock[0]
+                GenerateStagingRequestsFactory.getDelete().expectedLock[0],
             ],
             newStagingResponses: [
                 GenerateStagingRequestsFactory.getCreate().expectedStagingResponse,
@@ -594,7 +599,34 @@ describe('sortBatchRequests', () => {
                 originalRequestIndex: 3,
             },
         ];
+
+        const deleteUpdate = DynamoDBConverter.marshall({
+            _references: [],
+            id: 'read',
+            lockEndTs: Math.floor(new Date().valueOf() / 1000),
+            meta: {
+                lastUpdated: new Date().toISOString(),
+                tag: [
+                    {
+                        code: FWOA_CODESYSTEM_DELETE_HISTORY_CODE,
+                        system: FWOA_CODESYSTEM_SYSTEM,
+                    },
+                ],
+            },
+            resourceType: 'Patient',
+            vid: 2,
+        });
+        deleteUpdate.lockEndTs.N = expect.stringMatching(timeFromEpochInMsRegExp);
+        // @ts-ignore
+        deleteUpdate.meta.M.lastUpdated.S = expect.stringMatching(utcTimeRegExp);
+
         const expectedUpdateRequests = [
+            {
+                PutRequest: {
+                    Item: deleteUpdate,
+                },
+                originalRequestIndex: 1,
+            },
             {
                 PutRequest: {
                     Item: DynamoDBConverter.marshall(readResource),

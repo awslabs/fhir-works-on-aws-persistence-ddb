@@ -222,8 +222,7 @@ export default class GenerateStagingRequestsFactory {
             resourceType,
         );
 
-        deleteRequest.Update.ExpressionAttributeValues[':currentTs'].N =
-            expect.stringMatching(timeFromEpochInMsRegExp);
+        deleteRequest.Update.ExpressionAttributeValues[':currentTs'].N = expect.stringMatching(timeFromEpochInMsRegExp);
         deleteRequest.Update.ExpressionAttributeValues[':futureEndTs'].N =
             expect.stringMatching(timeFromEpochInMsRegExp);
         expectedRequest.push(deleteRequest);
@@ -238,27 +237,30 @@ export default class GenerateStagingRequestsFactory {
                     meta: {
                         lastUpdated: new Date().toISOString(),
                         versionId: nextVid.toString(),
-                        tag: [{
-                            code: FWOA_CODESYSTEM_DELETE_HISTORY_CODE,
-                            system: FWOA_CODESYSTEM_SYSTEM,
-                        }]
+                        tag: [
+                            {
+                                code: FWOA_CODESYSTEM_DELETE_HISTORY_CODE,
+                                system: FWOA_CODESYSTEM_SYSTEM,
+                            },
+                        ],
                     },
                     resourceType: 'Patient',
-                    vid: nextVid
+                    vid: nextVid,
                 }),
             },
         };
-        expectedUpdateItem.Put.Item.meta.M.lastUpdated.S = 
-            expect.stringMatching(utcTimeRegExp);
+        expectedUpdateItem.Put.Item.meta.M.lastUpdated.S = expect.stringMatching(utcTimeRegExp);
         expectedRequest.push(expectedUpdateItem);
 
-        const expectedLock: any[] = [{
-            id,
-            isOriginalUpdateItem: true,
-            operation: "delete",
-            resourceType,
-            vid: nextVid,
-        }];
+        const expectedLock: any[] = [
+            {
+                id,
+                isOriginalUpdateItem: true,
+                operation: 'delete',
+                resourceType,
+                vid: nextVid,
+            },
+        ];
 
         const expectedStagingResponse: BatchReadWriteResponse = {
             id,
