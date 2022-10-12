@@ -1,7 +1,7 @@
 import { QueryInput } from 'aws-sdk/clients/dynamodb';
 import AWS from 'aws-sdk';
 import * as AWSMock from 'aws-sdk-mock';
-import { ResourceNotFoundError } from 'fhir-works-on-aws-interface';
+import { ResourceNotFoundError, ResourceDeletedError } from 'fhir-works-on-aws-interface';
 import { cloneDeep } from 'lodash';
 import { DynamoDBConverter } from './dynamoDb';
 import DynamoDbHelper from './dynamoDbHelper';
@@ -71,6 +71,23 @@ describe('getMostRecentResource', () => {
         // READ items (Success)
         AWSMock.mock('DynamoDB', 'query', (params: QueryInput, callback: Function) => {
             callback(null, {});
+        });
+
+        const ddbHelper = new DynamoDbHelper(new AWS.DynamoDB());
+        await expect(ddbHelper.getMostRecentResource(resourceType, id)).rejects.toThrowError(
+            new ResourceNotFoundError(resourceType, id),
+        );
+    });
+
+    test('FAILED: Resource deleted', async () => {
+        const clonedV2Resource = cloneDeep(resource);
+        clonedV2Resource[DOCUMENT_STATUS_FIELD] = DOCUMENT_STATUS.DELETED;
+
+        // READ items (Success)
+        AWSMock.mock('DynamoDB', 'query', (params: QueryInput, callback: Function) => {
+            callback(null, {
+                Items: [DynamoDBConverter.marshall(clonedV2Resource)],
+            });
         });
 
         const ddbHelper = new DynamoDbHelper(new AWS.DynamoDB());
@@ -148,6 +165,23 @@ describe('getMostRecentValidResource', () => {
         const ddbHelper = new DynamoDbHelper(new AWS.DynamoDB());
         await expect(ddbHelper.getMostRecentUserReadableResource(resourceType, id)).rejects.toThrowError(
             new ResourceNotFoundError(resourceType, id),
+        );
+    });
+
+    test('FAILED: Resource deleted', async () => {
+        const clonedV2Resource = cloneDeep(v2Resource);
+        clonedV2Resource[DOCUMENT_STATUS_FIELD] = DOCUMENT_STATUS.DELETED;
+
+        // READ items (Success)
+        AWSMock.mock('DynamoDB', 'query', (params: QueryInput, callback: Function) => {
+            callback(null, {
+                Items: [DynamoDBConverter.marshall(clonedV2Resource), DynamoDBConverter.marshall(resource)],
+            });
+        });
+
+        const ddbHelper = new DynamoDbHelper(new AWS.DynamoDB());
+        await expect(ddbHelper.getMostRecentUserReadableResource(resourceType, id)).rejects.toThrowError(
+            new ResourceDeletedError(resourceType, id, clonedV2Resource.meta.versiondId),
         );
     });
 });

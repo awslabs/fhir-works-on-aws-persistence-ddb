@@ -15,6 +15,7 @@ import {
 } from 'aws-sdk/clients/dynamodb';
 import AWS from 'aws-sdk';
 import isEqual from 'lodash/isEqual';
+import { FWOA_CODESYSTEM_SYSTEM, FWOA_CODESYSTEM_DELETE_HISTORY_CODE } from '../constants';
 // eslint-disable-next-line import/no-extraneous-dependencies
 import {
     BundleResponse,
@@ -26,6 +27,7 @@ import {
     isResourceNotFoundError,
     isInvalidResourceError,
     UnauthorizedError,
+    ResourceDeletedError,
 } from 'fhir-works-on-aws-interface';
 import { TooManyConcurrentExportRequestsError } from 'fhir-works-on-aws-interface/lib/errors/TooManyConcurrentExportRequestsError';
 import each from 'jest-each';
@@ -216,6 +218,25 @@ describe('READ', () => {
         expect(serviceResponse.resource).toStrictEqual(expectedResource);
     });
 
+    test('ERROR: Get Deleted Versioned Resource', async ()=>{
+        // BUILD
+        const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
+        const vid = '5';
+        const resourceType = 'Patient';
+
+        // READ items (Failure)
+        sinon
+            .stub(DynamoDbHelper.prototype, 'getMostRecentUserReadableResource')
+            .rejects(new ResourceDeletedError(resourceType, id, vid));
+
+        const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB({ apiVersion: '2012-08-10' }));
+
+        // OPERATE
+        await expect(dynamoDbDataService.readResource({ resourceType, id })).rejects.toThrowError(
+            new ResourceDeletedError(resourceType, id, vid),
+        );
+    });
+
     test('ERROR: Get Versioned Resource: Unable to find resource', async () => {
         // BUILD
         const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
@@ -249,6 +270,36 @@ describe('READ', () => {
         const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
         await expect(dynamoDbDataService.vReadResource({ resourceType, id, vid })).rejects.toThrowError(
             new ResourceVersionNotFoundError(resourceType, id, vid),
+        );
+    });
+
+    test('ERROR: Get Versioned Resource: Deleted Resource', async () => {
+        // BUILD
+        const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
+        const vid = '5';
+        const resourceType = 'Patient';
+
+        // READ items (Success)
+        AWSMock.mock('DynamoDB', 'getItem', (params: GetItemInput, callback: Function) => {
+            callback(null, { 
+                Item: DynamoDBConverter.marshall({ 
+                    id,
+                    vid,
+                    resourceType,
+                    documentStatus: 'DELETED',
+                    meta: {
+                        tag: [{
+                            code: FWOA_CODESYSTEM_DELETE_HISTORY_CODE,
+                            system: FWOA_CODESYSTEM_SYSTEM
+                        }]
+                    }
+                }) 
+            });
+        });
+
+        const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
+        await expect(dynamoDbDataService.vReadResource({ resourceType, id, vid })).rejects.toThrowError(
+            new ResourceDeletedError(resourceType, id, vid),
         );
     });
 });
@@ -488,6 +539,52 @@ describe('UPDATE', () => {
             }
         }
     });
+
+    test('SUCCESS: Recreate DELETED resource instance', async () =>{
+        // BUILD
+        const id = 'e264efb1-147e-43ac-92ea-a050bc236ff3';
+        const resourceType = 'Patient';
+        const resource = {
+            id,
+            resourceType,
+            name: [
+                {
+                    family: 'Jameson',
+                    given: ['Matt'],
+                },
+            ],
+        };
+        sinon
+            .stub(DynamoDbHelper.prototype, 'getMostRecentUserReadableResource')
+            .rejects(new ResourceDeletedError(resourceType, id, '1'));
+        
+        sinon.stub(DynamoDbHelper.prototype, 'getMostRecentResource')
+            .rejects(new ResourceDeletedError(resourceType, id, '1'));
+
+        AWSMock.mock('DynamoDB', 'putItem', (params: PutItemInput, callback: Function) => {
+            callback(null, 'success');
+        });
+        // LOCK items (Success)
+        AWSMock.mock('DynamoDB', 'transactWriteItems', (params: TransactWriteItemsInput, callback: Function) => {
+            callback(null, {});
+        });
+        const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB(), true);
+
+        // OPERATE
+        const serviceResponse = await dynamoDbDataService.updateResource({ resourceType: 'Patient', id, resource });
+
+        // CHECK
+        const expectedResource: any = { ...resource };
+        expectedResource.meta = {
+            versionId: '2',
+            lastUpdated: expect.stringMatching(utcTimeRegExp),
+        };
+        expectedResource.id = id;
+
+        expect(serviceResponse.success).toEqual(true);
+        expect(serviceResponse.message).toEqual('Resource updated');
+        expect(serviceResponse.resource).toStrictEqual(expectedResource);
+    });
 });
 
 describe('DELETE', () => {
@@ -550,6 +647,25 @@ describe('DELETE', () => {
         expect(serviceResponse.success).toEqual(true);
         expect(serviceResponse.message).toEqual(
             `Successfully deleted ResourceType: ${resourceType}, Id: ${id}, VersionId: ${vid}`,
+        );
+    });
+
+    test('Already deleted item throws ResourceDeletedError', async () =>{
+        // BUILD
+        const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
+        const vid = '5';
+        const resourceType = 'Patient';
+
+        // READ items (Failure)
+        sinon
+            .stub(DynamoDbHelper.prototype, 'getMostRecentUserReadableResource')
+            .rejects(new ResourceDeletedError(resourceType, id, vid));
+
+        const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB({ apiVersion: '2012-08-10' }));
+
+        // OPERATE
+        await expect(dynamoDbDataService.deleteResource({ resourceType, id })).rejects.toThrowError(
+            new ResourceDeletedError(resourceType, id, vid),
         );
     });
 });
