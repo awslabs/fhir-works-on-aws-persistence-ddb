@@ -166,7 +166,7 @@ export class DynamoDbBundleService implements Bundle {
 
         // 1. Put a lock on all requests
         const lockItemsResponse = await this.lockItems(requests, tenantId);
-        const { successfulLock, recreatedItems } = lockItemsResponse;
+        const { successfulLock, recreatedItems, alreadyDeletedItems } = lockItemsResponse;
         let { lockedItems } = lockItemsResponse;
 
         let elapsedTimeInMs = this.getElapsedTime(startTime);
@@ -221,7 +221,13 @@ export class DynamoDbBundleService implements Bundle {
         }
 
         // 2.  Stage resources
-        const stageItemResponse = await this.stageItems(requests, lockedItems, recreatedItems, tenantId);
+        const stageItemResponse = await this.stageItems(
+            requests,
+            lockedItems,
+            recreatedItems,
+            alreadyDeletedItems,
+            tenantId,
+        );
         const { batchReadWriteResponses } = stageItemResponse;
         const successfullyStageItems = stageItemResponse.success;
         lockedItems = stageItemResponse.lockedItems;
@@ -271,8 +277,10 @@ export class DynamoDbBundleService implements Bundle {
         errorMessage?: string;
         lockedItems: ItemRequest[];
         recreatedItems: ItemRequest[];
+        alreadyDeletedItems: ItemRequest[];
     }> {
         const recreatedItems: ItemRequest[] = [];
+        const alreadyDeletedItems: ItemRequest[] = [];
         // We don't need to put a lock on CREATE requests because there are no Documents in the DB for the CREATE
         // request yet
         const allNonCreateRequests = requests.filter((request) => {
@@ -296,6 +304,7 @@ export class DynamoDbBundleService implements Bundle {
                 errorMessage: message,
                 lockedItems: [],
                 recreatedItems,
+                alreadyDeletedItems,
             });
         }
 
@@ -306,15 +315,27 @@ export class DynamoDbBundleService implements Bundle {
         const itemReadPromises = itemsToLock.map(async (itemToLock) => {
             try {
                 const projectionExpression = 'id, resourceType, meta';
-                return await this.dynamoDbHelper.getMostRecentResource(
+
+                const getMostRescentResourceResponse = await this.dynamoDbHelper.getMostRecentResource(
                     itemToLock.resourceType,
                     itemToLock.id,
                     projectionExpression,
                     tenantId,
                 );
+
+                return {
+                    item: itemToLock,
+                    resource: getMostRescentResourceResponse.resource,
+                };
             } catch (e) {
-                if (isResourceNotFoundError(e) || (isResourceDeletedError(e) && itemToLock.operation === 'update')) {
-                    return e;
+                if (
+                    isResourceNotFoundError(e) ||
+                    (isResourceDeletedError(e) && ['update', 'delete'].indexOf(itemToLock.operation) !== -1)
+                ) {
+                    return {
+                        item: itemToLock,
+                        resource: e,
+                    };
                 }
                 throw e;
             }
@@ -323,7 +344,7 @@ export class DynamoDbBundleService implements Bundle {
 
         const idItemsFailedToRead: string[] = [];
         for (let i = 0; i < itemResponses.length; i += 1) {
-            const itemResponse = itemResponses[i];
+            const itemResponse = itemResponses[i].resource;
             // allow for update as create scenario
             if (
                 isResourceNotFoundError(itemResponse) &&
@@ -339,16 +360,17 @@ export class DynamoDbBundleService implements Bundle {
                 errorMessage: `Failed to find resources: ${idItemsFailedToRead}`,
                 lockedItems: [],
                 recreatedItems,
+                alreadyDeletedItems,
             });
         }
 
         const addLockRequests = [];
         for (let i = 0; i < itemResponses.length; i += 1) {
-            const itemResponse = itemResponses[i];
+            const itemResponse = itemResponses[i].resource;
             if (isResourceNotFoundError(itemResponse)) {
                 // eslint-disable-next-line no-continue
                 continue;
-            } else if (isResourceDeletedError(itemResponse)) {
+            } else if (isResourceDeletedError(itemResponse) && itemResponses[i].item.operation === 'update') {
                 recreatedItems.push({
                     id: itemResponse.id,
                     vid: Number.parseInt(itemResponse.versionId, 10),
@@ -358,9 +380,19 @@ export class DynamoDbBundleService implements Bundle {
                 });
                 // eslint-disable-next-line no-continue
                 continue;
+            } else if (isResourceDeletedError(itemResponse) && itemResponses[i].item.operation === 'delete') {
+                // support idempotent deletes in txs
+                alreadyDeletedItems.push({
+                    id: itemResponse.id,
+                    vid: Number.parseInt(itemResponse.versionId, 10),
+                    resourceType: itemResponse.resourceType,
+                    operation: 'delete',
+                });
+                // eslint-disable-next-line no-continue
+                continue;
             }
 
-            const { resourceType, id, meta } = itemResponse.resource;
+            const { resourceType, id, meta } = itemResponse;
 
             const vid = parseInt(meta.versionId, 10);
 
@@ -409,6 +441,7 @@ export class DynamoDbBundleService implements Bundle {
                 successfulLock: true,
                 lockedItems: itemsLockedSuccessfully,
                 recreatedItems,
+                alreadyDeletedItems,
             });
         } catch (e) {
             logger.error('Failed to lock', e);
@@ -421,6 +454,7 @@ export class DynamoDbBundleService implements Bundle {
                     } seconds.`,
                     lockedItems: itemsLockedSuccessfully,
                     recreatedItems,
+                    alreadyDeletedItems,
                 });
             }
             return Promise.resolve({
@@ -431,6 +465,7 @@ export class DynamoDbBundleService implements Bundle {
                 } seconds.`,
                 lockedItems: itemsLockedSuccessfully,
                 recreatedItems,
+                alreadyDeletedItems,
             });
         }
     }
@@ -661,6 +696,7 @@ export class DynamoDbBundleService implements Bundle {
         requests: BatchReadWriteRequest[],
         lockedItems: ItemRequest[],
         recreatedItems: ItemRequest[],
+        alreadyDeletedItems: ItemRequest[],
         tenantId?: string,
     ) {
         logger.info('Start Staging of Items');
@@ -670,13 +706,31 @@ export class DynamoDbBundleService implements Bundle {
             idToVersionId[idItemLocked.id] = idItemLocked.vid || 0;
         });
 
+        const writeRequests = requests.filter((request) => {
+            return (
+                request.operation !== 'delete' ||
+                !alreadyDeletedItems.some((alreadyDeletedItem) => {
+                    return alreadyDeletedItem.id === request.id;
+                })
+            );
+        });
+
         const { deleteRequests, createRequests, updateRequests, readRequests, newLocks, newStagingResponses } =
-            DynamoDbBundleServiceHelper.generateStagingRequests(requests, idToVersionId, tenantId);
+            DynamoDbBundleServiceHelper.generateStagingRequests(writeRequests, idToVersionId, tenantId);
 
         // Order that Bundle specifies
         // https://www.hl7.org/fhir/http.html#trules
         const editRequests: any[] = [...deleteRequests, ...createRequests, ...updateRequests];
-        let batchReadWriteResponses: BatchReadWriteResponse[] = [];
+        let batchReadWriteResponses: BatchReadWriteResponse[] = alreadyDeletedItems.map((alreadyDeletedItem) => {
+            return {
+                id: alreadyDeletedItem.id,
+                vid: (alreadyDeletedItem.vid || 1).toString(),
+                resourceType: alreadyDeletedItem.resourceType,
+                operation: alreadyDeletedItem.operation,
+                resource: {},
+                lastModified: new Date().toISOString(),
+            };
+        });
         let allLockedItems: ItemRequest[] = lockedItems;
         try {
             if (editRequests.length > 0) {

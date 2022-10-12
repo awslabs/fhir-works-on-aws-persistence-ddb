@@ -122,8 +122,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
         }
         if (
             item.documentStatus === DOCUMENT_STATUS.DELETED &&
-            item?.meta?.tag.length > 0 &&
-            item.meta.tag.some((tag: any) => {
+            item?.meta?.tag?.some((tag: any) => {
                 return tag.system === FWOA_CODESYSTEM_SYSTEM && tag.code === FWOA_CODESYSTEM_DELETE_HISTORY_CODE;
             })
         ) {
@@ -179,70 +178,24 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
 
         const { versionId } = itemServiceResponse.resource.meta;
 
-        // need to insert a DELETE history entry that represents the DELETE itself and not just our documentStatus
-        // vread and future support for _history should look like the following for create,delete,recreates
-        // versionId 1 = POST create|PUT upsert resource instance
-        // versionId 2 = HTTP 410 indicating DELETE operation
-        // versionId 3 = PUT recreate resource instance
-        const updateResourceResponse = await this.updateResource({
-            id,
+        const batchRequest: BatchReadWriteRequest = {
+            operation: 'delete',
             resourceType,
-            resource: {
-                id,
-                resourceType,
-                meta: {
-                    versionId: versionId + 1,
-                    lastUpdated: new Date().toISOString(),
-                    tag: [
-                        {
-                            system: FWOA_CODESYSTEM_SYSTEM,
-                            code: FWOA_CODESYSTEM_DELETE_HISTORY_CODE,
-                            display: 'Internal FWoA code to indicate a DELETE history/vread entry'
-                        },
-                    ],
-                },
-            },
+            id,
+            resource: {},
+        };
+
+        // Sending the request to transaction so we have the creation DELETE history instances
+        // rolled back in case of failure
+        await this.transactionService.transaction({
+            requests: [batchRequest],
+            startTime: new Date(),
             tenantId,
         });
 
-        if (updateResourceResponse.success) {
-            const deleteVersionedResourceResponse = await this.deleteVersionedResource(
-                resourceType,
-                id,
-                parseInt(versionId, 10) + 1,
-                tenantId,
-            );
-            if (!deleteVersionedResourceResponse.success) {
-                // rollback the DELETE history entry
-                await this.dynamoDb
-                    .deleteItem(DynamoDbParamBuilder.buildDeleteParam(id, versionId + 1, tenantId))
-                    .promise();
-            } else {
-                return {
-                    success: deleteVersionedResourceResponse.success,
-                    message: `Successfully deleted ResourceType: ${resourceType}, Id: ${id}, VersionId: ${versionId}`,
-                };
-            }
-        }
-        return {
-            success: false,
-            message: `Failed to create a DELETE versionId for ResourceType: ${resourceType}, Id: ${id}, VersionId: ${versionId}`,
-        };
-    }
-
-    async deleteVersionedResource(resourceType: string, id: string, vid: number, tenantId?: string) {
-        const updateStatusToDeletedParam = DynamoDbParamBuilder.buildUpdateDocumentStatusParam(
-            DOCUMENT_STATUS.AVAILABLE,
-            DOCUMENT_STATUS.DELETED,
-            id,
-            vid,
-            resourceType,
-            tenantId,
-        ).Update;
-        await this.dynamoDb.updateItem(updateStatusToDeletedParam).promise();
         return {
             success: true,
-            message: `Successfully deleted ResourceType: ${resourceType}, Id: ${id}, VersionId: ${vid}`,
+            message: `Successfully deleted ResourceType: ${resourceType}, Id: ${id}, VersionId: ${versionId}`,
         };
     }
 

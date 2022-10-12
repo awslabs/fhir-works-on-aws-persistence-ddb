@@ -56,11 +56,12 @@ export default class DynamoDbHelper {
         projectionExpression?: string,
         tenantId?: string,
     ): Promise<GenericResponse> {
-        if (projectionExpression !== undefined && projectionExpression.indexOf('documentStatus') === -1){
+        let computedProjection = projectionExpression;
+        if (computedProjection !== undefined && computedProjection.indexOf('documentStatus') === -1) {
             // need documentStatus so we can check DELETED state
-            projectionExpression = `${projectionExpression}, documentStatus`
+            computedProjection = `${computedProjection}, documentStatus`;
         }
-        let item = (await this.getMostRecentResources(resourceType, id, 1, projectionExpression, tenantId))[0];
+        let item = (await this.getMostRecentResources(resourceType, id, 1, computedProjection, tenantId))[0];
         if (item.documentStatus === DOCUMENT_STATUS.DELETED) {
             throw new ResourceDeletedError(resourceType, id, (item.meta as any).versionId as string);
         }

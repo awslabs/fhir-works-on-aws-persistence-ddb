@@ -15,7 +15,7 @@ import { buildHashKey, DOCUMENT_STATUS_FIELD, DynamoDbUtil } from './dynamoDbUti
 import DOCUMENT_STATUS from './documentStatus';
 import { DynamoDBConverter, RESOURCE_TABLE } from './dynamoDb';
 import DynamoDbParamBuilder from './dynamoDbParamBuilder';
-import { MAX_BATCH_WRITE_ITEMS } from '../constants';
+import { MAX_BATCH_WRITE_ITEMS, FWOA_CODESYSTEM_SYSTEM, FWOA_CODESYSTEM_DELETE_HISTORY_CODE } from '../constants';
 import DynamoDbHelper from './dynamoDbHelper';
 
 export interface ItemRequest {
@@ -104,6 +104,46 @@ export default class DynamoDbBundleServiceHelper {
                     // Mark documentStatus as PENDING_DELETE
                     const { id, resourceType } = request;
                     const vid = idToVersionId[id];
+
+                    // need to insert a DELETE history entry that represents the DELETE itself and not just our documentStatus
+                    // vread and future support for _history should look like the following for create,delete,recreates
+                    // versionId 1 = POST create|PUT upsert resource instance
+                    // versionId 2 = HTTP 410 indicating DELETE operation
+                    // versionId 3 = PUT recreate resource instance
+                    const deleteVid = vid + 1;
+                    const Item = DynamoDbUtil.prepItemForDdbInsert(
+                        {
+                            id,
+                            resourceType,
+                            meta: {
+                                versionId: deleteVid,
+                                lastUpdated: new Date().toISOString(),
+                                tag: [
+                                    {
+                                        system: FWOA_CODESYSTEM_SYSTEM,
+                                        code: FWOA_CODESYSTEM_DELETE_HISTORY_CODE,
+                                        display: 'Internal FWoA code to indicate a DELETE history/vread entry',
+                                    },
+                                ],
+                            },
+                        },
+                        id,
+                        deleteVid,
+                        DOCUMENT_STATUS.PENDING_DELETE,
+                        tenantId,
+                    );
+
+                    updateRequests.push({
+                        Put: {
+                            TableName: RESOURCE_TABLE,
+                            Item: DynamoDBConverter.marshall(Item),
+                        },
+                    });
+
+                    const { itemLocked } = this.addStagingResponseAndItemsLocked(request.operation, Item);
+                    itemLocked.isOriginalUpdateItem = true;
+                    newLocks = newLocks.concat(itemLocked);
+
                     deleteRequests.push(
                         DynamoDbParamBuilder.buildUpdateDocumentStatusParam(
                             DOCUMENT_STATUS.LOCKED,
@@ -185,8 +225,23 @@ export default class DynamoDbBundleServiceHelper {
                     itemsToRemoveFromLock = itemsToRemoveFromLock.concat(itemToRemoveFromLock);
                     break;
                 }
+                case 'delete': {
+                    /* DELETE the _history DELETE record entered
+                       and remove PENDING_DELETE from existing record
+                    */
+                    const { transactionRequest, itemToRemoveFromLock } =
+                        this.generateDeleteLatestRecordAndItemToRemoveFromLock(
+                            stagingResponse.resourceType,
+                            stagingResponse.id,
+                            (Number.parseInt(stagingResponse.vid, 10) + 1).toString(),
+                            tenantId,
+                        );
+                    transactionRequests = transactionRequests.concat(transactionRequest);
+                    itemsToRemoveFromLock = itemsToRemoveFromLock.concat(itemToRemoveFromLock);
+                    break;
+                }
                 default: {
-                    // For READ and DELETE we don't need to delete anything, because no new records were made for those
+                    // For READ we don't need to delete anything, because no new records were made for those
                     // requests
                     break;
                 }

@@ -75,11 +75,11 @@ describe('generateStagingRequests', () => {
             GenerateStagingRequestsFactory.getDelete().idToVersionId,
         );
         const expectedResult: any = {
-            deleteRequests: [GenerateStagingRequestsFactory.getDelete().expectedRequest],
+            deleteRequests: [GenerateStagingRequestsFactory.getDelete().expectedRequest[0]],
             createRequests: [],
-            updateRequests: [],
+            updateRequests: [GenerateStagingRequestsFactory.getDelete().expectedRequest[1]],
             readRequests: [],
-            newLocks: [],
+            newLocks: GenerateStagingRequestsFactory.getDelete().expectedLock,
             newStagingResponses: [GenerateStagingRequestsFactory.getDelete().expectedStagingResponse],
         };
 
@@ -105,11 +105,12 @@ describe('generateStagingRequests', () => {
         const expectedResult = {
             createRequests: [GenerateStagingRequestsFactory.getCreate().expectedRequest],
             readRequests: [GenerateStagingRequestsFactory.getRead().expectedRequest],
-            updateRequests: [GenerateStagingRequestsFactory.getUpdate().expectedRequest],
-            deleteRequests: [GenerateStagingRequestsFactory.getDelete().expectedRequest],
+            updateRequests: [GenerateStagingRequestsFactory.getUpdate().expectedRequest, GenerateStagingRequestsFactory.getDelete().expectedRequest[1]],
+            deleteRequests: [GenerateStagingRequestsFactory.getDelete().expectedRequest[0]],
             newLocks: [
                 GenerateStagingRequestsFactory.getCreate().expectedLock,
                 GenerateStagingRequestsFactory.getUpdate().expectedLock,
+                GenerateStagingRequestsFactory.getDelete().expectedLock[0]
             ],
             newStagingResponses: [
                 GenerateStagingRequestsFactory.getCreate().expectedStagingResponse,

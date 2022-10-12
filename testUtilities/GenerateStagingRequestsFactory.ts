@@ -11,6 +11,7 @@ import DOCUMENT_STATUS from '../src/dataServices/documentStatus';
 import { timeFromEpochInMsRegExp, utcTimeRegExp, uuidRegExp } from './regExpressions';
 import DynamoDbParamBuilder from '../src/dataServices/dynamoDbParamBuilder';
 import { ItemRequest } from '../src/dataServices/dynamoDbBundleServiceHelper';
+import { FWOA_CODESYSTEM_SYSTEM, FWOA_CODESYSTEM_DELETE_HISTORY_CODE } from '../src/constants';
 
 interface RequestResult {
     request: any;
@@ -211,7 +212,9 @@ export default class GenerateStagingRequestsFactory {
         };
 
         const vid = 1;
-        const expectedRequest = DynamoDbParamBuilder.buildUpdateDocumentStatusParam(
+        const nextVid = 2;
+        const expectedRequest: any[] = [];
+        const deleteRequest = DynamoDbParamBuilder.buildUpdateDocumentStatusParam(
             DOCUMENT_STATUS.LOCKED,
             DOCUMENT_STATUS.PENDING_DELETE,
             id,
@@ -219,12 +222,43 @@ export default class GenerateStagingRequestsFactory {
             resourceType,
         );
 
-        expectedRequest.Update.ExpressionAttributeValues[':currentTs'].N =
+        deleteRequest.Update.ExpressionAttributeValues[':currentTs'].N =
             expect.stringMatching(timeFromEpochInMsRegExp);
-        expectedRequest.Update.ExpressionAttributeValues[':futureEndTs'].N =
+        deleteRequest.Update.ExpressionAttributeValues[':futureEndTs'].N =
             expect.stringMatching(timeFromEpochInMsRegExp);
+        expectedRequest.push(deleteRequest);
 
-        const expectedLock: [] = [];
+        const expectedUpdateItem: any = {
+            Put: {
+                TableName: '',
+                Item: DynamoDBConverter.marshall({
+                    _references: [],
+                    documentStatus: DOCUMENT_STATUS.PENDING_DELETE,
+                    id,
+                    meta: {
+                        lastUpdated: new Date().toISOString(),
+                        versionId: nextVid.toString(),
+                        tag: [{
+                            code: FWOA_CODESYSTEM_DELETE_HISTORY_CODE,
+                            system: FWOA_CODESYSTEM_SYSTEM,
+                        }]
+                    },
+                    resourceType: 'Patient',
+                    vid: nextVid
+                }),
+            },
+        };
+        expectedUpdateItem.Put.Item.meta.M.lastUpdated.S = 
+            expect.stringMatching(utcTimeRegExp);
+        expectedRequest.push(expectedUpdateItem);
+
+        const expectedLock: any[] = [{
+            id,
+            isOriginalUpdateItem: true,
+            operation: "delete",
+            resourceType,
+            vid: nextVid,
+        }];
 
         const expectedStagingResponse: BatchReadWriteResponse = {
             id,

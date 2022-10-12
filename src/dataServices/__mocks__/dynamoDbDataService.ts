@@ -79,17 +79,6 @@ const DynamoDbDataService: Persistence = class {
         };
     }
 
-    static async deleteVersionedResource(
-        resourceType: string,
-        id: string,
-        versionId: string,
-    ): Promise<GenericResponse> {
-        return {
-            message: `Successfully deleted ResourceType: ${resourceType}, Id: ${id}, VersionId: ${versionId}`,
-            resource: { count: 1 },
-        };
-    }
-
     static conditionalCreateResource(request: CreateResourceRequest, queryParams: any): Promise<GenericResponse> {
         throw new Error('Method not implemented.');
     }

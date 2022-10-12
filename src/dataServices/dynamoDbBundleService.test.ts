@@ -821,6 +821,7 @@ describe('atomicallyReadWriteResources', () => {
                 expect(actualResponse).toStrictEqual({
                     lockedItems: [],
                     recreatedItems: [],
+                    alreadyDeletedItems: [],
                     successfulLock: true,
                 });
             } else {
@@ -829,6 +830,7 @@ describe('atomicallyReadWriteResources', () => {
                     errorType: 'USER_ERROR',
                     lockedItems: [],
                     recreatedItems: [],
+                    alreadyDeletedItems: [],
                     successfulLock: false,
                 });
             }

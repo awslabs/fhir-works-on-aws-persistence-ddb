@@ -66,8 +66,21 @@ export default class GenerateRollbackRequestsFactory {
                     },
                 ],
             };
-        } else if (operation === 'read' || operation === 'delete') {
+        } else if (operation === 'read') {
             expectedResult = { transactionRequests: [], itemsToRemoveFromLock: [] };
+        } else if (operation === 'delete'){
+            expectedResult = {
+                transactionRequests: [
+                    DynamoDbParamBuilder.buildDeleteParam(id, parseInt(vid, 10)+1)
+                ],
+                itemsToRemoveFromLock: [
+                    {
+                        id,
+                        vid: (parseInt(vid, 10)+1).toString(),
+                        resourceType,
+                    },
+                ]
+            };
         }
         return expectedResult;
     }
