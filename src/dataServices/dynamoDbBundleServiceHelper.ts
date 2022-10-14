@@ -228,7 +228,7 @@ export default class DynamoDbBundleServiceHelper {
                 }
                 case 'delete': {
                     /* DELETE the _history DELETE record entered
-                       and remove PENDING_DELETE from existing record
+                       and update PENDING_DELETE to AVAILABLE
                     */
                     const { transactionRequest, itemToRemoveFromLock } =
                         this.generateDeleteLatestRecordAndItemToRemoveFromLock(

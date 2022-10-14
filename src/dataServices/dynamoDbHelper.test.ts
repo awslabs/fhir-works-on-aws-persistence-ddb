@@ -92,7 +92,7 @@ describe('getMostRecentResource', () => {
 
         const ddbHelper = new DynamoDbHelper(new AWS.DynamoDB());
         await expect(ddbHelper.getMostRecentResource(resourceType, id)).rejects.toThrowError(
-            new ResourceNotFoundError(resourceType, id),
+            new ResourceDeletedError(resourceType, id, clonedV2Resource.vid),
         );
     });
 });

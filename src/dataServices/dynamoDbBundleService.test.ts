@@ -7,6 +7,7 @@
 import * as AWSMock from 'aws-sdk-mock';
 
 import { QueryInput, TransactWriteItemsInput, TransactWriteItem } from 'aws-sdk/clients/dynamodb';
+import { has, range } from 'lodash';
 // @ts-ignore
 import AWS from 'aws-sdk';
 import {
@@ -14,13 +15,15 @@ import {
     BatchReadWriteRequest,
     TypeOperation,
     ResourceNotFoundError,
+    ResourceDeletedError,
 } from 'fhir-works-on-aws-interface';
-import { range } from 'lodash';
 import { DynamoDbBundleService } from './dynamoDbBundleService';
 import { DynamoDBConverter } from './dynamoDb';
 import { timeFromEpochInMsRegExp, utcTimeRegExp, uuidRegExp } from '../../testUtilities/regExpressions';
 import DynamoDbHelper from './dynamoDbHelper';
 import { DOCUMENT_STATUS_FIELD, LOCK_END_TS_FIELD, REFERENCES_FIELD, VID_FIELD } from './dynamoDbUtil';
+import DOCUMENT_STATUS from './documentStatus';
+import { FWOA_CODESYSTEM_SYSTEM, FWOA_CODESYSTEM_DELETE_HISTORY_CODE } from '../constants';
 // eslint-disable-next-line import/order
 import sinon = require('sinon');
 
@@ -796,6 +799,216 @@ describe('atomicallyReadWriteResources', () => {
 
             // check the response adds up
             expect(actualResponse.success).toBeTruthy();
+        });
+
+        test('DELETE a resource', async () => {
+            // BUILD
+            const resourceType = 'Patient';
+            const oldVid = 1;
+            const newVid = oldVid + 1;
+
+            // read old version (SUCCESS)
+            const getMostRecentResourceSpy = sinon.stub(DynamoDbHelper.prototype, 'getMostRecentResource').returns(
+                Promise.resolve({
+                    message: 'Resource found',
+                    resource: {
+                        id,
+                        resourceType,
+                        name: [
+                            {
+                                family: 'Jameson',
+                                given: ['Matt'],
+                            },
+                        ],
+                        meta: { versionId: oldVid.toString(), lastUpdated: new Date().toISOString() },
+                    },
+                }),
+            );
+
+            // writes for documentStatus and new _history DELETED resource instance (SUCCESS)
+            const transactWriteItemStub = sinon.stub().yields(null, {});
+            AWSMock.mock('DynamoDB', 'transactWriteItems', transactWriteItemStub);
+
+            const dynamoDb = new AWS.DynamoDB();
+            const transactionService = new DynamoDbBundleService(dynamoDb, false, undefined, {});
+
+            const deleteRequest: BatchReadWriteRequest = {
+                operation: 'delete',
+                resourceType,
+                id,
+                resource: {},
+            };
+
+            // OPERATE
+            const actualResponse = await transactionService.transaction({
+                requests: [deleteRequest],
+                startTime: new Date(),
+            });
+
+            // CHECK
+
+            expect(getMostRecentResourceSpy.called).toBeTruthy();
+            expect(transactWriteItemStub.callCount).toBe(3);
+
+            /** * assert _history resource created w/documentStatus = DELETED ** */
+
+            // assert stage creates new _history resource instance w/documentStatus to PENDING_DELETE
+            const putHistoryDelete = transactWriteItemStub.getCall(1).args[0].TransactItems.find((i: any) => {
+                return has(i, 'Put');
+            }).Put;
+            expect(putHistoryDelete).not.toBeUndefined();
+            expect(putHistoryDelete.Item.id.S).toEqual(id);
+            expect(putHistoryDelete.Item.vid.N).toEqual(newVid.toString());
+            expect(putHistoryDelete.Item.documentStatus.S).toEqual(DOCUMENT_STATUS.PENDING_DELETE);
+            expect(putHistoryDelete.Item.meta.M.tag.L.length).toBe(1);
+            expect(putHistoryDelete.Item.meta.M.tag.L[0].M.system.S).toBe(FWOA_CODESYSTEM_SYSTEM);
+            expect(putHistoryDelete.Item.meta.M.tag.L[0].M.code.S).toBe(FWOA_CODESYSTEM_DELETE_HISTORY_CODE);
+
+            // assert unlock updates _history resource instance w/documentStatus DELETED
+            const updateHistoryDelete = transactWriteItemStub.getCall(2).args[0].TransactItems.find((i: any) => {
+                return i.Update.Key.vid.N === newVid.toString();
+            }).Update;
+            expect(updateHistoryDelete).not.toBeUndefined();
+            expect(updateHistoryDelete.Key.id.S).toEqual(id);
+            expect(updateHistoryDelete.ExpressionAttributeValues[':newStatus'].S).toEqual(DOCUMENT_STATUS.DELETED);
+
+            /** * assert old resource is updated w/documentStatus = DELETED ** */
+
+            // assert lock updates documentStatus to LOCKED
+            const updateOldLock = transactWriteItemStub.getCall(0).args[0].TransactItems[0].Update;
+            expect(updateOldLock.Key.id.S).toEqual(id);
+            expect(updateOldLock.Key.vid.N).toEqual(oldVid.toString());
+            expect(updateOldLock.ExpressionAttributeValues[':newStatus'].S).toEqual(DOCUMENT_STATUS.LOCKED);
+
+            // assert stage updates documentStatus to PENDING_DELETE
+            const updateOldPending = transactWriteItemStub.getCall(1).args[0].TransactItems.find((i: any) => {
+                return has(i, 'Update');
+            }).Update;
+            expect(updateOldPending).not.toBeUndefined();
+            expect(updateOldPending.Key.id.S).toBe(id);
+            expect(updateOldPending.Key.vid.N).toBe(oldVid.toString());
+            expect(updateOldPending.ExpressionAttributeValues[':newStatus'].S).toBe(DOCUMENT_STATUS.PENDING_DELETE);
+
+            // assert unlock updates documentStatus to DELETED
+            const updateOldDelete = transactWriteItemStub.getCall(2).args[0].TransactItems.find((i: any) => {
+                return i.Update.Key.vid.N === oldVid.toString();
+            }).Update;
+            expect(updateOldDelete).not.toBeUndefined();
+            expect(updateOldDelete.Key.id.S).toEqual(id);
+            expect(updateOldDelete.ExpressionAttributeValues[':newStatus'].S).toEqual(DOCUMENT_STATUS.DELETED);
+
+            /** * assert response is success ** */
+            expect(actualResponse.success).toBeTruthy();
+            expect(actualResponse.batchReadWriteResponses.length).toEqual(1);
+            expect(actualResponse.batchReadWriteResponses[0].id).toEqual(id);
+            expect(actualResponse.batchReadWriteResponses[0].vid).toEqual(oldVid.toString());
+        });
+
+        test('DELETE an already DELETED resource idempotent', async () => {
+            // BUILD
+            const resourceType = 'Patient';
+            const oldVid = 1;
+
+            // read old version (SUCCESS)
+            const getMostRecentResourceSpy = sinon
+                .stub(DynamoDbHelper.prototype, 'getMostRecentResource')
+                .rejects(new ResourceDeletedError(resourceType, id, oldVid.toString()));
+
+            // writes for documentStatus and new _history DELETED resource instance (SUCCESS)
+            const transactWriteItemStub = sinon.stub().yields(null, {});
+            AWSMock.mock('DynamoDB', 'transactWriteItems', transactWriteItemStub);
+
+            const dynamoDb = new AWS.DynamoDB();
+            const transactionService = new DynamoDbBundleService(dynamoDb, false, undefined, {});
+
+            const deleteRequest: BatchReadWriteRequest = {
+                operation: 'delete',
+                resourceType,
+                id,
+                resource: {},
+            };
+
+            // OPERATE
+            const actualResponse = await transactionService.transaction({
+                requests: [deleteRequest],
+                startTime: new Date(),
+            });
+
+            // CHECK
+
+            expect(getMostRecentResourceSpy.called).toBeTruthy();
+            expect(transactWriteItemStub.called).toBeFalsy();
+
+            /** * assert response is success ** */
+            expect(actualResponse.success).toBeTruthy();
+            expect(actualResponse.batchReadWriteResponses.length).toEqual(1);
+            expect(actualResponse.batchReadWriteResponses[0].id).toEqual(id);
+            expect(actualResponse.batchReadWriteResponses[0].vid).toEqual(oldVid.toString());
+        });
+
+        test.only('recreate a DELETED resource', async () => {
+            // BUILD
+            const resourceType = 'Patient';
+            const oldVid = 1;
+            const newVid = oldVid + 1;
+
+            // read old version (SUCCESS)
+            const getMostRecentResourceSpy = sinon
+                .stub(DynamoDbHelper.prototype, 'getMostRecentResource')
+                .rejects(new ResourceDeletedError(resourceType, id, oldVid.toString()));
+
+            // writes for documentStatus and new _history DELETED resource instance (SUCCESS)
+            const transactWriteItemStub = sinon.stub().yields(null, {});
+            AWSMock.mock('DynamoDB', 'transactWriteItems', transactWriteItemStub);
+
+            const dynamoDb = new AWS.DynamoDB();
+            const transactionService = new DynamoDbBundleService(dynamoDb, false, undefined, {});
+
+            const updateRequest: BatchReadWriteRequest = {
+                operation: 'update',
+                resourceType,
+                id,
+                resource: {
+                    id,
+                    resourceType,
+                    name: [
+                        {
+                            family: 'Jameson',
+                            given: ['Matt'],
+                        },
+                    ],
+                    meta: { lastUpdated: new Date().toISOString() },
+                },
+            };
+
+            // OPERATE
+            const actualResponse = await transactionService.transaction({
+                requests: [updateRequest],
+                startTime: new Date(),
+            });
+
+            // CHECK
+
+            expect(getMostRecentResourceSpy.called).toBeTruthy();
+            expect(transactWriteItemStub.callCount).toBe(2);
+
+            /** * assert stage has put w/documentStatus PENDING ** */
+            const putNewResource = transactWriteItemStub.getCall(0).args[0].TransactItems[0].Put;
+            expect(putNewResource.Item.id.S).toBe(id);
+            expect(putNewResource.Item.vid.N).toBe(newVid.toString());
+            expect(putNewResource.Item.documentStatus.S).toBe(DOCUMENT_STATUS.PENDING);
+
+            /** * assert unlock has update w/documentStatus AVAILABLE ** */
+            const updateNewResource = transactWriteItemStub.getCall(1).args[0].TransactItems[0].Update;
+            expect(updateNewResource.Key.id.S).toBe(id);
+            expect(updateNewResource.Key.vid.N).toBe(newVid.toString());
+            expect(updateNewResource.ExpressionAttributeValues[':newStatus'].S).toBe(DOCUMENT_STATUS.AVAILABLE);
+
+            /** * assert response is success ** */
+            expect(actualResponse.success).toBeTruthy();
+            expect(actualResponse.batchReadWriteResponses.length).toEqual(1);
+            expect(actualResponse.batchReadWriteResponses[0].id).toEqual(id);
+            expect(actualResponse.batchReadWriteResponses[0].vid).toEqual(newVid.toString());
         });
     });
 

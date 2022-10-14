@@ -15,8 +15,6 @@ import {
 } from 'aws-sdk/clients/dynamodb';
 import AWS from 'aws-sdk';
 import isEqual from 'lodash/isEqual';
-import { FWOA_CODESYSTEM_SYSTEM, FWOA_CODESYSTEM_DELETE_HISTORY_CODE } from '../constants';
-// eslint-disable-next-line import/no-extraneous-dependencies
 import {
     BundleResponse,
     InitiateExportRequest,
@@ -31,6 +29,8 @@ import {
 } from 'fhir-works-on-aws-interface';
 import { TooManyConcurrentExportRequestsError } from 'fhir-works-on-aws-interface/lib/errors/TooManyConcurrentExportRequestsError';
 import each from 'jest-each';
+import { FWOA_CODESYSTEM_SYSTEM, FWOA_CODESYSTEM_DELETE_HISTORY_CODE } from '../constants';
+// eslint-disable-next-line import/no-extraneous-dependencies
 import { utcTimeRegExp, uuidRegExp } from '../../testUtilities/regExpressions';
 import { DynamoDbBundleService } from './dynamoDbBundleService';
 import { DynamoDbDataService } from './dynamoDbDataService';
@@ -218,7 +218,7 @@ describe('READ', () => {
         expect(serviceResponse.resource).toStrictEqual(expectedResource);
     });
 
-    test('ERROR: Get Deleted Versioned Resource', async ()=>{
+    test('ERROR: Get Deleted Versioned Resource', async () => {
         // BUILD
         const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
         const vid = '5';
@@ -281,19 +281,21 @@ describe('READ', () => {
 
         // READ items (Success)
         AWSMock.mock('DynamoDB', 'getItem', (params: GetItemInput, callback: Function) => {
-            callback(null, { 
-                Item: DynamoDBConverter.marshall({ 
+            callback(null, {
+                Item: DynamoDBConverter.marshall({
                     id,
                     vid,
                     resourceType,
                     documentStatus: 'DELETED',
                     meta: {
-                        tag: [{
-                            code: FWOA_CODESYSTEM_DELETE_HISTORY_CODE,
-                            system: FWOA_CODESYSTEM_SYSTEM
-                        }]
-                    }
-                }) 
+                        tag: [
+                            {
+                                code: FWOA_CODESYSTEM_DELETE_HISTORY_CODE,
+                                system: FWOA_CODESYSTEM_SYSTEM,
+                            },
+                        ],
+                    },
+                }),
             });
         });
 
@@ -540,7 +542,7 @@ describe('UPDATE', () => {
         }
     });
 
-    test('SUCCESS: Recreate DELETED resource instance', async () =>{
+    test('SUCCESS: Recreate DELETED resource instance', async () => {
         // BUILD
         const id = 'e264efb1-147e-43ac-92ea-a050bc236ff3';
         const resourceType = 'Patient';
@@ -557,8 +559,9 @@ describe('UPDATE', () => {
         sinon
             .stub(DynamoDbHelper.prototype, 'getMostRecentUserReadableResource')
             .rejects(new ResourceDeletedError(resourceType, id, '1'));
-        
-        sinon.stub(DynamoDbHelper.prototype, 'getMostRecentResource')
+
+        sinon
+            .stub(DynamoDbHelper.prototype, 'getMostRecentResource')
             .rejects(new ResourceDeletedError(resourceType, id, '1'));
 
         AWSMock.mock('DynamoDB', 'putItem', (params: PutItemInput, callback: Function) => {
@@ -650,7 +653,7 @@ describe('DELETE', () => {
         );
     });
 
-    test('Already deleted item throws ResourceDeletedError', async () =>{
+    test('Already deleted item throws ResourceDeletedError', async () => {
         // BUILD
         const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
         const vid = '5';
