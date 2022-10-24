@@ -112,22 +112,24 @@ export default class DynamoDbBundleServiceHelper {
                     // versionId 2 = HTTP 410 indicating DELETE operation
                     // versionId 3 = PUT recreate resource instance
                     const deleteVid = vid + 1;
-                    const Item = DynamoDbUtil.prepItemForDdbInsert(
-                        {
-                            id,
-                            resourceType,
-                            meta: {
-                                versionId: deleteVid,
-                                lastUpdated: new Date().toISOString(),
-                                tag: [
-                                    {
-                                        system: FWOA_CODESYSTEM_SYSTEM,
-                                        code: FWOA_CODESYSTEM_DELETE_HISTORY_CODE,
-                                        display: 'Internal FWoA code to indicate a DELETE history/vread entry',
-                                    },
-                                ],
-                            },
+                    const deletedResource = {
+                        id,
+                        resourceType,
+                        meta: {
+                            versionId: deleteVid,
+                            lastUpdated: new Date().toISOString(),
+                            tag: [
+                                {
+                                    system: FWOA_CODESYSTEM_SYSTEM,
+                                    code: FWOA_CODESYSTEM_DELETE_HISTORY_CODE,
+                                    display: 'Internal FWoA code to indicate a DELETE history/vread entry',
+                                },
+                            ],
                         },
+                    };
+
+                    const Item = DynamoDbUtil.prepItemForDdbInsert(
+                        deletedResource,
                         id,
                         deleteVid,
                         DOCUMENT_STATUS.PENDING_DELETE,
@@ -141,7 +143,10 @@ export default class DynamoDbBundleServiceHelper {
                         },
                     });
 
-                    const { itemLocked } = this.addStagingResponseAndItemsLocked(request.operation, Item);
+                    const { itemLocked } = this.addStagingResponseAndItemsLocked(request.operation, {
+                        ...deletedResource,
+                        meta: { ...Item.meta },
+                    });
                     itemLocked.isOriginalUpdateItem = true;
                     newLocks = newLocks.concat(itemLocked);
 

@@ -946,7 +946,7 @@ describe('atomicallyReadWriteResources', () => {
             expect(actualResponse.batchReadWriteResponses[0].vid).toEqual(oldVid.toString());
         });
 
-        test.only('recreate a DELETED resource', async () => {
+        test('recreate a DELETED resource', async () => {
             // BUILD
             const resourceType = 'Patient';
             const oldVid = 1;

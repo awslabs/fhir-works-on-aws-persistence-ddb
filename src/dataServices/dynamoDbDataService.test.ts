@@ -653,6 +653,69 @@ describe('DELETE', () => {
         );
     });
 
+    test('Successfully delete resource w/multitenancy', async () => {
+        // BUILD
+        const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
+        const resourceType = 'Patient';
+        const vid = 1;
+        const tenantId = '87a96584-73ed-4b26-9c94-6813ea9956cb';
+        const resource = {
+            id,
+            vid,
+            resourceType,
+            name: [
+                {
+                    family: 'Jameson',
+                    given: ['Matt'],
+                },
+            ],
+            meta: { versionId: vid.toString(), lastUpdated: new Date().toISOString() },
+        };
+
+        // READ items (Success)
+        AWSMock.mock('DynamoDB', 'query', (params: QueryInput, callback: Function) => {
+            callback(null, {
+                Items: [DynamoDBConverter.marshall(resource)],
+            });
+        });
+
+        // UPDATE (delete) item (Success)
+        AWSMock.mock('DynamoDB', 'updateItem', (params: UpdateItemInput, callback: Function) => {
+            callback(null, {
+                Items: [DynamoDBConverter.marshall(resource)],
+            });
+        });
+
+        // LOCK items (Success)
+        const transactWriteItemsStub = sinon.stub().yields(null, {});
+        AWSMock.mock('DynamoDB', 'transactWriteItems', transactWriteItemsStub);
+
+        sinon
+            .stub(DynamoDbHelper.prototype, 'getMostRecentUserReadableResource')
+            .returns(Promise.resolve({ message: 'Resource found', resource }));
+
+        sinon
+            .stub(DynamoDbHelper.prototype, 'getMostRecentResource')
+            .returns(Promise.resolve({ message: 'Resource found', resource }));
+
+        const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB(), false, { enableMultiTenancy: true });
+
+        // OPERATE
+        const serviceResponse = await dynamoDbDataService.deleteResource({
+            resourceType,
+            id,
+            tenantId,
+        });
+
+        // CHECK
+        expect(serviceResponse.success).toEqual(true);
+        expect(serviceResponse.message).toEqual(
+            `Successfully deleted ResourceType: ${resourceType}, Id: ${id}, VersionId: ${vid}`,
+        );
+
+        expect(transactWriteItemsStub.getCall(2).args[0].TransactItems[1].Update.Key.id.S).toEqual(`${tenantId}|${id}`);
+    });
+
     test('Already deleted item throws ResourceDeletedError', async () => {
         // BUILD
         const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
