@@ -748,6 +748,25 @@ export class DynamoDbBundleService implements Bundle {
             allLockedItems = lockedItems.concat(newLocks);
             batchReadWriteResponses = batchReadWriteResponses.concat(newStagingResponses);
 
+            // indicate if the write was a recreate
+            for (let i = 0; i < batchReadWriteResponses.length; i += 1) {
+                const batchReadWriteResponse = batchReadWriteResponses[i];
+                if (batchReadWriteResponse.operation === 'update') {
+                    const recreated = recreatedItems.some((recreatedItem) => {
+                        return (
+                            batchReadWriteResponse.id === recreatedItem.id &&
+                            recreatedItem.vid !== undefined &&
+                            recreatedItem.vid !== null &&
+                            // +1 because recreated is the DELETE entry & the write is the created
+                            batchReadWriteResponse.vid === (recreatedItem.vid + 1).toString()
+                        );
+                    });
+                    if (recreated) {
+                        batchReadWriteResponse.recreate = true;
+                    }
+                }
+            }
+
             if (readRequests.length > 0) {
                 const readChunkRequests = chunk(readRequests, this.MAX_TRANSACTION_SIZE).map((items) => {
                     // @ts-ignore

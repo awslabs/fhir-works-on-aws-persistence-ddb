@@ -234,6 +234,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
             success: true,
             message: 'Resource updated',
             resource: resourceClone,
+            recreate: batchReadWriteEntryResponse.recreate,
         };
     }
 
