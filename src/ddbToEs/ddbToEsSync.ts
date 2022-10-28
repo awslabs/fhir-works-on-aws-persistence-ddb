@@ -69,6 +69,7 @@ export class DdbToEsSync {
         try {
             const idToCommand: Record<string, ESBulkCommand> = {};
             const aliasesToCreate: { alias: string; index: string }[] = [];
+            const lastUpdatedDates: string[] = [];
 
             for (let i = 0; i < event.Records.length; i += 1) {
                 const record = event.Records[i];
@@ -100,6 +101,11 @@ export class DdbToEsSync {
                     // Meaning the last record in the event stream is the "newest"
                     idToCommand[cmd.id] = cmd;
                 }
+
+                // add the lastUpdated time for e2e timings
+                if (image?.meta?.lastUpdated !== undefined) {
+                    lastUpdatedDates.push(image.meta.lastUpdated);
+                }
             }
             if (!this.disableIndexAndAliasCreation) {
                 await this.ddbToEsHelper.createIndexAndAliasIfNotExist(aliasesToCreate);
@@ -107,6 +113,11 @@ export class DdbToEsSync {
                 aliasesToCreate.forEach((alias) => this.knownAliases.add(alias.alias));
             }
             await this.ddbToEsHelper.executeEsCmds(Object.values(idToCommand));
+
+            // write e2e timings so we can track ES indexing responsiveness
+            if (lastUpdatedDates.length > 0) {
+                await DdbToEsHelper.logEndToEndTimes(lastUpdatedDates);
+            }
         } catch (e) {
             logger.error(
                 'Synchronization failed! The resources that could be effected are: ',

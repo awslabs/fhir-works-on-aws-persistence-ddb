@@ -329,6 +329,11 @@
     enabled "2.0.x"
     kuler "^2.0.0"
 
+"@datastructures-js/heap@^4.0.2":
+  version "4.1.2"
+  resolved "https://registry.yarnpkg.com/@datastructures-js/heap/-/heap-4.1.2.tgz#85a525f5715d89f22ca3b6e5a88b444f8a4f07d7"
+  integrity sha512-Dl6MPPVXxzWsSQxIaV0sOpAx/B8r7RYUO5/GWe7GhG9v9P4QfZ1cgPSq+SoF0QJFhu9G9TmtPfRLHPWzL73GpQ==
+
 "@elastic/elasticsearch-mock@^0.3.0":
   version "0.3.1"
   resolved "https://registry.yarnpkg.com/@elastic/elasticsearch-mock/-/elasticsearch-mock-0.3.1.tgz#b84ab7034462d011378383b7460214b43270c669"
@@ -868,6 +873,11 @@
   resolved "https://registry.yarnpkg.com/@types/uuid/-/uuid-3.4.10.tgz#637d3c8431f112edf6728ac9bdfadfe029540f48"
   integrity sha512-BgeaZuElf7DEYZhWYDTc/XcLZXdVgFkVSTa13BqKvbnmUrxr3TJFKofUxCtDO9UQOdhnV+HPOESdHiHKZOJV1A==
 
+"@types/validator@^13.7.6":
+  version "13.7.9"
+  resolved "https://registry.yarnpkg.com/@types/validator/-/validator-13.7.9.tgz#9b1d1c534574c89176f770f1c7b95f808cae2c1e"
+  integrity sha512-y5KJ1PjGXPpU4CZ7lThDu31s+FqvzhqwMOR6Go/x6xaQMFjgzwfzfOvCwABsylr/5n8sB1qFQm1Vi7TaCB8P+A==
+
 "@types/yargs-parser@*":
   version "20.2.1"
   resolved "https://registry.yarnpkg.com/@types/yargs-parser/-/yargs-parser-20.2.1.tgz#3b9ce2489919d9e4fea439b76916abc34b2df129"
@@ -1187,6 +1197,15 @@ aws-elasticsearch-connector@^8.2.0:
   dependencies:
     aws4 "^1.10.0"
     lodash.get "^4.4.2"
+
+aws-embedded-metrics@^4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/aws-embedded-metrics/-/aws-embedded-metrics-4.0.0.tgz#b3cf0cadbd3b08eadab28e9dd4fe798cf089e300"
+  integrity sha512-Bh5A439399uLT1Bed/uvPRc/zdyDg49n8lR6AKCUbb4lSl8t73FksRTsaJOCrnpb13/xhcPbMRYXayeD/oGbhg==
+  dependencies:
+    "@datastructures-js/heap" "^4.0.2"
+    "@types/validator" "^13.7.6"
+    validator "^13.7.0"
 
 aws-sdk-mock@^5.1.0:
   version "5.4.0"
@@ -5841,6 +5860,11 @@ validate-npm-package-license@^3.0.1:
   dependencies:
     spdx-correct "^3.0.0"
     spdx-expression-parse "^3.0.0"
+
+validator@^13.7.0:
+  version "13.7.0"
+  resolved "https://registry.yarnpkg.com/validator/-/validator-13.7.0.tgz#4f9658ba13ba8f3d82ee881d3516489ea85c0857"
+  integrity sha512-nYXQLCBkpJ8X6ltALua9dRrZDHVYxjJ1wgskNt1lH9fzGjs3tgojGSCBjmEPwkWS1y29+DrizMTW19Pr9uB2nw==
 
 w3c-hr-time@^1.0.2:
   version "1.0.2"

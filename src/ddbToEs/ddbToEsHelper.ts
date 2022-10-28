@@ -9,6 +9,7 @@ import { Client } from '@elastic/elasticsearch';
 // @ts-ignore
 import { AmazonConnection, AmazonTransport } from 'aws-elasticsearch-connector';
 import { uniqWith, isEqual, partition, groupBy, zipObject } from 'lodash';
+import { metricScope, Unit } from 'aws-embedded-metrics';
 import AWS from '../AWS';
 import ESBulkCommand, { OperationType } from './ESBulkCommand';
 import { DOCUMENT_STATUS_FIELD } from '../dataServices/dynamoDbUtil';
@@ -54,6 +55,22 @@ const getDefaultESClientFromEnvVars: () => Client = () => {
         Transport: AmazonTransport,
     });
 };
+
+const logEndToEndTimes = metricScope((metrics) => async (lastUpdatedDates: string[]) => {
+    try {
+        const currentTime = new Date().getTime();
+        lastUpdatedDates.forEach((lastUpdatedDate) => {
+            metrics.putMetric(
+                'ddbToESEndToEndLatency',
+                currentTime - new Date(lastUpdatedDate).getTime(),
+                Unit.Milliseconds,
+            );
+        });
+    } catch (e) {
+        // best effort to log the metrics so just log the error
+        logger.error('Failed to setup ddbToESEndToEndLatency metrics', { e });
+    }
+});
 
 export default class DdbToEsHelper {
     public ElasticSearch: Client;
@@ -256,5 +273,9 @@ export default class DdbToEsHelper {
             return true;
         }
         return record.dynamodb.NewImage.documentStatus.S === DELETED && process.env.ENABLE_ES_HARD_DELETE === 'true';
+    }
+
+    static async logEndToEndTimes(lastUpdatedDates: string[]) {
+        return logEndToEndTimes(lastUpdatedDates);
     }
 }

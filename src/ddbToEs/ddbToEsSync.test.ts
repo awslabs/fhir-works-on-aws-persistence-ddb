@@ -3,17 +3,18 @@
  *  SPDX-License-Identifier: Apache-2.0
  *
  */
-
 import { DdbToEsSync } from './ddbToEsSync';
 import DdbToEsHelper from './ddbToEsHelper';
 
 const ddbHelperCreateIndexAndAliasIfNotExistMock = jest.fn();
 const ddbHelperExecuteEsCmds = jest.fn();
+const logEndToEndTimesMock = jest.fn();
 
 // @ts-ignore
 DdbToEsHelper.prototype.createIndexAndAliasIfNotExist = ddbHelperCreateIndexAndAliasIfNotExistMock;
 // @ts-ignore
 DdbToEsHelper.prototype.executeEsCmds = ddbHelperExecuteEsCmds;
+DdbToEsHelper.logEndToEndTimes = logEndToEndTimesMock;
 
 const EVENT = {
     Records: [
@@ -45,6 +46,16 @@ const EVENT = {
                     },
                     resourceType: {
                         S: 'Patient',
+                    },
+                    meta: {
+                        M: {
+                            lastUpdated: {
+                                S: '2022-10-28T19:55:59.958Z',
+                            },
+                            vid: {
+                                S: '1',
+                            },
+                        },
                     },
                 },
                 SequenceNumber: '330610500000000075165486233',
@@ -93,6 +104,16 @@ const EVENT_MULTITENANCY = {
                     },
                     resourceType: {
                         S: 'Patient',
+                    },
+                    meta: {
+                        M: {
+                            lastUpdated: {
+                                S: '2022-10-28T19:55:59.958Z',
+                            },
+                            vid: {
+                                S: '1',
+                            },
+                        },
                     },
                 },
                 SequenceNumber: '330610500000000075165486233',
@@ -143,6 +164,10 @@ describe('DdbToEsSync', () => {
                         "doc": Object {
                           "documentStatus": "AVAILABLE",
                           "id": "b75eef29-4d3b-4454-ba27-6436e55d6a29",
+                          "meta": Object {
+                            "lastUpdated": "2022-10-28T19:55:59.958Z",
+                            "vid": "1",
+                          },
                           "resourceType": "Patient",
                           "vid": 1,
                         },
@@ -193,6 +218,10 @@ describe('DdbToEsSync', () => {
                           "_tenantId": "tenant1",
                           "documentStatus": "AVAILABLE",
                           "id": "b75eef29-4d3b-4454-ba27-6436e55d6a29",
+                          "meta": Object {
+                            "lastUpdated": "2022-10-28T19:55:59.958Z",
+                            "vid": "1",
+                          },
                           "resourceType": "Patient",
                           "vid": 1,
                         },
@@ -271,6 +300,10 @@ describe('DdbToEsSync', () => {
                         "doc": Object {
                           "documentStatus": "AVAILABLE",
                           "id": "b75eef29-4d3b-4454-ba27-6436e55d6a29",
+                          "meta": Object {
+                            "lastUpdated": "2022-10-28T19:55:59.958Z",
+                            "vid": "1",
+                          },
                           "resourceType": "Patient",
                           "vid": 1,
                         },
@@ -284,5 +317,16 @@ describe('DdbToEsSync', () => {
               ],
             ]
         `);
+    });
+
+    test('writes e2e metric', async () => {
+        const ddbToEsSync = new DdbToEsSync();
+
+        await ddbToEsSync.handleDDBStreamEvent(EVENT);
+
+        expect(logEndToEndTimesMock.mock.calls.length).toBe(1);
+        expect(logEndToEndTimesMock.mock.calls[0].length).toBe(1);
+        expect(logEndToEndTimesMock.mock.calls[0][0].length).toBe(1);
+        expect(logEndToEndTimesMock.mock.calls[0][0][0]).toBe("2022-10-28T19:55:59.958Z");
     });
 });
