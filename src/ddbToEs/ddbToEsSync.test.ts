@@ -327,6 +327,6 @@ describe('DdbToEsSync', () => {
         expect(logEndToEndTimesMock.mock.calls.length).toBe(1);
         expect(logEndToEndTimesMock.mock.calls[0].length).toBe(1);
         expect(logEndToEndTimesMock.mock.calls[0][0].length).toBe(1);
-        expect(logEndToEndTimesMock.mock.calls[0][0][0]).toBe("2022-10-28T19:55:59.958Z");
+        expect(logEndToEndTimesMock.mock.calls[0][0][0]).toBe('2022-10-28T19:55:59.958Z');
     });
 });
