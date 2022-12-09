@@ -4,7 +4,7 @@
  */
 import * as AWSMock from 'aws-sdk-mock';
 import AWS from 'aws-sdk';
-import { BatchReadWriteRequest, BatchReadWriteResponse } from 'fhir-works-on-aws-interface';
+import { BatchReadWriteRequest, BatchReadWriteResponse, ResourceNotFoundError } from 'fhir-works-on-aws-interface';
 import sinon = require('sinon');
 import { QueryInput } from 'aws-sdk/clients/dynamodb';
 import DynamoDbBundleServiceHelper from './dynamoDbBundleServiceHelper';
@@ -602,14 +602,103 @@ describe('sortBatchRequests', () => {
             },
         ];
 
+        // resource exists
         const ddbHelper = new DynamoDbHelper(new AWS.DynamoDB());
         sinon.stub(ddbHelper, 'getMostRecentUserReadableResource').callsFake(function stubbedGet() {
             return Promise.resolve(readResource);
+        });
+
+        const ddbHelper2 = new DynamoDbHelper(new AWS.DynamoDB());
+        sinon.stub(ddbHelper2, 'getMostRecentUserReadableResource').callsFake(function stubbedGet() {
+            throw new ResourceNotFoundError('Patient', 'read');
         });
 
         const actualResponse = await DynamoDbBundleServiceHelper.sortBatchRequests(operations, ddbHelper);
         expect(actualResponse.batchReadWriteResponses).toMatchObject(expectedBatchReadWriteResponses);
         expect(actualResponse.deleteRequests).toMatchObject(expectedDeleteRequests);
         expect(actualResponse.writeRequests).toMatchObject([...expectedCreateRequests, ...expectedUpdateRequests]);
+
+        const updateCreateSupportedResponse = await DynamoDbBundleServiceHelper.sortBatchRequests(operations, ddbHelper, undefined, true);
+        expect(updateCreateSupportedResponse.batchReadWriteResponses).toMatchObject(expectedBatchReadWriteResponses);
+        expect(updateCreateSupportedResponse.deleteRequests).toMatchObject(expectedDeleteRequests);
+        expect(updateCreateSupportedResponse.writeRequests).toMatchObject([...expectedCreateRequests, ...expectedUpdateRequests]);
+
+        const expectedCreateRequests2 = [
+            {
+                PutRequest: {
+                    Item: DynamoDBConverter.marshall(readResource),
+                },
+                originalRequestIndex: 2,
+            },
+            {
+                PutRequest: {
+                    Item: DynamoDBConverter.marshall(writeResource),
+                },
+                originalRequestIndex: 3,
+            },
+        ];
+        const expectedBatchReadWriteResponses2: BatchReadWriteResponse[] = [
+            {
+                id: readResource.resource.id,
+                vid: '0',
+                operation: 'read',
+                resourceType: 'Patient',
+                resource: {},
+                lastModified: '',
+                error: '404 Not Found'
+            },
+            {
+                id: 'read',
+                lastModified: '',
+                operation: 'delete',
+                resource: {},
+                resourceType: 'Patient',
+                vid: '0',
+                error: '404 Not Found'
+            },
+            {
+                id: 'read',
+                lastModified: expect.stringMatching(utcTimeRegExp),
+                operation: 'update',
+                resource: {
+                    message: 'Resource found',
+                    resource: [Object],
+                    id: 'read',
+                    vid: 1,
+                    meta: [Object],
+                    documentStatus: 'AVAILABLE',
+                    _references: []
+                  },
+                resourceType: 'Patient',
+                vid: '1',
+            },
+            {
+                id: 'write',
+                lastModified: expect.stringMatching(utcTimeRegExp),
+                operation: 'create',
+                resourceType: 'Patient',
+                vid: '1',
+                resource: {
+                    resourceType: 'Patient',
+                    meta: {
+                        versionId: '1',
+                    },
+                    id: 'write',
+                    active: true,
+                    gender: 'male',
+                    birthDate: '1974-12-25',
+                    vid: 1,
+                },
+            },
+        ];
+
+        const updateCreateSupportedResponse2 = await DynamoDbBundleServiceHelper.sortBatchRequests(operations, ddbHelper2, undefined, true);
+        console.log(updateCreateSupportedResponse2.batchReadWriteResponses)
+        console.log(expectedBatchReadWriteResponses2)
+        //expect(updateCreateSupportedResponse2.batchReadWriteResponses).toMatchObject(expectedBatchReadWriteResponses2);
+        // expect(updateCreateSupportedResponse2.deleteRequests).toMatchObject(expectedDeleteRequests);
+        expect(updateCreateSupportedResponse2.writeRequests).toMatchObject([...expectedCreateRequests2]);
+
+
     });
 });
