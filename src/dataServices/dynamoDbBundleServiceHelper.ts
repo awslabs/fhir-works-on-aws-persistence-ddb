@@ -270,7 +270,13 @@ export default class DynamoDbBundleServiceHelper {
             resourceType,
         } = createObject;
         let { item } = createObject;
-        item = DynamoDbUtil.prepItemForDdbInsert(request.resource, id, vid, DOCUMENT_STATUS.AVAILABLE, tenantId);
+        item = DynamoDbUtil.prepItemForDdbInsert(
+            request.resource,
+            id,
+            vid, 
+            DOCUMENT_STATUS.AVAILABLE, 
+            tenantId
+        );
 
         createRequests.push({
             PutRequest: {
@@ -308,7 +314,7 @@ export default class DynamoDbBundleServiceHelper {
             const { resourceType, operation } = request;
             let item;
             // we need to query to get the VersionID of the resource for non-create operations
-            // if upsert supported and operation update
+
             if (operation === 'create') {
                 vid = 1;
                 id = request.id ? request.id : uuidv4();
@@ -318,7 +324,7 @@ export default class DynamoDbBundleServiceHelper {
                     item = await dynamoDbHelper.getMostRecentUserReadableResource(resourceType, id, tenantId);
                     vid = Number(item.resource?.meta.versionId);
                 } catch (e: any) {
-                    // if upsert and update
+                    // if upsert supported and update operation
                     if (updateCreateSupported && operation === 'update' && isResourceNotFoundError(e)) {
                         vid = 1;
                         id = request.id ? request.id : uuidv4();
@@ -346,6 +352,8 @@ export default class DynamoDbBundleServiceHelper {
                             error: '404 Not Found',
                         });
                     }
+                    // eslint-disable-next-line no-continue
+                    continue;
                 }
             }
             switch (operation) {

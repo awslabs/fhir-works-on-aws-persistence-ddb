@@ -668,17 +668,19 @@ describe('sortBatchRequests', () => {
                 id: 'read',
                 lastModified: expect.stringMatching(utcTimeRegExp),
                 operation: 'update',
-                resource: {
-                    message: 'Resource found',
-                    resource: [Object],
-                    id: 'read',
-                    vid: 1,
-                    meta: [Object],
-                    documentStatus: 'AVAILABLE',
-                    _references: [],
-                },
                 resourceType: 'Patient',
                 vid: '1',
+                resource: {
+                    // resourceType: 'Patient',
+                    meta: {
+                        versionId: '1',
+                    },
+                    id: 'read',
+                    // active: true,
+                    // gender: 'male',
+                    // birthDate: '1974-12-25',
+                    vid: 1,
+                },
             },
             {
                 id: 'write',
@@ -706,9 +708,10 @@ describe('sortBatchRequests', () => {
             undefined,
             true,
         );
+
         console.log(updateCreateSupportedResponse2.batchReadWriteResponses);
-        console.log(expectedBatchReadWriteResponses2);
-        // expect(updateCreateSupportedResponse2.batchReadWriteResponses).toMatchObject(expectedBatchReadWriteResponses2);
+        // console.log(expectedBatchReadWriteResponses2);
+        expect(updateCreateSupportedResponse2.batchReadWriteResponses).toMatchObject(expectedBatchReadWriteResponses2);
         // expect(updateCreateSupportedResponse2.deleteRequests).toMatchObject(expectedDeleteRequests);
         expect(updateCreateSupportedResponse2.writeRequests).toMatchObject([...expectedCreateRequests2]);
     });
