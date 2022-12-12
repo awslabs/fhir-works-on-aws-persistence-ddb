@@ -708,11 +708,7 @@ describe('sortBatchRequests', () => {
             undefined,
             true,
         );
-
-        console.log(updateCreateSupportedResponse2.batchReadWriteResponses);
-        // console.log(expectedBatchReadWriteResponses2);
         expect(updateCreateSupportedResponse2.batchReadWriteResponses).toMatchObject(expectedBatchReadWriteResponses2);
-        // expect(updateCreateSupportedResponse2.deleteRequests).toMatchObject(expectedDeleteRequests);
         expect(updateCreateSupportedResponse2.writeRequests).toMatchObject([...expectedCreateRequests2]);
     });
 });
