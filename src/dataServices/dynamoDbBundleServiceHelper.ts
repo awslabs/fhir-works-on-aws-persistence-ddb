@@ -270,13 +270,7 @@ export default class DynamoDbBundleServiceHelper {
             resourceType,
         } = createObject;
         let { item } = createObject;
-        item = DynamoDbUtil.prepItemForDdbInsert(
-            request.resource,
-            id,
-            vid, 
-            DOCUMENT_STATUS.AVAILABLE, 
-            tenantId
-        );
+        item = DynamoDbUtil.prepItemForDdbInsert(request.resource, id, vid, DOCUMENT_STATUS.AVAILABLE, tenantId);
 
         createRequests.push({
             PutRequest: {
