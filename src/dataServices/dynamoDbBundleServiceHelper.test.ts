@@ -671,14 +671,10 @@ describe('sortBatchRequests', () => {
                 resourceType: 'Patient',
                 vid: '1',
                 resource: {
-                    // resourceType: 'Patient',
                     meta: {
                         versionId: '1',
                     },
                     id: 'read',
-                    // active: true,
-                    // gender: 'male',
-                    // birthDate: '1974-12-25',
                     vid: 1,
                 },
             },
