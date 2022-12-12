@@ -258,18 +258,19 @@ export default class DynamoDbBundleServiceHelper {
         return { stagingResponse, itemLocked };
     }
 
-    private static async createBatchResource(createObject: any ) {
-        let { item, request, id, vid, tenantId, createRequests, 
-            originalRequestIndex, batchReadWriteResponses, 
-            resourceType} = createObject
-
-        item = DynamoDbUtil.prepItemForDdbInsert(
-            request.resource,
+    private static async createBatchResource(createObject: any) {
+        const {
+            request,
             id,
             vid,
-            DOCUMENT_STATUS.AVAILABLE,
             tenantId,
-        );
+            createRequests,
+            originalRequestIndex,
+            batchReadWriteResponses,
+            resourceType,
+        } = createObject;
+        let { item } = createObject;
+        item = DynamoDbUtil.prepItemForDdbInsert(request.resource, id, vid, DOCUMENT_STATUS.AVAILABLE, tenantId);
 
         createRequests.push({
             PutRequest: {
@@ -321,13 +322,18 @@ export default class DynamoDbBundleServiceHelper {
                     if (updateCreateSupported && operation === 'update' && isResourceNotFoundError(e)) {
                         vid = 1;
                         id = request.id ? request.id : uuidv4();
-                        let createObject =  {
-                            item, request, id, 
-                            vid, tenantId, createRequests, 
-                            originalRequestIndex, batchReadWriteResponses, 
-                            resourceType
-                        }
-                        this.createBatchResource(createObject) 
+                        const createObject = {
+                            item,
+                            request,
+                            id,
+                            vid,
+                            tenantId,
+                            createRequests,
+                            originalRequestIndex,
+                            batchReadWriteResponses,
+                            resourceType,
+                        };
+                        this.createBatchResource(createObject);
                     } else {
                         console.log(`Failed to find resource ${id}`);
                         batchReadWriteResponses.push({
@@ -340,19 +346,22 @@ export default class DynamoDbBundleServiceHelper {
                             error: '404 Not Found',
                         });
                     }
-                    continue;
                 }
             }
             switch (operation) {
                 case 'create': {
-                    let createObject =  {
-                        item, request, id, 
-                        vid, tenantId, createRequests, 
-                        originalRequestIndex, batchReadWriteResponses, 
-                        resourceType
-
-                    }
-                    this.createBatchResource(createObject)
+                    const createObject = {
+                        item,
+                        request,
+                        id,
+                        vid,
+                        tenantId,
+                        createRequests,
+                        originalRequestIndex,
+                        batchReadWriteResponses,
+                        resourceType,
+                    };
+                    this.createBatchResource(createObject);
                     break;
                 }
                 case 'update': {

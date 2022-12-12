@@ -55,7 +55,7 @@ export class DynamoDbBundleService implements Bundle {
     /**
      *
      * @param dynamoDb
-     * @param supportUpdateCreate - support upsert 
+     * @param supportUpdateCreate - support upsert
      * @param maxExecutionTimeMs
      * @param options.enableMultiTenancy - whether or not to enable multi-tenancy. When enabled a tenantId is required for all requests.
      * @param options.versionedLinks Data structure to control for which resourceTypes (key) which references (array of paths) should be modified,

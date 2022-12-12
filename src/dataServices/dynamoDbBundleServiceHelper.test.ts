@@ -618,10 +618,18 @@ describe('sortBatchRequests', () => {
         expect(actualResponse.deleteRequests).toMatchObject(expectedDeleteRequests);
         expect(actualResponse.writeRequests).toMatchObject([...expectedCreateRequests, ...expectedUpdateRequests]);
 
-        const updateCreateSupportedResponse = await DynamoDbBundleServiceHelper.sortBatchRequests(operations, ddbHelper, undefined, true);
+        const updateCreateSupportedResponse = await DynamoDbBundleServiceHelper.sortBatchRequests(
+            operations,
+            ddbHelper,
+            undefined,
+            true,
+        );
         expect(updateCreateSupportedResponse.batchReadWriteResponses).toMatchObject(expectedBatchReadWriteResponses);
         expect(updateCreateSupportedResponse.deleteRequests).toMatchObject(expectedDeleteRequests);
-        expect(updateCreateSupportedResponse.writeRequests).toMatchObject([...expectedCreateRequests, ...expectedUpdateRequests]);
+        expect(updateCreateSupportedResponse.writeRequests).toMatchObject([
+            ...expectedCreateRequests,
+            ...expectedUpdateRequests,
+        ]);
 
         const expectedCreateRequests2 = [
             {
@@ -645,7 +653,7 @@ describe('sortBatchRequests', () => {
                 resourceType: 'Patient',
                 resource: {},
                 lastModified: '',
-                error: '404 Not Found'
+                error: '404 Not Found',
             },
             {
                 id: 'read',
@@ -654,7 +662,7 @@ describe('sortBatchRequests', () => {
                 resource: {},
                 resourceType: 'Patient',
                 vid: '0',
-                error: '404 Not Found'
+                error: '404 Not Found',
             },
             {
                 id: 'read',
@@ -667,8 +675,8 @@ describe('sortBatchRequests', () => {
                     vid: 1,
                     meta: [Object],
                     documentStatus: 'AVAILABLE',
-                    _references: []
-                  },
+                    _references: [],
+                },
                 resourceType: 'Patient',
                 vid: '1',
             },
@@ -692,13 +700,16 @@ describe('sortBatchRequests', () => {
             },
         ];
 
-        const updateCreateSupportedResponse2 = await DynamoDbBundleServiceHelper.sortBatchRequests(operations, ddbHelper2, undefined, true);
-        console.log(updateCreateSupportedResponse2.batchReadWriteResponses)
-        console.log(expectedBatchReadWriteResponses2)
-        //expect(updateCreateSupportedResponse2.batchReadWriteResponses).toMatchObject(expectedBatchReadWriteResponses2);
+        const updateCreateSupportedResponse2 = await DynamoDbBundleServiceHelper.sortBatchRequests(
+            operations,
+            ddbHelper2,
+            undefined,
+            true,
+        );
+        console.log(updateCreateSupportedResponse2.batchReadWriteResponses);
+        console.log(expectedBatchReadWriteResponses2);
+        // expect(updateCreateSupportedResponse2.batchReadWriteResponses).toMatchObject(expectedBatchReadWriteResponses2);
         // expect(updateCreateSupportedResponse2.deleteRequests).toMatchObject(expectedDeleteRequests);
         expect(updateCreateSupportedResponse2.writeRequests).toMatchObject([...expectedCreateRequests2]);
-
-
     });
 });
