@@ -470,55 +470,68 @@ describe('processBatchRequests', () => {
 });
 
 describe('sortBatchRequests', () => {
-    test('CRUD operations', async () => {
-        const readResource = {
-            message: 'Resource found',
-            resource: {
-                resourceType: 'Patient',
-                meta: {
-                    versionId: '1',
-                },
-                id: 'read',
-                active: true,
-                gender: 'male',
-                birthDate: '1974-12-25',
-                vid: 1,
+    const readResource = {
+        message: 'Resource found',
+        resource: {
+            resourceType: 'Patient',
+            meta: {
+                versionId: '1',
             },
-        };
-        const writeResource = {
-            ...readResource.resource,
+            id: 'read',
+            active: true,
+            gender: 'male',
+            birthDate: '1974-12-25',
+            vid: 1,
+        },
+    };
+    const writeResource = {
+        ...readResource.resource,
+        id: 'write',
+    };
+    const operations: BatchReadWriteRequest[] = [
+        {
+            operation: 'read',
+            resource: '/Patient/read',
+            fullUrl: '',
+            resourceType: 'Patient',
+            id: 'read',
+        },
+        {
+            operation: 'delete',
+            resource: '/Patient/read',
+            fullUrl: '',
+            resourceType: 'Patient',
+            id: 'read',
+        },
+        {
+            operation: 'update',
+            resource: readResource,
+            resourceType: 'Patient',
+            id: 'read',
+        },
+        {
+            operation: 'create',
+            resource: writeResource,
+            fullUrl: '',
+            resourceType: 'Patient',
             id: 'write',
-        };
-        const operations: BatchReadWriteRequest[] = [
-            {
-                operation: 'read',
-                resource: '/Patient/read',
-                fullUrl: '',
-                resourceType: 'Patient',
-                id: 'read',
-            },
-            {
-                operation: 'delete',
-                resource: '/Patient/read',
-                fullUrl: '',
-                resourceType: 'Patient',
-                id: 'read',
-            },
-            {
-                operation: 'update',
-                resource: readResource,
-                resourceType: 'Patient',
-                id: 'read',
-            },
-            {
-                operation: 'create',
-                resource: writeResource,
-                fullUrl: '',
-                resourceType: 'Patient',
-                id: 'write',
-            },
-        ];
-
+        },
+    ];
+    test('CRUD operations updateCreateSupported=false', async () => {
+        // const readResource = {
+        //     message: 'Resource found',
+        //     resource: {
+        //         resourceType: 'Patient',
+        //         meta: {
+        //             versionId: '1',
+        //         },
+        //         id: 'read',
+        //         active: true,
+        //         gender: 'male',
+        //         birthDate: '1974-12-25',
+        //         vid: 1,
+        //     },
+        // }
         const expectedBatchReadWriteResponses: BatchReadWriteResponse[] = [
             {
                 id: readResource.resource.id,

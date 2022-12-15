@@ -258,34 +258,27 @@ export default class DynamoDbBundleServiceHelper {
         return { stagingResponse, itemLocked };
     }
 
-    private static async createBatchResource(createObject: any) {
-        const {
-            request,
-            id,
-            vid,
-            tenantId,
-            createRequests,
-            originalRequestIndex,
-            batchReadWriteResponses,
-            resourceType,
-        } = createObject;
+    private static createBatchResource(createObject: any) {
+        const { request, id, vid, tenantId, originalRequestIndex, resourceType } = createObject;
         let { item } = createObject;
         item = DynamoDbUtil.prepItemForDdbInsert(request.resource, id, vid, DOCUMENT_STATUS.AVAILABLE, tenantId);
 
-        createRequests.push({
+        const createItem = {
             PutRequest: {
                 Item: DynamoDBConverter.marshall(item),
             },
             originalRequestIndex,
-        });
-        batchReadWriteResponses.push({
+        };
+        const batchReadWriteItem = {
             id,
             vid: item.meta.versionId,
             operation: request.operation,
             lastModified: item.meta.lastUpdated,
             resourceType,
             resource: item,
-        });
+        };
+
+        return { createItem, batchReadWriteItem };
     }
 
     static async sortBatchRequests(
@@ -328,12 +321,12 @@ export default class DynamoDbBundleServiceHelper {
                             id,
                             vid,
                             tenantId,
-                            createRequests,
                             originalRequestIndex,
-                            batchReadWriteResponses,
                             resourceType,
                         };
-                        this.createBatchResource(createObject);
+                        const { createItem, batchReadWriteItem } = this.createBatchResource(createObject);
+                        createRequests.push(createItem);
+                        batchReadWriteResponses.push(batchReadWriteItem);
                     } else {
                         console.log(`Failed to find resource ${id}`);
                         batchReadWriteResponses.push({
@@ -358,12 +351,12 @@ export default class DynamoDbBundleServiceHelper {
                         id,
                         vid,
                         tenantId,
-                        createRequests,
                         originalRequestIndex,
-                        batchReadWriteResponses,
                         resourceType,
                     };
-                    this.createBatchResource(createObject);
+                    const { createItem, batchReadWriteItem } = this.createBatchResource(createObject);
+                    createRequests.push(createItem);
+                    batchReadWriteResponses.push(batchReadWriteItem);
                     break;
                 }
                 case 'update': {
