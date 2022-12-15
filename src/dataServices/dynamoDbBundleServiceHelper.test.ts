@@ -517,21 +517,20 @@ describe('sortBatchRequests', () => {
             id: 'write',
         },
     ];
+
+    // resource exists
+    const ddbHelperReturnReadResource = new DynamoDbHelper(new AWS.DynamoDB());
+    sinon.stub(ddbHelperReturnReadResource, 'getMostRecentUserReadableResource').callsFake(function stubbedGet() {
+        return Promise.resolve(readResource);
+    });
+
+    // resource does not exist
+    const ddbHelperResourceNotFound = new DynamoDbHelper(new AWS.DynamoDB());
+    sinon.stub(ddbHelperResourceNotFound, 'getMostRecentUserReadableResource').callsFake(function stubbedGet() {
+        throw new ResourceNotFoundError('Patient', 'read');
+    });
+
     test('CRUD operations updateCreateSupported=false', async () => {
-        // const readResource = {
-        //     message: 'Resource found',
-        //     resource: {
-        //         resourceType: 'Patient',
-        //         meta: {
-        //             versionId: '1',
-        //         },
-        //         id: 'read',
-        //         active: true,
-        //         gender: 'male',
-        //         birthDate: '1974-12-25',
-        //         vid: 1,
-        //     },
-        // }
         const expectedBatchReadWriteResponses: BatchReadWriteResponse[] = [
             {
                 id: readResource.resource.id,
@@ -615,35 +614,29 @@ describe('sortBatchRequests', () => {
             },
         ];
 
-        // resource exists
-        const ddbHelper = new DynamoDbHelper(new AWS.DynamoDB());
-        sinon.stub(ddbHelper, 'getMostRecentUserReadableResource').callsFake(function stubbedGet() {
-            return Promise.resolve(readResource);
-        });
-
-        const ddbHelper2 = new DynamoDbHelper(new AWS.DynamoDB());
-        sinon.stub(ddbHelper2, 'getMostRecentUserReadableResource').callsFake(function stubbedGet() {
-            throw new ResourceNotFoundError('Patient', 'read');
-        });
-
-        const actualResponse = await DynamoDbBundleServiceHelper.sortBatchRequests(operations, ddbHelper);
-        expect(actualResponse.batchReadWriteResponses).toMatchObject(expectedBatchReadWriteResponses);
-        expect(actualResponse.deleteRequests).toMatchObject(expectedDeleteRequests);
-        expect(actualResponse.writeRequests).toMatchObject([...expectedCreateRequests, ...expectedUpdateRequests]);
-
-        const updateCreateSupportedResponse = await DynamoDbBundleServiceHelper.sortBatchRequests(
+        // read esource exists
+        const actualResponseReturnReadResource = await DynamoDbBundleServiceHelper.sortBatchRequests(
             operations,
-            ddbHelper,
-            undefined,
-            true,
+            ddbHelperReturnReadResource,
         );
-        expect(updateCreateSupportedResponse.batchReadWriteResponses).toMatchObject(expectedBatchReadWriteResponses);
-        expect(updateCreateSupportedResponse.deleteRequests).toMatchObject(expectedDeleteRequests);
-        expect(updateCreateSupportedResponse.writeRequests).toMatchObject([
+        expect(actualResponseReturnReadResource.batchReadWriteResponses).toMatchObject(expectedBatchReadWriteResponses);
+        expect(actualResponseReturnReadResource.deleteRequests).toMatchObject(expectedDeleteRequests);
+        expect(actualResponseReturnReadResource.writeRequests).toMatchObject([
             ...expectedCreateRequests,
             ...expectedUpdateRequests,
         ]);
 
+        // no resource exists - all operations should return the same results 
+        const actualResponseNoResource = await DynamoDbBundleServiceHelper.sortBatchRequests(
+            operations,
+            ddbHelperResourceNotFound,
+        );
+        expect(actualResponseNoResource.batchReadWriteResponses).toMatchObject(expectedBatchReadWriteResponses);
+        expect(actualResponseNoResource.deleteRequests).toMatchObject(expectedDeleteRequests);
+        expect(actualResponseNoResource.writeRequests).toMatchObject([...expectedCreateRequests, ...expectedUpdateRequests]);
+    });
+
+    test('CRUD operations updateCreateSupported=true', async () => {
         const expectedCreateRequests2 = [
             {
                 PutRequest: {
@@ -711,13 +704,30 @@ describe('sortBatchRequests', () => {
             },
         ];
 
-        const updateCreateSupportedResponse2 = await DynamoDbBundleServiceHelper.sortBatchRequests(
+        const updateCreateSupportedResponseReturnReadResource = await DynamoDbBundleServiceHelper.sortBatchRequests(
             operations,
-            ddbHelper2,
+            ddbHelperReturnReadResource,
             undefined,
             true,
         );
-        expect(updateCreateSupportedResponse2.batchReadWriteResponses).toMatchObject(expectedBatchReadWriteResponses2);
-        expect(updateCreateSupportedResponse2.writeRequests).toMatchObject([...expectedCreateRequests2]);
+        const updateCreateSupportedResponseResourceNotFound = await DynamoDbBundleServiceHelper.sortBatchRequests(
+            operations,
+            ddbHelperResourceNotFound,
+            undefined,
+            true,
+        );
+
+        expect(updateCreateSupportedResponseReturnReadResource.batchReadWriteResponses).toMatchObject(expectedBatchReadWriteResponses);
+        expect(updateCreateSupportedResponseReturnReadResource.deleteRequests).toMatchObject(expectedDeleteRequests);
+        expect(updateCreateSupportedResponseReturnReadResource.writeRequests).toMatchObject([
+            ...expectedCreateRequests,
+            ...expectedUpdateRequests,
+        ]);
+
+        // update operation wil create resource
+        expect(updateCreateSupportedResponseResourceNotFound.batchReadWriteResponses).toMatchObject(
+            expectedBatchReadWriteResponses2,
+        );
+        expect(updateCreateSupportedResponseResourceNotFound.writeRequests).toMatchObject([...expectedCreateRequests2]);
     });
 });
