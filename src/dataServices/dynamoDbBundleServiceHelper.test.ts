@@ -177,7 +177,7 @@ describe('generateRollbackRequests', () => {
         itemsToRemoveFromLock = itemsToRemoveFromLock.concat(expectedUpdateResult.itemsToRemoveFromLock);
         itemsToRemoveFromLock = itemsToRemoveFromLock.concat(expectedDeleteResult.itemsToRemoveFromLock);
 
-        itemsToRemoveFromLock = itemsToRemoveFromLock.filter((item: any) => item !== []);
+        itemsToRemoveFromLock = itemsToRemoveFromLock.filter((item: any) => item);
 
         let transactionRequests: any = [];
         transactionRequests = transactionRequests.concat(expectedCreateResult.transactionRequests);
@@ -185,7 +185,7 @@ describe('generateRollbackRequests', () => {
         transactionRequests = transactionRequests.concat(expectedUpdateResult.transactionRequests);
         transactionRequests = transactionRequests.concat(expectedDeleteResult.transactionRequests);
 
-        transactionRequests = transactionRequests.filter((req: any) => req !== []);
+        transactionRequests = transactionRequests.filter((req: any) => req);
 
         expect(actualResult).toEqual({ itemsToRemoveFromLock, transactionRequests });
     });
@@ -517,6 +517,136 @@ describe('sortBatchRequests', () => {
             id: 'write',
         },
     ];
+    const expectedBatchReadWriteResponsesResourceFound: BatchReadWriteResponse[] = [
+        {
+            id: readResource.resource.id,
+            vid: '1',
+            operation: 'read',
+            resourceType: 'Patient',
+            resource: {
+                resourceType: 'Patient',
+                meta: {
+                    versionId: '1',
+                },
+                id: 'read',
+                active: true,
+                gender: 'male',
+                birthDate: '1974-12-25',
+                vid: 1,
+            },
+            lastModified: '',
+        },
+        {
+            id: 'read',
+            lastModified: expect.stringMatching(utcTimeRegExp),
+            operation: 'delete',
+            resource: {},
+            resourceType: 'Patient',
+            vid: '1',
+        },
+        {
+            id: 'read',
+            lastModified: expect.stringMatching(utcTimeRegExp),
+            operation: 'update',
+            resource: {},
+            resourceType: 'Patient',
+            vid: '2',
+        },
+        {
+            id: 'write',
+            lastModified: expect.stringMatching(utcTimeRegExp),
+            operation: 'create',
+            resourceType: 'Patient',
+            vid: '1',
+            resource: {
+                resourceType: 'Patient',
+                meta: {
+                    versionId: '1',
+                },
+                id: 'write',
+                active: true,
+                gender: 'male',
+                birthDate: '1974-12-25',
+                vid: 1,
+            },
+        },
+    ];
+
+    const expectedBatchReadWriteResponsesNoResource: BatchReadWriteResponse[] = [
+        {
+            id: 'read',
+            vid: '0',
+            operation: 'read',
+            resourceType: 'Patient',
+            resource: {},
+            lastModified: '',
+            error: '404 Not Found',
+        },
+        {
+            id: 'read',
+            vid: '0',
+            operation: 'delete',
+            resourceType: 'Patient',
+            resource: {},
+            lastModified: '',
+            error: '404 Not Found',
+        },
+        {
+            id: 'read',
+            vid: '0',
+            operation: 'update',
+            resourceType: 'Patient',
+            resource: {},
+            lastModified: '',
+            error: '404 Not Found',
+        },
+        {
+            id: 'write',
+            lastModified: expect.stringMatching(utcTimeRegExp),
+            operation: 'create',
+            resourceType: 'Patient',
+            vid: '1',
+            resource: {
+                resourceType: 'Patient',
+                meta: {
+                    versionId: '1',
+                },
+                id: 'write',
+                active: true,
+                gender: 'male',
+                birthDate: '1974-12-25',
+                vid: 1,
+            },
+        },
+    ];
+
+    const expectedDeleteRequests = [
+        {
+            Statement: `
+                            UPDATE ""
+                            SET "documentStatus" = 'DELETED'
+                            WHERE "id" = 'read' AND "vid" = 1
+                        `,
+            originalRequestIndex: 1,
+        },
+    ];
+
+    const expectedCreateRequests = [
+        {
+            PutRequest: {
+                Item: DynamoDBConverter.marshall(writeResource),
+            },
+            originalRequestIndex: 3,
+        },
+    ];
+    const expectedUpdateRequests = [
+        {
+            PutRequest: {
+                Item: DynamoDBConverter.marshall(readResource),
+            },
+            originalRequestIndex: 2,
+        },
+    ];
 
     // resource exists
     const ddbHelperReturnReadResource = new DynamoDbHelper(new AWS.DynamoDB());
@@ -531,109 +661,34 @@ describe('sortBatchRequests', () => {
     });
 
     test('CRUD operations updateCreateSupported=false', async () => {
-        const expectedBatchReadWriteResponses: BatchReadWriteResponse[] = [
-            {
-                id: readResource.resource.id,
-                vid: '1',
-                operation: 'read',
-                resourceType: 'Patient',
-                resource: {
-                    resourceType: 'Patient',
-                    meta: {
-                        versionId: '1',
-                    },
-                    id: 'read',
-                    active: true,
-                    gender: 'male',
-                    birthDate: '1974-12-25',
-                    vid: 1,
-                },
-                lastModified: '',
-            },
-            {
-                id: 'read',
-                lastModified: expect.stringMatching(utcTimeRegExp),
-                operation: 'delete',
-                resource: {},
-                resourceType: 'Patient',
-                vid: '1',
-            },
-            {
-                id: 'read',
-                lastModified: expect.stringMatching(utcTimeRegExp),
-                operation: 'update',
-                resource: {},
-                resourceType: 'Patient',
-                vid: '2',
-            },
-            {
-                id: 'write',
-                lastModified: expect.stringMatching(utcTimeRegExp),
-                operation: 'create',
-                resourceType: 'Patient',
-                vid: '1',
-                resource: {
-                    resourceType: 'Patient',
-                    meta: {
-                        versionId: '1',
-                    },
-                    id: 'write',
-                    active: true,
-                    gender: 'male',
-                    birthDate: '1974-12-25',
-                    vid: 1,
-                },
-            },
-        ];
-
-        const expectedDeleteRequests = [
-            {
-                Statement: `
-                            UPDATE ""
-                            SET "documentStatus" = 'DELETED'
-                            WHERE "id" = 'read' AND "vid" = 1
-                        `,
-                originalRequestIndex: 1,
-            },
-        ];
-
-        const expectedCreateRequests = [
-            {
-                PutRequest: {
-                    Item: DynamoDBConverter.marshall(writeResource),
-                },
-                originalRequestIndex: 3,
-            },
-        ];
-        const expectedUpdateRequests = [
-            {
-                PutRequest: {
-                    Item: DynamoDBConverter.marshall(readResource),
-                },
-                originalRequestIndex: 2,
-            },
-        ];
-
         // read esource exists
         const actualResponseReturnReadResource = await DynamoDbBundleServiceHelper.sortBatchRequests(
             operations,
             ddbHelperReturnReadResource,
         );
-        expect(actualResponseReturnReadResource.batchReadWriteResponses).toMatchObject(expectedBatchReadWriteResponses);
+
+        expect(actualResponseReturnReadResource.batchReadWriteResponses).toMatchObject(
+            expectedBatchReadWriteResponsesResourceFound,
+        );
         expect(actualResponseReturnReadResource.deleteRequests).toMatchObject(expectedDeleteRequests);
         expect(actualResponseReturnReadResource.writeRequests).toMatchObject([
             ...expectedCreateRequests,
             ...expectedUpdateRequests,
         ]);
 
-        // no resource exists - all operations should return the same results 
+        // no resource exists - all operations should return the same results
         const actualResponseNoResource = await DynamoDbBundleServiceHelper.sortBatchRequests(
             operations,
             ddbHelperResourceNotFound,
         );
-        expect(actualResponseNoResource.batchReadWriteResponses).toMatchObject(expectedBatchReadWriteResponses);
-        expect(actualResponseNoResource.deleteRequests).toMatchObject(expectedDeleteRequests);
-        expect(actualResponseNoResource.writeRequests).toMatchObject([...expectedCreateRequests, ...expectedUpdateRequests]);
+        // if no resource is found only create will successfully run
+        expect(actualResponseNoResource.batchReadWriteResponses).toMatchObject(
+            expectedBatchReadWriteResponsesNoResource,
+        );
+
+        expect(actualResponseNoResource.deleteRequests).toMatchObject([]);
+
+        expect(actualResponseNoResource.writeRequests).toMatchObject([...expectedCreateRequests]);
     });
 
     test('CRUD operations updateCreateSupported=true', async () => {
@@ -717,7 +772,9 @@ describe('sortBatchRequests', () => {
             true,
         );
 
-        expect(updateCreateSupportedResponseReturnReadResource.batchReadWriteResponses).toMatchObject(expectedBatchReadWriteResponses);
+        expect(updateCreateSupportedResponseReturnReadResource.batchReadWriteResponses).toMatchObject(
+            expectedBatchReadWriteResponsesResourceFound,
+        );
         expect(updateCreateSupportedResponseReturnReadResource.deleteRequests).toMatchObject(expectedDeleteRequests);
         expect(updateCreateSupportedResponseReturnReadResource.writeRequests).toMatchObject([
             ...expectedCreateRequests,
