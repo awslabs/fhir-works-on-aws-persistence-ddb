@@ -55,7 +55,7 @@ export class DynamoDbBundleService implements Bundle {
     /**
      *
      * @param dynamoDb
-     * @param supportUpdateCreate
+     * @param supportUpdateCreate - support upsert
      * @param maxExecutionTimeMs
      * @param options.enableMultiTenancy - whether or not to enable multi-tenancy. When enabled a tenantId is required for all requests.
      * @param options.versionedLinks Data structure to control for which resourceTypes (key) which references (array of paths) should be modified,
@@ -120,6 +120,7 @@ export class DynamoDbBundleService implements Bundle {
             requests,
             new DynamoDbHelper(this.dynamoDb),
             tenantId,
+            this.updateCreateSupported,
         );
         try {
             // loop through all requests and send in batches of MAX allowed requests

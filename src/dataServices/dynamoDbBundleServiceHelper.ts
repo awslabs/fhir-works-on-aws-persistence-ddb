@@ -9,6 +9,7 @@ import {
     BatchReadWriteResponse,
     TypeOperation,
     SystemOperation,
+    isResourceNotFoundError,
 } from 'fhir-works-on-aws-interface';
 import { DynamoDB } from 'aws-sdk';
 import { buildHashKey, DOCUMENT_STATUS_FIELD, DynamoDbUtil } from './dynamoDbUtil';
@@ -257,10 +258,34 @@ export default class DynamoDbBundleServiceHelper {
         return { stagingResponse, itemLocked };
     }
 
+    private static createBatchResource(createObject: any) {
+        const { request, id, vid, tenantId, originalRequestIndex, resourceType } = createObject;
+        let { item } = createObject;
+        item = DynamoDbUtil.prepItemForDdbInsert(request.resource, id, vid, DOCUMENT_STATUS.AVAILABLE, tenantId);
+
+        const createItem = {
+            PutRequest: {
+                Item: DynamoDBConverter.marshall(item),
+            },
+            originalRequestIndex,
+        };
+        const batchReadWriteItem = {
+            id,
+            vid: item.meta.versionId,
+            operation: request.operation,
+            lastModified: item.meta.lastUpdated,
+            resourceType,
+            resource: item,
+        };
+
+        return { createItem, batchReadWriteItem };
+    }
+
     static async sortBatchRequests(
         requests: BatchReadWriteRequest[],
         dynamoDbHelper: DynamoDbHelper,
         tenantId?: string,
+        updateCreateSupported?: boolean,
     ) {
         const deleteRequests: any[] = [];
         const createRequests: any[] = [];
@@ -276,6 +301,7 @@ export default class DynamoDbBundleServiceHelper {
             const { resourceType, operation } = request;
             let item;
             // we need to query to get the VersionID of the resource for non-create operations
+
             if (operation === 'create') {
                 vid = 1;
                 id = request.id ? request.id : uuidv4();
@@ -285,44 +311,52 @@ export default class DynamoDbBundleServiceHelper {
                     item = await dynamoDbHelper.getMostRecentUserReadableResource(resourceType, id, tenantId);
                     vid = Number(item.resource?.meta.versionId);
                 } catch (e: any) {
-                    console.log(`Failed to find resource ${id}`);
-                    batchReadWriteResponses.push({
-                        id,
-                        vid: `${vid}`,
-                        operation,
-                        resourceType,
-                        resource: {},
-                        lastModified: '',
-                        error: '404 Not Found',
-                    });
+                    // if upsert supported and update operation
+                    if (updateCreateSupported && operation === 'update' && isResourceNotFoundError(e)) {
+                        vid = 1;
+                        id = request.id ? request.id : uuidv4();
+                        const createObject = {
+                            item,
+                            request,
+                            id,
+                            vid,
+                            tenantId,
+                            originalRequestIndex,
+                            resourceType,
+                        };
+                        const { createItem, batchReadWriteItem } = this.createBatchResource(createObject);
+                        createRequests.push(createItem);
+                        batchReadWriteResponses.push(batchReadWriteItem);
+                    } else {
+                        console.log(`Failed to find resource ${id}`);
+                        batchReadWriteResponses.push({
+                            id,
+                            vid: `${vid}`,
+                            operation,
+                            resourceType,
+                            resource: {},
+                            lastModified: '',
+                            error: '404 Not Found',
+                        });
+                    }
                     // eslint-disable-next-line no-continue
                     continue;
                 }
             }
             switch (operation) {
                 case 'create': {
-                    item = DynamoDbUtil.prepItemForDdbInsert(
-                        request.resource,
+                    const createObject = {
+                        item,
+                        request,
                         id,
                         vid,
-                        DOCUMENT_STATUS.AVAILABLE,
                         tenantId,
-                    );
-
-                    createRequests.push({
-                        PutRequest: {
-                            Item: DynamoDBConverter.marshall(item),
-                        },
                         originalRequestIndex,
-                    });
-                    batchReadWriteResponses.push({
-                        id,
-                        vid: item.meta.versionId,
-                        operation: request.operation,
-                        lastModified: item.meta.lastUpdated,
                         resourceType,
-                        resource: item,
-                    });
+                    };
+                    const { createItem, batchReadWriteItem } = this.createBatchResource(createObject);
+                    createRequests.push(createItem);
+                    batchReadWriteResponses.push(batchReadWriteItem);
                     break;
                 }
                 case 'update': {
