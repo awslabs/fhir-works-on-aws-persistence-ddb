@@ -692,7 +692,7 @@ describe('sortBatchRequests', () => {
     });
 
     test('CRUD operations updateCreateSupported=true', async () => {
-        const expectedCreateRequests2 = [
+        const expectedCreateRequestsUpsert = [
             {
                 PutRequest: {
                     Item: DynamoDBConverter.marshall(readResource),
@@ -706,7 +706,7 @@ describe('sortBatchRequests', () => {
                 originalRequestIndex: 3,
             },
         ];
-        const expectedBatchReadWriteResponses2: BatchReadWriteResponse[] = [
+        const expectedBatchReadWriteResponsesUpsert: BatchReadWriteResponse[] = [
             {
                 id: readResource.resource.id,
                 vid: '0',
@@ -783,8 +783,10 @@ describe('sortBatchRequests', () => {
 
         // update operation wil create resource
         expect(updateCreateSupportedResponseResourceNotFound.batchReadWriteResponses).toMatchObject(
-            expectedBatchReadWriteResponses2,
+            expectedBatchReadWriteResponsesUpsert,
         );
-        expect(updateCreateSupportedResponseResourceNotFound.writeRequests).toMatchObject([...expectedCreateRequests2]);
+        expect(updateCreateSupportedResponseResourceNotFound.writeRequests).toMatchObject([
+            ...expectedCreateRequestsUpsert,
+        ]);
     });
 });
