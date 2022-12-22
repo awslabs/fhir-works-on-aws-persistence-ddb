@@ -107,10 +107,11 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
     async vReadResource(request: vReadResourceRequest): Promise<GenericResponse> {
         this.assertValidTenancyMode(request.tenantId);
         const { resourceType, id, vid, tenantId } = request;
-        if (Number.isNaN(Number(vid))) {
+        const vidNumber = parseInt(vid, 10);
+        if (!vidNumber) {
             throw new UnauthorizedError('Invalid versionId');
         }
-        const params = DynamoDbParamBuilder.buildGetItemParam(id, parseInt(vid, 10), tenantId);
+        const params = DynamoDbParamBuilder.buildGetItemParam(id, vidNumber, tenantId);
         const result = await this.dynamoDb.getItem(params).promise();
         if (result.Item === undefined) {
             throw new ResourceVersionNotFoundError(resourceType, id, vid);
