@@ -19,7 +19,7 @@ import {
     GetExportStatusResponse,
     InitiateExportRequest,
     InvalidResourceError,
-    InvalidSearchParameterError,
+    BadRequestError,
     isResourceNotFoundError,
     PatchResourceRequest,
     Persistence,
@@ -110,7 +110,7 @@ export class DynamoDbDataService implements Persistence, BulkDataAccess {
         const { resourceType, id, vid, tenantId } = request;
         const vidNumber = parseInt(vid, 10);
         if (!vidNumber) {
-            throw new InvalidSearchParameterError('Invalid versionId');
+            throw new BadRequestError('Invalid versionId');
         }
         const params = DynamoDbParamBuilder.buildGetItemParam(id, vidNumber, tenantId);
         const result = await this.dynamoDb.getItem(params).promise();
