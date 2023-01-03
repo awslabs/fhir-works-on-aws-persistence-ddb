@@ -20,6 +20,7 @@ import {
     isResourceNotFoundError,
     isInvalidResourceError,
     UnauthorizedError,
+    BadRequestError,
 } from 'fhir-works-on-aws-interface';
 import { TooManyConcurrentExportRequestsError } from 'fhir-works-on-aws-interface/lib/errors/TooManyConcurrentExportRequestsError';
 import each from 'jest-each';
@@ -226,6 +227,25 @@ describe('READ', () => {
         // OPERATE, CHECK
         await expect(dynamoDbDataService.vReadResource({ resourceType, id, vid })).rejects.toThrowError(
             new ResourceVersionNotFoundError(resourceType, id, vid),
+        );
+    });
+
+    test('ERROR: Get Versioned Resource: Bad Request vid', async () => {
+        // BUILD
+        const id = '8cafa46d-08b4-4ee4-b51b-803e20ae8126';
+        const vid = 'five';
+        const resourceType = 'Patient';
+
+        // READ items (Success)
+        AWSMock.mock('DynamoDB', 'getItem', (params: GetItemInput, callback: Function) => {
+            callback(null, { Item: undefined });
+        });
+
+        const dynamoDbDataService = new DynamoDbDataService(new AWS.DynamoDB());
+
+        // OPERATE, CHECK
+        await expect(dynamoDbDataService.vReadResource({ resourceType, id, vid })).rejects.toThrowError(
+            new BadRequestError('Invalid versionId'),
         );
     });
 
